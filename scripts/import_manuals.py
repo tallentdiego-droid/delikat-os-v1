@@ -184,9 +184,14 @@ def iter_docx_blocks(document: DocxDocument) -> Iterable[DocxBlock]:
                 yield DocxBlock(kind="table", text=f"[TABLE {table_index}]\n{text}")
 
 
-def document_metadata(path: Path, document: DocxDocument, block_count: int) -> dict[str, Any]:
+def document_metadata(
+    source_path: Path,
+    relative_path: Path,
+    document: DocxDocument,
+    block_count: int,
+) -> dict[str, Any]:
     props = document.core_properties
-    stat = path.stat()
+    stat = source_path.stat()
     core_properties = {
         "author": props.author,
         "category": props.category,
@@ -205,9 +210,9 @@ def document_metadata(path: Path, document: DocxDocument, block_count: int) -> d
         "version": props.version,
     }
     return {
-        "original_filename": path.name,
-        "relative_path": path.as_posix(),
-        "manual_code": manual_code_from_filename(path),
+        "original_filename": source_path.name,
+        "relative_path": relative_path.as_posix(),
+        "manual_code": manual_code_from_filename(source_path),
         "file_size_bytes": stat.st_size,
         "file_modified_at_utc": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
         "docx_block_count": block_count,
@@ -225,7 +230,8 @@ def read_manual(path: Path, root_dir: Path) -> ManualRecord:
     if not full_text:
         raise ValueError(f"Manual has no readable text: {path}")
 
-    metadata = document_metadata(path.relative_to(root_dir), document, len(blocks))
+    relative_path = path.relative_to(root_dir)
+    metadata = document_metadata(path, relative_path, document, len(blocks))
     file_hash = sha256_bytes(path.read_bytes())
     metadata["file_sha256"] = file_hash
 
