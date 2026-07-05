@@ -192,13 +192,6 @@ interface SourceManualRow {
   captured_at: string;
 }
 
-interface RelationshipTypeRow {
-  id: string;
-  code: RelationshipKind;
-  name: string;
-  description: string | null;
-}
-
 interface RelationshipRow {
   id: string;
   source_knowledge_id: string;
@@ -259,6 +252,20 @@ async function selectByIds<T extends { id: string }>(
   const { data, error } = await client.from(table).select(columns).in('id', uniqueIds);
   if (error) throw error;
   return (data ?? []) as unknown as T[];
+}
+
+async function selectVersionsByKnowledgeIds(knowledgeIds: string[]): Promise<KnowledgeVersionRow[]> {
+  const client = ensureSupabase();
+  const uniqueIds = Array.from(new Set(knowledgeIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const { data, error } = await client
+    .from('os_knowledge_versions')
+    .select('id,knowledge_id,version_number,body,status,approved_at,created_at,updated_at')
+    .in('knowledge_id', uniqueIds);
+
+  if (error) throw error;
+  return (data ?? []) as KnowledgeVersionRow[];
 }
 
 function buildCategories(objects: KnowledgeObject[]): KnowledgeCategory[] {
@@ -443,14 +450,14 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   const knowledgeIds = canonicalRows.map((row) => row.id);
   const currentVersionIds = canonicalRows.flatMap((row) => (row.current_approved_version_id ? [row.current_approved_version_id] : []));
 
-  const versionRows = await selectByIds<KnowledgeVersionRow>(
+  const currentVersionRows = await selectByIds<KnowledgeVersionRow>(
     'os_knowledge_versions',
     currentVersionIds,
     'id,knowledge_id,version_number,body,status,approved_at,created_at,updated_at',
   );
 
   const currentVersions = new Map(
-    versionRows
+    currentVersionRows
       .filter((row) => row.status === 'approved')
       .map((row) => [row.id, row]),
   );
@@ -458,12 +465,15 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   const approvedKnowledge = canonicalRows.filter(
     (row) => row.current_approved_version_id && currentVersions.has(row.current_approved_version_id),
   );
+  const approvedKnowledgeIds = approvedKnowledge.map((row) => row.id);
+
+  const allVersionRows = await selectVersionsByKnowledgeIds(approvedKnowledgeIds);
 
   const { data: evidenceData, error: evidenceError } = await client
     .from('os_evidence_links')
     .select('id,object_id,source_section_id')
     .eq('object_type', 'canonical_knowledge')
-    .in('object_id', knowledgeIds);
+    .in('object_id', approvedKnowledgeIds);
 
   if (evidenceError) throw evidenceError;
 
@@ -505,7 +515,8 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   }
 
   const allVersionsByKnowledge = new Map<string, KnowledgeVersion[]>();
-  for (const row of versionRows) {
+  const versionHistoryRows = allVersionRows.length > 0 ? allVersionRows : currentVersionRows;
+  for (const row of versionHistoryRows) {
     const version: KnowledgeVersion = {
       id: row.id,
       knowledgeId: row.knowledge_id,

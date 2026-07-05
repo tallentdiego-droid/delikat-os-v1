@@ -252,6 +252,10 @@ button {
   color: #9f1d1d;
 }
 
+.actionNotice {
+  justify-content: space-between;
+}
+
 .statusStrip {
   border: 1px solid #cde5d6;
   background: #f5fbf7;
@@ -385,11 +389,32 @@ pre {
 }
 
 .loadingPanel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   border: 1px solid #dce3ec;
   border-radius: 8px;
   background: #ffffff;
   color: #607086;
   padding: 24px;
+}
+
+.loadingPanel strong {
+  display: block;
+  color: #172033;
+}
+
+.loadingPanel p {
+  margin: 4px 0 0;
+}
+
+.loadingPulse {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #d9e2ec;
+  border-top-color: #101820;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
 }
 
 .tabs {
@@ -425,6 +450,14 @@ pre {
 
 .knowledgeToolbar {
   grid-template-columns: minmax(280px, 1fr) 150px minmax(220px, 320px);
+}
+
+.globalSearch {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 0;
+  background: #f5f7fa;
 }
 
 .wideSelect {
@@ -548,10 +581,84 @@ pre {
   padding: 14px;
 }
 
+.emptyState.refined {
+  display: grid;
+  gap: 4px;
+  border-style: dashed;
+  color: #607086;
+}
+
+.inlineAction {
+  margin-left: 10px;
+}
+
+.countGrid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) minmax(220px, 1fr);
+  gap: 12px;
+}
+
+.countPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.countPanel h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.countList {
+  display: grid;
+  gap: 7px;
+}
+
+.countList span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 7px;
+  color: #607086;
+  padding: 7px 9px;
+}
+
+.countList strong {
+  min-width: 0;
+  color: #172033;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactCounts {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+
+.compactCounts span {
+  display: grid;
+  justify-items: start;
+}
+
 .splitPanel,
 .objectLayout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.manualBrowser {
+  display: grid;
+  grid-template-columns: 160px 300px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -615,9 +722,13 @@ pre {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  background: #ffffff;
   border: 1px solid #e1e8f0;
   border-radius: 7px;
+  color: #172033;
   padding: 8px;
+  text-align: left;
 }
 
 .miniObject span {
@@ -626,6 +737,11 @@ pre {
 
 .miniObject small {
   color: #64748b;
+}
+
+.quietText {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .tableWrap {
@@ -704,6 +820,20 @@ tbody tr:hover,
   color: #4c5d73;
   font-size: 12px;
   padding: 4px 8px;
+}
+
+.categoryObjects button {
+  border: 1px solid #e1e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4c5d73;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.categoryObjects button:hover {
+  border-color: #b8c6d8;
+  color: #172033;
 }
 
 .relationshipMatrix {
@@ -867,6 +997,53 @@ tbody tr:hover,
   opacity: 0.6;
 }
 
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(15 23 42 / 38%);
+}
+
+.detailDrawer {
+  width: min(860px, 100%);
+  height: 100vh;
+  overflow: auto;
+  border-left: 1px solid #dce3ec;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: -20px 0 60px rgb(15 23 42 / 20%);
+}
+
+.drawerClose {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  border: 1px solid #cfd8e5;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 7px 9px;
+}
+
+.objectDetailContent {
+  display: grid;
+  gap: 18px;
+}
+
+.objectDetailContent h4 {
+  margin: 0 0 10px;
+  letter-spacing: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 860px) {
   .appShell {
     grid-template-columns: 1fr;
@@ -886,10 +1063,12 @@ tbody tr:hover,
   .toolbar,
   .knowledgeToolbar,
   .metricGrid,
+  .countGrid,
   .expandedEvidence,
   .detailGrid,
   .splitPanel,
   .objectLayout,
+  .manualBrowser,
   .graphLayout,
   .relationshipColumns,
   .relationshipMatrix {

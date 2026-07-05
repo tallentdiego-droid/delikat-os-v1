@@ -5,7 +5,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undef
 
 export const supabaseConfigError =
   !supabaseUrl || !supabaseAnonKey
-    ? 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.'
+    ? 'Knowledge Engine is not connected yet. Ask an administrator to add the Supabase URL and anon key in the deployment environment.'
     : null;
 
 export const supabase = supabaseConfigError

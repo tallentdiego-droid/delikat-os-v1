@@ -4,16 +4,15 @@ import {
   AlertCircle,
   BookOpen,
   Boxes,
-  ChevronDown,
   ChevronRight,
   FileText,
   GitBranch,
   Layers3,
   ListTree,
   Search,
+  X,
 } from 'lucide-react';
 import {
-  createKnowledgeRelationship,
   getKnowledgeEngineData,
   previewText,
   type KnowledgeCategory,
@@ -23,10 +22,22 @@ import {
   type KnowledgeRelationship,
   type KnowledgeRelationshipType,
   type KnowledgeVersion,
+  type ManualCode,
   type ManualFilter,
 } from '../../lib/knowledge';
 
 type KnowledgeTab = 'search' | 'manuals' | 'objects' | 'categories' | 'relationships' | 'versions';
+
+interface CountItem {
+  label: string;
+  count: number;
+}
+
+interface KnowledgeCounts {
+  byManual: CountItem[];
+  byCategory: CountItem[];
+  byRelationshipType: CountItem[];
+}
 
 const manualOptions: Array<ManualFilter> = ['all', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
@@ -48,6 +59,11 @@ function normalized(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function fileLabel(sourceUri: string): string {
+  const parts = sourceUri.split('/');
+  return parts[parts.length - 1] || sourceUri || 'Source file';
+}
+
 function matchesObject(object: KnowledgeObject, query: string): boolean {
   const needle = normalized(query);
   if (!needle) return true;
@@ -57,6 +73,7 @@ function matchesObject(object: KnowledgeObject, query: string): boolean {
     object.summary ?? '',
     object.category,
     object.manualTitle,
+    object.sourceFileUri,
     object.sourceSectionHeading,
     object.approvedVersion.body,
     ...object.evidence.map((item) => item.sourceSectionBody),
@@ -75,67 +92,141 @@ function filterObjects(
     .filter((object) => matchesObject(object, query));
 }
 
+function buildCounts(data: KnowledgeEngineData): KnowledgeCounts {
+  const manualCounts = new Map<string, number>();
+  const categoryCounts = new Map<string, number>();
+  const relationshipCounts = new Map<string, number>();
+
+  for (const object of data.objects) {
+    const manual = object.manualCode ?? 'Uncoded';
+    manualCounts.set(manual, (manualCounts.get(manual) ?? 0) + 1);
+    categoryCounts.set(object.category, (categoryCounts.get(object.category) ?? 0) + 1);
+  }
+
+  for (const type of data.relationshipTypes) {
+    relationshipCounts.set(type.name, 0);
+  }
+
+  for (const relationship of data.relationships) {
+    relationshipCounts.set(relationship.typeName, (relationshipCounts.get(relationship.typeName) ?? 0) + 1);
+  }
+
+  const byManual = Array.from(manualCounts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const byCategory = Array.from(categoryCounts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const byRelationshipType = Array.from(relationshipCounts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return { byManual, byCategory, byRelationshipType };
+}
+
+function friendlyError(reason: unknown): string {
+  if (!(reason instanceof Error)) {
+    return 'Knowledge Engine could not load. Please try again in a moment.';
+  }
+
+  if (reason.message.includes('Supabase') || reason.message.includes('deployment environment')) {
+    return reason.message;
+  }
+
+  return 'Knowledge Engine could not reach the approved knowledge database. Ask an administrator to check the Supabase connection and read policies.';
+}
+
+function EmptyState({
+  title,
+  message,
+}: {
+  title: string;
+  message: string;
+}): JSX.Element {
+  return (
+    <div className="emptyState refined">
+      <h3>{title}</h3>
+      <p>{message}</p>
+    </div>
+  );
+}
+
 function EngineShell({
   children,
   data,
   error,
   isLoading,
+  onRetry,
 }: {
   children: ReactNode;
   data: KnowledgeEngineData | null;
   error: string | null;
   isLoading: boolean;
+  onRetry: () => void;
 }): JSX.Element {
   return (
     <section className="pageStack knowledgeEngine">
       <div className="sectionHeader">
         <div>
           <h2>Knowledge</h2>
-          <p>Permanent source of truth for approved Delikat OS knowledge.</p>
+          <p>Read-only operating knowledge from approved Supabase records.</p>
         </div>
         <div className="engineStats" aria-label="Knowledge engine counts">
-          <span>{data?.manuals.length ?? '...'} manuals</span>
+          <span>{data?.manuals.length ?? '...'} files</span>
           <span>{data?.objects.length ?? '...'} objects</span>
-          <span>{data?.categories.length ?? '...'} categories</span>
+          <span>{data?.relationships.length ?? '...'} relationships</span>
         </div>
       </div>
 
       {error && (
-        <div className="notice error">
+        <div className="notice error actionNotice">
           <AlertCircle aria-hidden="true" size={18} />
           <span>{error}</span>
+          <button className="tableLink" onClick={onRetry} type="button">
+            Retry
+          </button>
         </div>
       )}
 
-      {isLoading ? <div className="loadingPanel">Loading Knowledge Engine...</div> : children}
+      {isLoading ? (
+        <div className="loadingPanel">
+          <div className="loadingPulse" />
+          <div>
+            <strong>Loading Knowledge Engine</strong>
+            <p>Fetching approved objects, evidence, versions, and relationships.</p>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </section>
   );
 }
 
-function FilterBar({
+function GlobalSearch({
   categories,
-  category,
-  manualCode,
   query,
+  manualCode,
+  category,
   onCategoryChange,
   onManualChange,
   onQueryChange,
 }: {
   categories: KnowledgeCategory[];
-  category: string;
-  manualCode: ManualFilter;
   query: string;
+  manualCode: ManualFilter;
+  category: string;
   onCategoryChange: (value: string) => void;
   onManualChange: (value: ManualFilter) => void;
   onQueryChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <div className="toolbar knowledgeToolbar" role="search">
+    <div className="toolbar knowledgeToolbar globalSearch" role="search">
       <label className="searchField">
         <Search aria-hidden="true" size={17} />
         <input
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Full text search across title, body, evidence, manual, and section"
+          placeholder="Search all knowledge objects, evidence, manuals, and headings"
           value={query}
         />
       </label>
@@ -164,7 +255,51 @@ function FilterBar({
   );
 }
 
+function CountStrip({ counts }: { counts: KnowledgeCounts }): JSX.Element {
+  return (
+    <div className="countGrid">
+      <section className="countPanel">
+        <h3>By manual</h3>
+        <div className="countList compactCounts">
+          {counts.byManual.map((item) => (
+            <span key={item.label}>
+              <strong>{item.label}</strong>
+              {item.count}
+            </span>
+          ))}
+        </div>
+      </section>
+      <section className="countPanel">
+        <h3>By category</h3>
+        <div className="countList">
+          {counts.byCategory.slice(0, 6).map((item) => (
+            <span key={item.label}>
+              <strong>{item.label}</strong>
+              {item.count}
+            </span>
+          ))}
+        </div>
+      </section>
+      <section className="countPanel">
+        <h3>By relationship type</h3>
+        <div className="countList compactCounts">
+          {counts.byRelationshipType.map((item) => (
+            <span key={item.label}>
+              <strong>{item.label}</strong>
+              {item.count}
+            </span>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function EvidenceBlock({ object }: { object: KnowledgeObject }): JSX.Element {
+  if (object.evidence.length === 0) {
+    return <EmptyState title="No evidence attached" message="This object is approved but has no visible source evidence." />;
+  }
+
   return (
     <div className="evidenceList">
       {object.evidence.map((item) => (
@@ -173,7 +308,7 @@ function EvidenceBlock({ object }: { object: KnowledgeObject }): JSX.Element {
             <span>Source manual</span>
             <strong>{item.sourceManualTitle}</strong>
             <span>Source file</span>
-            <strong>{item.sourceFileUri}</strong>
+            <strong>{fileLabel(item.sourceFileUri)}</strong>
             <span>Source section</span>
             <strong>{item.sourceSectionHeading}</strong>
             <span>Hash</span>
@@ -209,268 +344,6 @@ function VersionTimeline({
   );
 }
 
-function RelatedKnowledgeList({
-  object,
-  onOpenObject,
-}: {
-  object: KnowledgeObject;
-  onOpenObject?: (knowledgeId: string) => void;
-}): JSX.Element {
-  if (object.related.length === 0) {
-    return <div className="emptyInline">No relationships recorded in Supabase yet.</div>;
-  }
-
-  return (
-    <div className="relatedList">
-      {object.related.map((item) => (
-        <div className="relatedRow" key={`${item.relationship.id}-${item.direction}`}>
-          <span className={item.direction === 'incoming' ? 'relationshipBadge incoming' : 'relationshipBadge outgoing'}>
-            {item.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
-          </span>
-          <strong>{item.object.title}</strong>
-          <span>{item.relationship.typeName}</span>
-          <span>{item.object.status}</span>
-          <span>{item.object.manualCode ?? item.object.manualTitle}</span>
-          {onOpenObject && (
-            <button className="tableLink" onClick={() => onOpenObject(item.object.id)} type="button">
-              Open
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ObjectDetail({
-  object,
-  onOpenObject,
-}: {
-  object: KnowledgeObject;
-  onOpenObject?: (knowledgeId: string) => void;
-}): JSX.Element {
-  return (
-    <article className="detailPanel">
-      <div className="detailHeader">
-        <div>
-          <h3>{object.title}</h3>
-          <div className="sourceLine">
-            <span>{object.category}</span>
-            <span>{object.status}</span>
-            <span>Version {object.approvedVersion.versionNumber}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="detailGrid">
-        <div>
-          <h4>Approved version</h4>
-          <pre>{object.approvedVersion.body}</pre>
-        </div>
-        <div>
-          <h4>Version history</h4>
-          <VersionTimeline currentVersionId={object.currentApprovedVersionId} versions={object.versions} />
-        </div>
-      </div>
-
-      <h4>Evidence</h4>
-      <EvidenceBlock object={object} />
-
-      <h4>Related knowledge</h4>
-      <RelatedKnowledgeList object={object} onOpenObject={onOpenObject} />
-    </article>
-  );
-}
-
-function SearchScreen({
-  categories,
-  objects,
-}: {
-  categories: KnowledgeCategory[];
-  objects: KnowledgeObject[];
-}): JSX.Element {
-  const [query, setQuery] = useState('');
-  const [manualCode, setManualCode] = useState<ManualFilter>('all');
-  const [category, setCategory] = useState('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const results = useMemo(
-    () => filterObjects(objects, query, manualCode, category),
-    [category, manualCode, objects, query],
-  );
-
-  return (
-    <div className="tabPanel">
-      <FilterBar
-        categories={categories}
-        category={category}
-        manualCode={manualCode}
-        onCategoryChange={setCategory}
-        onManualChange={setManualCode}
-        onQueryChange={setQuery}
-        query={query}
-      />
-      <div className="resultsMeta">{results.length} approved knowledge object{results.length === 1 ? '' : 's'}</div>
-      <div className="resultList">
-        {results.map((object) => {
-          const isExpanded = expandedId === object.id;
-          return (
-            <article className="resultCard" key={object.id}>
-              <div className="resultHeader">
-                <div>
-                  <h3>{object.title}</h3>
-                  <div className="sourceLine">
-                    <span>{object.category}</span>
-                    <span>Approved v{object.approvedVersion.versionNumber}</span>
-                    <span>{object.sourceSectionHeading}</span>
-                  </div>
-                </div>
-                <button className="iconTextButton" onClick={() => setExpandedId(isExpanded ? null : object.id)} type="button">
-                  {isExpanded ? <ChevronDown aria-hidden="true" size={16} /> : <ChevronRight aria-hidden="true" size={16} />}
-                  <span>{isExpanded ? 'Close' : 'Open'}</span>
-                </button>
-              </div>
-              <p className="previewText">{object.preview}</p>
-              <div className="evidenceSummary">
-                <strong>{object.manualTitle}</strong>
-                <span>{object.sourceFileUri}</span>
-              </div>
-              {isExpanded && <ObjectDetail object={object} onOpenObject={setExpandedId} />}
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ManualsScreen({
-  manuals,
-  objects,
-}: {
-  manuals: KnowledgeManual[];
-  objects: KnowledgeObject[];
-}): JSX.Element {
-  const [selectedManualId, setSelectedManualId] = useState<string | null>(manuals[0]?.id ?? null);
-  const selectedManual = manuals.find((manual) => manual.id === selectedManualId) ?? manuals[0];
-  const objectsById = new Map(objects.map((object) => [object.id, object]));
-
-  return (
-    <div className="splitPanel">
-      <div className="listPanel">
-        {manuals.map((manual) => (
-          <button
-            className={manual.id === selectedManual?.id ? 'listButton active' : 'listButton'}
-            key={manual.id}
-            onClick={() => setSelectedManualId(manual.id)}
-            type="button"
-          >
-            <span>{manual.manualCode ?? 'Manual'}</span>
-            <strong>{manual.title}</strong>
-            <small>{manual.sections.length} sections</small>
-          </button>
-        ))}
-      </div>
-      {selectedManual && (
-        <div className="detailPanel">
-          <h3>{selectedManual.title}</h3>
-          <div className="evidenceGrid compact">
-            <span>Manual</span>
-            <strong>{selectedManual.category}</strong>
-            <span>Source file</span>
-            <strong>{selectedManual.sourceUri}</strong>
-            <span>Captured</span>
-            <strong>{dateLabel(selectedManual.capturedAt)}</strong>
-          </div>
-
-          <div className="sectionTree">
-            {selectedManual.sections.map((section) => (
-              <article className="sectionNode" key={section.id}>
-                <h4>{section.heading}</h4>
-                <p>{previewText(section.body, 180)}</p>
-                <div className="nestedObjects">
-                  {section.knowledgeIds.map((knowledgeId) => {
-                    const object = objectsById.get(knowledgeId);
-                    if (!object) return null;
-                    return (
-                      <div className="miniObject" key={knowledgeId}>
-                        <FileText aria-hidden="true" size={15} />
-                        <span>{object.title}</span>
-                        <small>{object.evidence.length} evidence link{object.evidence.length === 1 ? '' : 's'}</small>
-                      </div>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ObjectsScreen({ objects }: { objects: KnowledgeObject[] }): JSX.Element {
-  const [selectedId, setSelectedId] = useState<string | null>(objects[0]?.id ?? null);
-  const selectedObject = objects.find((object) => object.id === selectedId) ?? objects[0];
-
-  return (
-    <div className="objectLayout">
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Manual</th>
-              <th>Version</th>
-              <th>Last Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {objects.map((object) => (
-              <tr className={object.id === selectedObject?.id ? 'selectedRow' : ''} key={object.id}>
-                <td>
-                  <button className="tableLink" onClick={() => setSelectedId(object.id)} type="button">
-                    {object.title}
-                  </button>
-                </td>
-                <td>{object.category}</td>
-                <td>{object.status}</td>
-                <td>{object.manualCode ?? object.manualTitle}</td>
-                <td>{object.approvedVersion.versionNumber}</td>
-                <td>{dateLabel(object.updatedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {selectedObject && <ObjectDetail object={selectedObject} onOpenObject={setSelectedId} />}
-    </div>
-  );
-}
-
-function CategoriesScreen({ categories }: { categories: KnowledgeCategory[] }): JSX.Element {
-  return (
-    <div className="categoryGrid">
-      {categories.map((category) => (
-        <article className="categoryPanel" key={category.name}>
-          <div className="categoryHeader">
-            <h3>{category.name}</h3>
-            <strong>{category.count}</strong>
-          </div>
-          <div className="categoryObjects">
-            {category.objects.slice(0, 8).map((object) => (
-              <span key={object.id}>{object.title}</span>
-            ))}
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
 function RelationshipList({
   direction,
   relationships,
@@ -481,7 +354,12 @@ function RelationshipList({
   onOpenObject: (knowledgeId: string) => void;
 }): JSX.Element {
   if (relationships.length === 0) {
-    return <div className="emptyInline">No {direction} relationships.</div>;
+    return (
+      <EmptyState
+        title={`No ${direction} relationships`}
+        message="No approved graph relationships are recorded for this object yet."
+      />
+    );
   }
 
   return (
@@ -494,10 +372,12 @@ function RelationshipList({
 
         return (
           <article className="graphRow" key={relationship.id}>
-            <span className="relationshipBadge">{relationship.typeName}</span>
+            <span className={direction === 'incoming' ? 'relationshipBadge incoming' : 'relationshipBadge outgoing'}>
+              {relationship.typeName}
+            </span>
             <div>
               <strong>{relatedTitle}</strong>
-              <p>{relationship.notes || 'No notes'}</p>
+              <p>{relationship.notes || 'No notes recorded'}</p>
             </div>
             <span>{relatedStatus}</span>
             <span>{relatedManual}</span>
@@ -511,143 +391,352 @@ function RelationshipList({
   );
 }
 
-function RelationshipModal({
-  objects,
-  relationshipTypes,
-  selectedSourceId,
+function ObjectDetailContent({
+  object,
+  relationships,
+  onOpenObject,
+}: {
+  object: KnowledgeObject;
+  relationships: KnowledgeRelationship[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  const incoming = relationships.filter((relationship) => relationship.toKnowledgeId === object.id);
+  const outgoing = relationships.filter((relationship) => relationship.fromKnowledgeId === object.id);
+
+  return (
+    <article className="objectDetailContent">
+      <div className="detailHeader">
+        <div>
+          <h3>{object.title}</h3>
+          <div className="sourceLine">
+            <span>{object.status}</span>
+            <span>{object.manualCode ?? object.manualTitle}</span>
+            <span>{object.category}</span>
+            <span>Approved v{object.approvedVersion.versionNumber}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="detailGrid">
+        <section>
+          <h4>Approved body</h4>
+          <pre>{object.approvedVersion.body}</pre>
+        </section>
+        <section>
+          <h4>Version history</h4>
+          <VersionTimeline currentVersionId={object.currentApprovedVersionId} versions={object.versions} />
+        </section>
+      </div>
+
+      <section>
+        <h4>Source evidence</h4>
+        <EvidenceBlock object={object} />
+      </section>
+
+      <div className="relationshipColumns">
+        <section>
+          <h4>Incoming relationships</h4>
+          <RelationshipList direction="incoming" onOpenObject={onOpenObject} relationships={incoming} />
+        </section>
+        <section>
+          <h4>Outgoing relationships</h4>
+          <RelationshipList direction="outgoing" onOpenObject={onOpenObject} relationships={outgoing} />
+        </section>
+      </div>
+    </article>
+  );
+}
+
+function ObjectDrawer({
+  object,
+  relationships,
   onClose,
-  onSaved,
+  onOpenObject,
+}: {
+  object: KnowledgeObject | null;
+  relationships: KnowledgeRelationship[];
+  onClose: () => void;
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element | null {
+  if (!object) return null;
+
+  return (
+    <div className="drawerBackdrop" role="presentation">
+      <aside aria-label="Knowledge object detail" className="detailDrawer">
+        <button className="drawerClose" onClick={onClose} type="button">
+          <X aria-hidden="true" size={18} />
+          <span>Close</span>
+        </button>
+        <ObjectDetailContent object={object} onOpenObject={onOpenObject} relationships={relationships} />
+      </aside>
+    </div>
+  );
+}
+
+function ObjectCard({
+  object,
+  onOpenObject,
+}: {
+  object: KnowledgeObject;
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  return (
+    <article className="resultCard">
+      <div className="resultHeader">
+        <div>
+          <h3>{object.title}</h3>
+          <div className="sourceLine">
+            <span>{object.category}</span>
+            <span>{object.sourceSectionHeading}</span>
+            <span>{object.related.length} relationships</span>
+          </div>
+        </div>
+        <button className="iconTextButton" onClick={() => onOpenObject(object.id)} type="button">
+          <ChevronRight aria-hidden="true" size={16} />
+          <span>Open</span>
+        </button>
+      </div>
+      <p className="previewText">{object.preview}</p>
+      <div className="evidenceSummary">
+        <strong>{object.manualTitle}</strong>
+        <span>{fileLabel(object.sourceFileUri)}</span>
+      </div>
+    </article>
+  );
+}
+
+function SearchScreen({
+  objects,
+  onOpenObject,
 }: {
   objects: KnowledgeObject[];
-  relationshipTypes: KnowledgeRelationshipType[];
-  selectedSourceId: string;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
+  onOpenObject: (knowledgeId: string) => void;
 }): JSX.Element {
-  const [sourceKnowledgeId, setSourceKnowledgeId] = useState(selectedSourceId);
-  const [targetKnowledgeId, setTargetKnowledgeId] = useState(objects.find((object) => object.id !== selectedSourceId)?.id ?? '');
-  const [relationshipTypeId, setRelationshipTypeId] = useState(relationshipTypes[0]?.id ?? '');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  async function saveRelationship(): Promise<void> {
-    setError(null);
-
-    if (sourceKnowledgeId === targetKnowledgeId) {
-      setError('Source and target must be different knowledge objects.');
-      return;
-    }
-
-    const sourceObject = objects.find((object) => object.id === sourceKnowledgeId);
-    if (
-      sourceObject?.related.some(
-        (item) =>
-          item.direction === 'outgoing' &&
-          item.object.id === targetKnowledgeId &&
-          item.relationship.typeId === relationshipTypeId,
-      )
-    ) {
-      setError('That relationship already exists.');
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await createKnowledgeRelationship({
-        sourceKnowledgeId,
-        targetKnowledgeId,
-        relationshipTypeId,
-        notes,
-      });
-      await onSaved();
-      onClose();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to save relationship.');
-    } finally {
-      setIsSaving(false);
-    }
+  if (objects.length === 0) {
+    return <EmptyState title="No knowledge found" message="No approved knowledge objects match the current filters." />;
   }
 
   return (
-    <div className="modalBackdrop" role="presentation">
-      <div aria-modal="true" className="modalPanel" role="dialog">
-        <div className="detailHeader">
-          <div>
-            <h3>Create relationship</h3>
-            <p>Manual Knowledge Graph link</p>
-          </div>
-          <button className="iconTextButton" onClick={onClose} type="button">
-            Close
+    <div className="resultList">
+      {objects.map((object) => (
+        <ObjectCard key={object.id} object={object} onOpenObject={onOpenObject} />
+      ))}
+    </div>
+  );
+}
+
+function ManualsScreen({
+  manuals,
+  objects,
+  onOpenObject,
+}: {
+  manuals: KnowledgeManual[];
+  objects: KnowledgeObject[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  const manualCodes = useMemo(() => {
+    const byCode = new Map<string, KnowledgeManual[]>();
+    for (const manual of manuals) {
+      const code = manual.manualCode ?? 'Uncoded';
+      byCode.set(code, [...(byCode.get(code) ?? []), manual]);
+    }
+    return Array.from(byCode.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [manuals]);
+
+  const [selectedCode, setSelectedCode] = useState<string>(manualCodes[0]?.[0] ?? '');
+  const files = manualCodes.find(([code]) => code === selectedCode)?.[1] ?? manualCodes[0]?.[1] ?? [];
+  const [selectedFileId, setSelectedFileId] = useState<string>(files[0]?.id ?? '');
+  const selectedFile = files.find((manual) => manual.id === selectedFileId) ?? files[0];
+  const objectsById = new Map(objects.map((object) => [object.id, object]));
+
+  useEffect(() => {
+    if (!manualCodes.some(([code]) => code === selectedCode)) {
+      setSelectedCode(manualCodes[0]?.[0] ?? '');
+    }
+  }, [manualCodes, selectedCode]);
+
+  useEffect(() => {
+    const nextFiles = manualCodes.find(([code]) => code === selectedCode)?.[1] ?? [];
+    if (!nextFiles.some((manual) => manual.id === selectedFileId)) {
+      setSelectedFileId(nextFiles[0]?.id ?? '');
+    }
+  }, [manualCodes, selectedCode, selectedFileId]);
+
+  if (manualCodes.length === 0) {
+    return <EmptyState title="No manuals visible" message="No source manuals are available through the approved knowledge policy." />;
+  }
+
+  return (
+    <div className="manualBrowser">
+      <div className="listPanel">
+        {manualCodes.map(([code, codeFiles]) => (
+          <button
+            className={code === selectedCode ? 'listButton active' : 'listButton'}
+            key={code}
+            onClick={() => setSelectedCode(code)}
+            type="button"
+          >
+            <span>Manual</span>
+            <strong>{code}</strong>
+            <small>{codeFiles.length} file{codeFiles.length === 1 ? '' : 's'}</small>
           </button>
-        </div>
-
-        <label className="formField">
-          <span>Source</span>
-          <select onChange={(event) => setSourceKnowledgeId(event.target.value)} value={sourceKnowledgeId}>
-            {objects.map((object) => (
-              <option key={object.id} value={object.id}>
-                {object.title}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="formField">
-          <span>Relationship Type</span>
-          <select onChange={(event) => setRelationshipTypeId(event.target.value)} value={relationshipTypeId}>
-            {relationshipTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="formField">
-          <span>Target</span>
-          <select onChange={(event) => setTargetKnowledgeId(event.target.value)} value={targetKnowledgeId}>
-            {objects.map((object) => (
-              <option disabled={object.id === sourceKnowledgeId} key={object.id} value={object.id}>
-                {object.title}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="formField">
-          <span>Notes</span>
-          <textarea onChange={(event) => setNotes(event.target.value)} value={notes} />
-        </label>
-
-        {error && (
-          <div className="notice error">
-            <AlertCircle aria-hidden="true" size={18} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button className="primaryButton" disabled={isSaving} onClick={saveRelationship} type="button">
-          {isSaving ? 'Saving...' : 'Save'}
-        </button>
+        ))}
       </div>
+
+      <div className="listPanel">
+        {files.map((manual) => (
+          <button
+            className={manual.id === selectedFile?.id ? 'listButton active' : 'listButton'}
+            key={manual.id}
+            onClick={() => setSelectedFileId(manual.id)}
+            type="button"
+          >
+            <span>{manual.manualCode ?? 'File'}</span>
+            <strong>{fileLabel(manual.sourceUri)}</strong>
+            <small>{manual.sections.length} source sections</small>
+          </button>
+        ))}
+      </div>
+
+      {selectedFile ? (
+        <div className="detailPanel">
+          <h3>{selectedFile.title}</h3>
+          <div className="evidenceGrid compact">
+            <span>Manual</span>
+            <strong>{selectedFile.category}</strong>
+            <span>Source file</span>
+            <strong>{selectedFile.sourceUri}</strong>
+            <span>Captured</span>
+            <strong>{dateLabel(selectedFile.capturedAt)}</strong>
+          </div>
+
+          <div className="sectionTree">
+            {selectedFile.sections.map((section) => (
+              <article className="sectionNode" key={section.id}>
+                <h4>{section.heading}</h4>
+                <p>{previewText(section.body, 180)}</p>
+                <div className="nestedObjects">
+                  {section.knowledgeIds.length === 0 ? (
+                    <span className="quietText">No visible approved objects for this section.</span>
+                  ) : (
+                    section.knowledgeIds.map((knowledgeId) => {
+                      const object = objectsById.get(knowledgeId);
+                      if (!object) return null;
+                      return (
+                        <button className="miniObject" key={knowledgeId} onClick={() => onOpenObject(knowledgeId)} type="button">
+                          <FileText aria-hidden="true" size={15} />
+                          <span>{object.title}</span>
+                          <small>{object.evidence.length} evidence link{object.evidence.length === 1 ? '' : 's'}</small>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <EmptyState title="No file selected" message="Choose a manual file to inspect its sections and approved objects." />
+      )}
+    </div>
+  );
+}
+
+function ObjectsScreen({
+  objects,
+  onOpenObject,
+}: {
+  objects: KnowledgeObject[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  if (objects.length === 0) {
+    return <EmptyState title="No objects found" message="No approved knowledge objects match the current filters." />;
+  }
+
+  return (
+    <div className="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Manual</th>
+            <th>Version</th>
+            <th>Relationships</th>
+            <th>Last Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {objects.map((object) => (
+            <tr key={object.id}>
+              <td>
+                <button className="tableLink" onClick={() => onOpenObject(object.id)} type="button">
+                  {object.title}
+                </button>
+              </td>
+              <td>{object.category}</td>
+              <td>{object.status}</td>
+              <td>{object.manualCode ?? object.manualTitle}</td>
+              <td>{object.approvedVersion.versionNumber}</td>
+              <td>{object.related.length}</td>
+              <td>{dateLabel(object.updatedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CategoriesScreen({
+  categories,
+  onOpenObject,
+}: {
+  categories: KnowledgeCategory[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  if (categories.length === 0) {
+    return <EmptyState title="No categories found" message="Categories are derived from approved imported knowledge." />;
+  }
+
+  return (
+    <div className="categoryGrid">
+      {categories.map((category) => (
+        <article className="categoryPanel" key={category.name}>
+          <div className="categoryHeader">
+            <h3>{category.name}</h3>
+            <strong>{category.count}</strong>
+          </div>
+          <div className="categoryObjects">
+            {category.objects.map((object) => (
+              <button key={object.id} onClick={() => onOpenObject(object.id)} type="button">
+                {object.title}
+              </button>
+            ))}
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
 
 function RelationshipsScreen({
-  data,
-  onRefresh,
+  objects,
+  relationships,
+  relationshipTypes,
+  onOpenObject,
 }: {
-  data: KnowledgeEngineData;
-  onRefresh: () => Promise<void>;
+  objects: KnowledgeObject[];
+  relationships: KnowledgeRelationship[];
+  relationshipTypes: KnowledgeRelationshipType[];
+  onOpenObject: (knowledgeId: string) => void;
 }): JSX.Element {
-  const { objects, relationships, relationshipTypes } = data;
   const [selectedId, setSelectedId] = useState<string>(objects[0]?.id ?? '');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const selectedObject = objects.find((object) => object.id === selectedId) ?? objects[0];
-  const incoming = relationships.filter((relationship) => relationship.toKnowledgeId === selectedObject?.id);
-  const outgoing = relationships.filter((relationship) => relationship.fromKnowledgeId === selectedObject?.id);
+  const incoming = selectedObject ? relationships.filter((relationship) => relationship.toKnowledgeId === selectedObject.id) : [];
+  const outgoing = selectedObject ? relationships.filter((relationship) => relationship.fromKnowledgeId === selectedObject.id) : [];
   const countByType = new Map(relationshipTypes.map((type) => [type.code, 0]));
   for (const relationship of relationships) {
     countByType.set(relationship.kind, (countByType.get(relationship.kind) ?? 0) + 1);
@@ -680,7 +769,7 @@ function RelationshipsScreen({
           ))}
         </div>
 
-        {selectedObject && (
+        {selectedObject ? (
           <div className="detailPanel">
             <div className="detailHeader">
               <div>
@@ -691,41 +780,45 @@ function RelationshipsScreen({
                   <span>{selectedObject.related.length} relationships</span>
                 </div>
               </div>
-              <button className="iconTextButton" onClick={() => setIsModalOpen(true)} type="button">
-                <GitBranch aria-hidden="true" size={16} />
-                <span>New Relationship</span>
+              <button className="iconTextButton" onClick={() => onOpenObject(selectedObject.id)} type="button">
+                <ChevronRight aria-hidden="true" size={16} />
+                <span>Open Object</span>
               </button>
             </div>
 
             <div className="relationshipColumns">
               <section>
                 <h4>Incoming relationships</h4>
-                <RelationshipList direction="incoming" onOpenObject={setSelectedId} relationships={incoming} />
+                <RelationshipList direction="incoming" onOpenObject={onOpenObject} relationships={incoming} />
               </section>
               <section>
                 <h4>Outgoing relationships</h4>
-                <RelationshipList direction="outgoing" onOpenObject={setSelectedId} relationships={outgoing} />
+                <RelationshipList direction="outgoing" onOpenObject={onOpenObject} relationships={outgoing} />
               </section>
             </div>
           </div>
+        ) : (
+          <EmptyState title="No relationship graph visible" message="Approved objects are required before relationships can display." />
         )}
       </div>
-
-      {isModalOpen && selectedObject && (
-        <RelationshipModal
-          objects={objects}
-          onClose={() => setIsModalOpen(false)}
-          onSaved={onRefresh}
-          relationshipTypes={relationshipTypes}
-          selectedSourceId={selectedObject.id}
-        />
-      )}
     </div>
   );
 }
 
-function VersionsScreen({ objects, versions }: { objects: KnowledgeObject[]; versions: KnowledgeVersion[] }): JSX.Element {
+function VersionsScreen({
+  objects,
+  versions,
+  onOpenObject,
+}: {
+  objects: KnowledgeObject[];
+  versions: KnowledgeVersion[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
   const objectsById = new Map(objects.map((object) => [object.id, object]));
+
+  if (versions.length === 0) {
+    return <EmptyState title="No versions visible" message="No approved version records are available through the current policy." />;
+  }
 
   return (
     <div className="versionList">
@@ -747,6 +840,9 @@ function VersionsScreen({ objects, versions }: { objects: KnowledgeObject[]; ver
             <div className="versionFooter">
               <span>{dateLabel(version.approvedAt ?? version.updatedAt)}</span>
               {isCurrent && <strong>Current approved</strong>}
+              <button className="tableLink" onClick={() => onOpenObject(object.id)} type="button">
+                Open object
+              </button>
             </div>
           </article>
         );
@@ -760,6 +856,10 @@ export function KnowledgeEngineModule(): JSX.Element {
   const [data, setData] = useState<KnowledgeEngineData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [manualCode, setManualCode] = useState<ManualFilter>('all');
+  const [category, setCategory] = useState('all');
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   async function refreshData(): Promise<void> {
     setIsLoading(true);
@@ -769,37 +869,62 @@ export function KnowledgeEngineModule(): JSX.Element {
       const nextData = await getKnowledgeEngineData();
       setData(nextData);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to load Knowledge Engine.');
+      setError(friendlyError(reason));
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    setError(null);
-
-    getKnowledgeEngineData()
-      .then((nextData) => {
-        if (isMounted) setData(nextData);
-      })
-      .catch((reason: unknown) => {
-        if (isMounted) setError(reason instanceof Error ? reason.message : 'Unable to load Knowledge Engine.');
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+    void refreshData();
   }, []);
 
+  const filteredObjects = useMemo(
+    () => (data ? filterObjects(data.objects, query, manualCode, category) : []),
+    [category, data, manualCode, query],
+  );
+  const filteredCategories = useMemo(
+    () => (data ? buildCounts({ ...data, objects: filteredObjects }).byCategory : []),
+    [data, filteredObjects],
+  );
+  const counts = useMemo(() => (data ? buildCounts(data) : null), [data]);
+  const selectedObject = data?.objects.find((object) => object.id === selectedObjectId) ?? null;
+
+  function openObject(knowledgeId: string): void {
+    setSelectedObjectId(knowledgeId);
+  }
+
+  function clearFilters(): void {
+    setQuery('');
+    setManualCode('all');
+    setCategory('all');
+  }
+
   return (
-    <EngineShell data={data} error={error} isLoading={isLoading}>
+    <EngineShell data={data} error={error} isLoading={isLoading} onRetry={() => void refreshData()}>
       {data && (
         <>
+          <GlobalSearch
+            categories={data.categories}
+            category={category}
+            manualCode={manualCode}
+            onCategoryChange={setCategory}
+            onManualChange={setManualCode}
+            onQueryChange={setQuery}
+            query={query}
+          />
+
+          <div className="resultsMeta">
+            Showing {filteredObjects.length} of {data.objects.length} approved knowledge objects
+            {(query || manualCode !== 'all' || category !== 'all') && (
+              <button className="tableLink inlineAction" onClick={clearFilters} type="button">
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          {counts && <CountStrip counts={counts} />}
+
           <div className="tabs" role="tablist" aria-label="Knowledge views">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -819,12 +944,42 @@ export function KnowledgeEngineModule(): JSX.Element {
             })}
           </div>
 
-          {activeTab === 'search' && <SearchScreen categories={data.categories} objects={data.objects} />}
-          {activeTab === 'manuals' && <ManualsScreen manuals={data.manuals} objects={data.objects} />}
-          {activeTab === 'objects' && <ObjectsScreen objects={data.objects} />}
-          {activeTab === 'categories' && <CategoriesScreen categories={data.categories} />}
-          {activeTab === 'relationships' && <RelationshipsScreen data={data} onRefresh={refreshData} />}
-          {activeTab === 'versions' && <VersionsScreen objects={data.objects} versions={data.versions} />}
+          <div className="tabPanel">
+            {activeTab === 'search' && <SearchScreen objects={filteredObjects} onOpenObject={openObject} />}
+            {activeTab === 'manuals' && (
+              <ManualsScreen manuals={data.manuals} objects={data.objects} onOpenObject={openObject} />
+            )}
+            {activeTab === 'objects' && <ObjectsScreen objects={filteredObjects} onOpenObject={openObject} />}
+            {activeTab === 'categories' && (
+              <CategoriesScreen
+                categories={filteredCategories.map((item) => ({
+                  name: item.label,
+                  count: item.count,
+                  manualCode: null as ManualCode | null,
+                  objects: filteredObjects.filter((object) => object.category === item.label),
+                }))}
+                onOpenObject={openObject}
+              />
+            )}
+            {activeTab === 'relationships' && (
+              <RelationshipsScreen
+                objects={filteredObjects}
+                onOpenObject={openObject}
+                relationships={data.relationships}
+                relationshipTypes={data.relationshipTypes}
+              />
+            )}
+            {activeTab === 'versions' && (
+              <VersionsScreen objects={data.objects} onOpenObject={openObject} versions={data.versions} />
+            )}
+          </div>
+
+          <ObjectDrawer
+            object={selectedObject}
+            onClose={() => setSelectedObjectId(null)}
+            onOpenObject={openObject}
+            relationships={data.relationships}
+          />
         </>
       )}
     </EngineShell>
