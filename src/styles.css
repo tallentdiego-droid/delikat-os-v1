@@ -712,6 +712,72 @@ tbody tr:hover,
   gap: 10px;
 }
 
+.graphLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.relationshipColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.relationshipColumns h4 {
+  margin: 0 0 10px;
+}
+
+.graphList,
+.relatedList {
+  display: grid;
+  gap: 8px;
+}
+
+.graphRow,
+.relatedRow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 90px minmax(110px, 0.7fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.graphRow p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.relationshipBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cfd8e5;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #344154;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+  text-transform: capitalize;
+}
+
+.relationshipBadge.incoming {
+  border-color: #b9d8f3;
+  background: #f1f8ff;
+  color: #245a86;
+}
+
+.relationshipBadge.outgoing {
+  border-color: #cde5d6;
+  background: #f5fbf7;
+  color: #276343;
+}
+
 .relationshipCard {
   padding: 14px;
 }
@@ -731,6 +797,74 @@ tbody tr:hover,
 .versionCard {
   display: grid;
   gap: 10px;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 48%);
+  padding: 18px;
+}
+
+.modalPanel {
+  display: grid;
+  gap: 14px;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgb(15 23 42 / 24%);
+}
+
+.modalPanel p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.formField {
+  display: grid;
+  gap: 6px;
+}
+
+.formField span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.formField select,
+.formField textarea {
+  width: 100%;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px;
+}
+
+.formField textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.primaryButton {
+  justify-self: start;
+  border: 0;
+  border-radius: 7px;
+  background: #101820;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 @media (max-width: 860px) {
@@ -756,7 +890,14 @@ tbody tr:hover,
   .detailGrid,
   .splitPanel,
   .objectLayout,
+  .graphLayout,
+  .relationshipColumns,
   .relationshipMatrix {
+    grid-template-columns: 1fr;
+  }
+
+  .graphRow,
+  .relatedRow {
     grid-template-columns: 1fr;
   }
 

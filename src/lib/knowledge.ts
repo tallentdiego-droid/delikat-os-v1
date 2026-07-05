@@ -2,7 +2,14 @@ import { supabase, supabaseConfigError } from './supabase';
 
 export type ManualCode = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8' | 'M9';
 export type ManualFilter = ManualCode | 'all';
-export type RelationshipKind = 'supports' | 'depends_on' | 'supersedes' | 'duplicates' | 'references';
+export type RelationshipKind =
+  | 'supports'
+  | 'depends_on'
+  | 'references'
+  | 'supersedes'
+  | 'duplicates'
+  | 'requires'
+  | 'generated_from';
 
 export interface KnowledgeStats {
   manuals: number;
@@ -70,7 +77,7 @@ export interface KnowledgeObject {
   evidence: KnowledgeEvidence[];
   updatedAt: string;
   preview: string;
-  related: KnowledgeRelationship[];
+  related: KnowledgeRelatedObject[];
 }
 
 export interface KnowledgeCategory {
@@ -85,6 +92,37 @@ export interface KnowledgeRelationship {
   fromKnowledgeId: string;
   toKnowledgeId: string;
   kind: RelationshipKind;
+  typeId: string;
+  typeName: string;
+  strength: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sourceTitle: string;
+  sourceStatus: string;
+  sourceManual: string;
+  targetTitle: string;
+  targetStatus: string;
+  targetManual: string;
+}
+
+export interface KnowledgeRelatedObject {
+  relationship: KnowledgeRelationship;
+  direction: 'incoming' | 'outgoing';
+  object: {
+    id: string;
+    title: string;
+    status: string;
+    manualTitle: string;
+    manualCode: ManualCode | null;
+  };
+}
+
+export interface KnowledgeRelationshipType {
+  id: string;
+  code: RelationshipKind;
+  name: string;
+  description: string | null;
 }
 
 export interface KnowledgeEngineData {
@@ -92,7 +130,16 @@ export interface KnowledgeEngineData {
   objects: KnowledgeObject[];
   categories: KnowledgeCategory[];
   relationships: KnowledgeRelationship[];
+  relationshipTypes: KnowledgeRelationshipType[];
   versions: KnowledgeVersion[];
+}
+
+export interface CreateKnowledgeRelationshipInput {
+  sourceKnowledgeId: string;
+  targetKnowledgeId: string;
+  relationshipTypeId: string;
+  notes?: string;
+  strength?: number;
 }
 
 export interface KnowledgeSearchParams {
@@ -143,6 +190,24 @@ interface SourceManualRow {
   source_uri: string | null;
   content_hash: string;
   captured_at: string;
+}
+
+interface RelationshipTypeRow {
+  id: string;
+  code: RelationshipKind;
+  name: string;
+  description: string | null;
+}
+
+interface RelationshipRow {
+  id: string;
+  source_knowledge_id: string;
+  target_knowledge_id: string;
+  relationship_type_id: string;
+  strength: number | string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 const MANUAL_CODE_PATTERN = /(?:^|\/)(M[1-9])[-_]/i;
@@ -210,6 +275,86 @@ function buildCategories(objects: KnowledgeObject[]): KnowledgeCategory[] {
       objects: categoryObjects.sort((a, b) => a.title.localeCompare(b.title)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildRelationship(
+  row: RelationshipRow,
+  typeById: Map<string, KnowledgeRelationshipType>,
+  objectById: Map<string, KnowledgeObject>,
+): KnowledgeRelationship | null {
+  const relationshipType = typeById.get(row.relationship_type_id);
+  const source = objectById.get(row.source_knowledge_id);
+  const target = objectById.get(row.target_knowledge_id);
+
+  if (!relationshipType || !source || !target) return null;
+
+  return {
+    id: row.id,
+    fromKnowledgeId: row.source_knowledge_id,
+    toKnowledgeId: row.target_knowledge_id,
+    kind: relationshipType.code,
+    typeId: relationshipType.id,
+    typeName: relationshipType.name,
+    strength: Number(row.strength),
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    sourceTitle: source.title,
+    sourceStatus: source.status,
+    sourceManual: source.manualTitle,
+    targetTitle: target.title,
+    targetStatus: target.status,
+    targetManual: target.manualTitle,
+  };
+}
+
+function attachRelationships(
+  objects: KnowledgeObject[],
+  relationships: KnowledgeRelationship[],
+): KnowledgeObject[] {
+  const objectById = new Map(objects.map((object) => [object.id, object]));
+  const relatedByObject = new Map<string, KnowledgeRelatedObject[]>();
+
+  for (const relationship of relationships) {
+    const source = objectById.get(relationship.fromKnowledgeId);
+    const target = objectById.get(relationship.toKnowledgeId);
+    if (!source || !target) continue;
+
+    relatedByObject.set(relationship.fromKnowledgeId, [
+      ...(relatedByObject.get(relationship.fromKnowledgeId) ?? []),
+      {
+        relationship,
+        direction: 'outgoing',
+        object: {
+          id: target.id,
+          title: target.title,
+          status: target.status,
+          manualTitle: target.manualTitle,
+          manualCode: target.manualCode,
+        },
+      },
+    ]);
+
+    relatedByObject.set(relationship.toKnowledgeId, [
+      ...(relatedByObject.get(relationship.toKnowledgeId) ?? []),
+      {
+        relationship,
+        direction: 'incoming',
+        object: {
+          id: source.id,
+          title: source.title,
+          status: source.status,
+          manualTitle: source.manualTitle,
+          manualCode: source.manualCode,
+        },
+      },
+    ]);
+  }
+
+  return objects.map((object) => ({
+    ...object,
+    related: (relatedByObject.get(object.id) ?? []).sort((a, b) => a.object.title.localeCompare(b.object.title)),
+  }));
 }
 
 function attachSectionsToManuals(
@@ -420,13 +565,37 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   });
 
   const sortedObjects = objects.sort((a, b) => a.title.localeCompare(b.title));
+  const objectById = new Map(sortedObjects.map((object) => [object.id, object]));
+
+  const { data: relationshipTypeData, error: relationshipTypeError } = await client
+    .from('os_knowledge_relationship_types')
+    .select('id,code,name,description')
+    .order('code', { ascending: true });
+
+  if (relationshipTypeError) throw relationshipTypeError;
+
+  const relationshipTypes = (relationshipTypeData ?? []) as KnowledgeRelationshipType[];
+  const relationshipTypeById = new Map(relationshipTypes.map((type) => [type.id, type]));
+
+  const { data: relationshipData, error: relationshipError } = await client
+    .from('os_knowledge_relationships')
+    .select('id,source_knowledge_id,target_knowledge_id,relationship_type_id,strength,notes,created_at,updated_at')
+    .order('updated_at', { ascending: false });
+
+  if (relationshipError) throw relationshipError;
+
+  const relationships = ((relationshipData ?? []) as RelationshipRow[])
+    .map((row) => buildRelationship(row, relationshipTypeById, objectById))
+    .filter((relationship): relationship is KnowledgeRelationship => relationship !== null);
+  const objectsWithRelationships = attachRelationships(sortedObjects, relationships);
 
   return {
     manuals: attachSectionsToManuals(manualRows, sectionRows, evidenceRows),
-    objects: sortedObjects,
-    categories: buildCategories(sortedObjects),
-    relationships: [],
-    versions: sortedObjects
+    objects: objectsWithRelationships,
+    categories: buildCategories(objectsWithRelationships),
+    relationships,
+    relationshipTypes,
+    versions: objectsWithRelationships
       .flatMap((object) => object.versions)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
   };
@@ -444,4 +613,43 @@ export async function searchKnowledge({
     .filter((object) => category === 'all' || object.category === category)
     .filter((object) => matchesText(object, query))
     .slice(0, limit);
+}
+
+export async function createKnowledgeRelationship({
+  sourceKnowledgeId,
+  targetKnowledgeId,
+  relationshipTypeId,
+  notes = '',
+  strength = 1,
+}: CreateKnowledgeRelationshipInput): Promise<void> {
+  const client = ensureSupabase();
+
+  if (!sourceKnowledgeId || !targetKnowledgeId || !relationshipTypeId) {
+    throw new Error('Source, relationship type, and target are required.');
+  }
+
+  if (sourceKnowledgeId === targetKnowledgeId) {
+    throw new Error('Knowledge objects cannot be related to themselves.');
+  }
+
+  const { data: existing, error: existingError } = await client
+    .from('os_knowledge_relationships')
+    .select('id')
+    .eq('source_knowledge_id', sourceKnowledgeId)
+    .eq('target_knowledge_id', targetKnowledgeId)
+    .eq('relationship_type_id', relationshipTypeId)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existing) throw new Error('That relationship already exists.');
+
+  const { error } = await client.from('os_knowledge_relationships').insert({
+    source_knowledge_id: sourceKnowledgeId,
+    target_knowledge_id: targetKnowledgeId,
+    relationship_type_id: relationshipTypeId,
+    strength,
+    notes: notes.trim() || null,
+  });
+
+  if (error) throw error;
 }

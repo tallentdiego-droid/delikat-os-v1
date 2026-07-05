@@ -13,21 +13,22 @@ import {
   Search,
 } from 'lucide-react';
 import {
+  createKnowledgeRelationship,
   getKnowledgeEngineData,
   previewText,
   type KnowledgeCategory,
   type KnowledgeEngineData,
   type KnowledgeManual,
   type KnowledgeObject,
+  type KnowledgeRelationship,
+  type KnowledgeRelationshipType,
   type KnowledgeVersion,
   type ManualFilter,
-  type RelationshipKind,
 } from '../../lib/knowledge';
 
 type KnowledgeTab = 'search' | 'manuals' | 'objects' | 'categories' | 'relationships' | 'versions';
 
 const manualOptions: Array<ManualFilter> = ['all', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
-const relationshipTypes: RelationshipKind[] = ['supports', 'depends_on', 'supersedes', 'duplicates', 'references'];
 
 const tabs: Array<{ id: KnowledgeTab; label: string; icon: typeof Search }> = [
   { id: 'search', label: 'Search', icon: Search },
@@ -208,7 +209,46 @@ function VersionTimeline({
   );
 }
 
-function ObjectDetail({ object }: { object: KnowledgeObject }): JSX.Element {
+function RelatedKnowledgeList({
+  object,
+  onOpenObject,
+}: {
+  object: KnowledgeObject;
+  onOpenObject?: (knowledgeId: string) => void;
+}): JSX.Element {
+  if (object.related.length === 0) {
+    return <div className="emptyInline">No relationships recorded in Supabase yet.</div>;
+  }
+
+  return (
+    <div className="relatedList">
+      {object.related.map((item) => (
+        <div className="relatedRow" key={`${item.relationship.id}-${item.direction}`}>
+          <span className={item.direction === 'incoming' ? 'relationshipBadge incoming' : 'relationshipBadge outgoing'}>
+            {item.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+          </span>
+          <strong>{item.object.title}</strong>
+          <span>{item.relationship.typeName}</span>
+          <span>{item.object.status}</span>
+          <span>{item.object.manualCode ?? item.object.manualTitle}</span>
+          {onOpenObject && (
+            <button className="tableLink" onClick={() => onOpenObject(item.object.id)} type="button">
+              Open
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ObjectDetail({
+  object,
+  onOpenObject,
+}: {
+  object: KnowledgeObject;
+  onOpenObject?: (knowledgeId: string) => void;
+}): JSX.Element {
   return (
     <article className="detailPanel">
       <div className="detailHeader">
@@ -237,7 +277,7 @@ function ObjectDetail({ object }: { object: KnowledgeObject }): JSX.Element {
       <EvidenceBlock object={object} />
 
       <h4>Related knowledge</h4>
-      <div className="emptyInline">No relationships recorded in Supabase yet.</div>
+      <RelatedKnowledgeList object={object} onOpenObject={onOpenObject} />
     </article>
   );
 }
@@ -295,7 +335,7 @@ function SearchScreen({
                 <strong>{object.manualTitle}</strong>
                 <span>{object.sourceFileUri}</span>
               </div>
-              {isExpanded && <ObjectDetail object={object} />}
+              {isExpanded && <ObjectDetail object={object} onOpenObject={setExpandedId} />}
             </article>
           );
         })}
@@ -406,7 +446,7 @@ function ObjectsScreen({ objects }: { objects: KnowledgeObject[] }): JSX.Element
           </tbody>
         </table>
       </div>
-      {selectedObject && <ObjectDetail object={selectedObject} />}
+      {selectedObject && <ObjectDetail object={selectedObject} onOpenObject={setSelectedId} />}
     </div>
   );
 }
@@ -431,25 +471,255 @@ function CategoriesScreen({ categories }: { categories: KnowledgeCategory[] }): 
   );
 }
 
-function RelationshipsScreen({ objects }: { objects: KnowledgeObject[] }): JSX.Element {
+function RelationshipList({
+  direction,
+  relationships,
+  onOpenObject,
+}: {
+  direction: 'incoming' | 'outgoing';
+  relationships: KnowledgeRelationship[];
+  onOpenObject: (knowledgeId: string) => void;
+}): JSX.Element {
+  if (relationships.length === 0) {
+    return <div className="emptyInline">No {direction} relationships.</div>;
+  }
+
+  return (
+    <div className="graphList">
+      {relationships.map((relationship) => {
+        const relatedId = direction === 'incoming' ? relationship.fromKnowledgeId : relationship.toKnowledgeId;
+        const relatedTitle = direction === 'incoming' ? relationship.sourceTitle : relationship.targetTitle;
+        const relatedStatus = direction === 'incoming' ? relationship.sourceStatus : relationship.targetStatus;
+        const relatedManual = direction === 'incoming' ? relationship.sourceManual : relationship.targetManual;
+
+        return (
+          <article className="graphRow" key={relationship.id}>
+            <span className="relationshipBadge">{relationship.typeName}</span>
+            <div>
+              <strong>{relatedTitle}</strong>
+              <p>{relationship.notes || 'No notes'}</p>
+            </div>
+            <span>{relatedStatus}</span>
+            <span>{relatedManual}</span>
+            <button className="tableLink" onClick={() => onOpenObject(relatedId)} type="button">
+              Open
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function RelationshipModal({
+  objects,
+  relationshipTypes,
+  selectedSourceId,
+  onClose,
+  onSaved,
+}: {
+  objects: KnowledgeObject[];
+  relationshipTypes: KnowledgeRelationshipType[];
+  selectedSourceId: string;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}): JSX.Element {
+  const [sourceKnowledgeId, setSourceKnowledgeId] = useState(selectedSourceId);
+  const [targetKnowledgeId, setTargetKnowledgeId] = useState(objects.find((object) => object.id !== selectedSourceId)?.id ?? '');
+  const [relationshipTypeId, setRelationshipTypeId] = useState(relationshipTypes[0]?.id ?? '');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function saveRelationship(): Promise<void> {
+    setError(null);
+
+    if (sourceKnowledgeId === targetKnowledgeId) {
+      setError('Source and target must be different knowledge objects.');
+      return;
+    }
+
+    const sourceObject = objects.find((object) => object.id === sourceKnowledgeId);
+    if (
+      sourceObject?.related.some(
+        (item) =>
+          item.direction === 'outgoing' &&
+          item.object.id === targetKnowledgeId &&
+          item.relationship.typeId === relationshipTypeId,
+      )
+    ) {
+      setError('That relationship already exists.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await createKnowledgeRelationship({
+        sourceKnowledgeId,
+        targetKnowledgeId,
+        relationshipTypeId,
+        notes,
+      });
+      await onSaved();
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save relationship.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="modalBackdrop" role="presentation">
+      <div aria-modal="true" className="modalPanel" role="dialog">
+        <div className="detailHeader">
+          <div>
+            <h3>Create relationship</h3>
+            <p>Manual Knowledge Graph link</p>
+          </div>
+          <button className="iconTextButton" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+
+        <label className="formField">
+          <span>Source</span>
+          <select onChange={(event) => setSourceKnowledgeId(event.target.value)} value={sourceKnowledgeId}>
+            {objects.map((object) => (
+              <option key={object.id} value={object.id}>
+                {object.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="formField">
+          <span>Relationship Type</span>
+          <select onChange={(event) => setRelationshipTypeId(event.target.value)} value={relationshipTypeId}>
+            {relationshipTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="formField">
+          <span>Target</span>
+          <select onChange={(event) => setTargetKnowledgeId(event.target.value)} value={targetKnowledgeId}>
+            {objects.map((object) => (
+              <option disabled={object.id === sourceKnowledgeId} key={object.id} value={object.id}>
+                {object.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="formField">
+          <span>Notes</span>
+          <textarea onChange={(event) => setNotes(event.target.value)} value={notes} />
+        </label>
+
+        {error && (
+          <div className="notice error">
+            <AlertCircle aria-hidden="true" size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <button className="primaryButton" disabled={isSaving} onClick={saveRelationship} type="button">
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RelationshipsScreen({
+  data,
+  onRefresh,
+}: {
+  data: KnowledgeEngineData;
+  onRefresh: () => Promise<void>;
+}): JSX.Element {
+  const { objects, relationships, relationshipTypes } = data;
+  const [selectedId, setSelectedId] = useState<string>(objects[0]?.id ?? '');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const selectedObject = objects.find((object) => object.id === selectedId) ?? objects[0];
+  const incoming = relationships.filter((relationship) => relationship.toKnowledgeId === selectedObject?.id);
+  const outgoing = relationships.filter((relationship) => relationship.fromKnowledgeId === selectedObject?.id);
+  const countByType = new Map(relationshipTypes.map((type) => [type.code, 0]));
+  for (const relationship of relationships) {
+    countByType.set(relationship.kind, (countByType.get(relationship.kind) ?? 0) + 1);
+  }
+
   return (
     <div className="tabPanel">
       <div className="relationshipMatrix">
         {relationshipTypes.map((type) => (
-          <div className="relationshipCard" key={type}>
-            <span>{type}</span>
-            <strong>0</strong>
+          <div className="relationshipCard" key={type.id}>
+            <span>{type.name}</span>
+            <strong>{countByType.get(type.code) ?? 0}</strong>
           </div>
         ))}
       </div>
-      <div className="emptyState">
-        <GitBranch aria-hidden="true" size={28} />
-        <h3>No relationships recorded</h3>
-        <p>
-          The Knowledge Engine is ready to display relationships between {objects.length} approved objects when the
-          canonical relationship model is added.
-        </p>
+
+      <div className="graphLayout">
+        <div className="listPanel">
+          {objects.map((object) => (
+            <button
+              className={object.id === selectedObject?.id ? 'listButton active' : 'listButton'}
+              key={object.id}
+              onClick={() => setSelectedId(object.id)}
+              type="button"
+            >
+              <span>{object.manualCode ?? 'Knowledge'}</span>
+              <strong>{object.title}</strong>
+              <small>{object.related.length} relationship{object.related.length === 1 ? '' : 's'}</small>
+            </button>
+          ))}
+        </div>
+
+        {selectedObject && (
+          <div className="detailPanel">
+            <div className="detailHeader">
+              <div>
+                <h3>{selectedObject.title}</h3>
+                <div className="sourceLine">
+                  <span>{selectedObject.status}</span>
+                  <span>{selectedObject.manualTitle}</span>
+                  <span>{selectedObject.related.length} relationships</span>
+                </div>
+              </div>
+              <button className="iconTextButton" onClick={() => setIsModalOpen(true)} type="button">
+                <GitBranch aria-hidden="true" size={16} />
+                <span>New Relationship</span>
+              </button>
+            </div>
+
+            <div className="relationshipColumns">
+              <section>
+                <h4>Incoming relationships</h4>
+                <RelationshipList direction="incoming" onOpenObject={setSelectedId} relationships={incoming} />
+              </section>
+              <section>
+                <h4>Outgoing relationships</h4>
+                <RelationshipList direction="outgoing" onOpenObject={setSelectedId} relationships={outgoing} />
+              </section>
+            </div>
+          </div>
+        )}
       </div>
+
+      {isModalOpen && selectedObject && (
+        <RelationshipModal
+          objects={objects}
+          onClose={() => setIsModalOpen(false)}
+          onSaved={onRefresh}
+          relationshipTypes={relationshipTypes}
+          selectedSourceId={selectedObject.id}
+        />
+      )}
     </div>
   );
 }
@@ -490,6 +760,20 @@ export function KnowledgeEngineModule(): JSX.Element {
   const [data, setData] = useState<KnowledgeEngineData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  async function refreshData(): Promise<void> {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const nextData = await getKnowledgeEngineData();
+      setData(nextData);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load Knowledge Engine.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -539,7 +823,7 @@ export function KnowledgeEngineModule(): JSX.Element {
           {activeTab === 'manuals' && <ManualsScreen manuals={data.manuals} objects={data.objects} />}
           {activeTab === 'objects' && <ObjectsScreen objects={data.objects} />}
           {activeTab === 'categories' && <CategoriesScreen categories={data.categories} />}
-          {activeTab === 'relationships' && <RelationshipsScreen objects={data.objects} />}
+          {activeTab === 'relationships' && <RelationshipsScreen data={data} onRefresh={refreshData} />}
           {activeTab === 'versions' && <VersionsScreen objects={data.objects} versions={data.versions} />}
         </>
       )}
