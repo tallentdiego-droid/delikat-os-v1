@@ -10,6 +10,14 @@ export type RelationshipKind =
   | 'duplicates'
   | 'requires'
   | 'generated_from';
+export type OntologyKind =
+  | 'department'
+  | 'role'
+  | 'area'
+  | 'equipment'
+  | 'businessProcess'
+  | 'documentType'
+  | 'tag';
 
 export interface KnowledgeStats {
   manuals: number;
@@ -78,6 +86,7 @@ export interface KnowledgeObject {
   updatedAt: string;
   preview: string;
   related: KnowledgeRelatedObject[];
+  ontology: KnowledgeOntologyGroups;
 }
 
 export interface KnowledgeCategory {
@@ -125,12 +134,40 @@ export interface KnowledgeRelationshipType {
   description: string | null;
 }
 
+export interface KnowledgeOntologyEntity {
+  id: string;
+  type: OntologyKind;
+  name: string;
+  code: string;
+  description: string | null;
+  status: string;
+}
+
+export interface KnowledgeOntologyGroups {
+  departments: KnowledgeOntologyEntity[];
+  roles: KnowledgeOntologyEntity[];
+  areas: KnowledgeOntologyEntity[];
+  equipment: KnowledgeOntologyEntity[];
+  businessProcesses: KnowledgeOntologyEntity[];
+  documentTypes: KnowledgeOntologyEntity[];
+  tags: KnowledgeOntologyEntity[];
+}
+
+export interface KnowledgeOntologyStats {
+  objectsByDepartment: Array<{ id: string; name: string; count: number }>;
+  objectsByRole: Array<{ id: string; name: string; count: number }>;
+  objectsByDocumentType: Array<{ id: string; name: string; count: number }>;
+  objectsWithoutClassification: number;
+}
+
 export interface KnowledgeEngineData {
   manuals: KnowledgeManual[];
   objects: KnowledgeObject[];
   categories: KnowledgeCategory[];
   relationships: KnowledgeRelationship[];
   relationshipTypes: KnowledgeRelationshipType[];
+  ontologyOptions: KnowledgeOntologyGroups;
+  ontologyStats: KnowledgeOntologyStats;
   versions: KnowledgeVersion[];
 }
 
@@ -203,8 +240,49 @@ interface RelationshipRow {
   updated_at: string;
 }
 
+interface OntologyLinkRow {
+  id: string;
+  knowledge_id: string;
+  department_id: string | null;
+  role_id: string | null;
+  area_id: string | null;
+  equipment_id: string | null;
+  business_process_id: string | null;
+  document_type_id: string | null;
+  tag_id: string | null;
+  notes: string | null;
+}
+
+interface OntologyEntityRow {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  status: string;
+}
+
 const MANUAL_CODE_PATTERN = /(?:^|\/)(M[1-9])[-_]/i;
 const DEFAULT_LIMIT = 80;
+
+export const EMPTY_ONTOLOGY_GROUPS: KnowledgeOntologyGroups = {
+  departments: [],
+  roles: [],
+  areas: [],
+  equipment: [],
+  businessProcesses: [],
+  documentTypes: [],
+  tags: [],
+};
+
+function isMissingOntologyTableError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === '42P01' ||
+    error.code === '42501' ||
+    error.code === 'PGRST205' ||
+    error.message?.toLowerCase().includes('could not find the table') === true ||
+    error.message?.toLowerCase().includes('permission denied') === true
+  );
+}
 
 function ensureSupabase() {
   if (!supabase) throw new Error(supabaseConfigError ?? 'Supabase client is not configured.');
@@ -225,6 +303,30 @@ export function previewText(value: string, maxLength = 220): string {
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
 }
 
+function emptyOntologyGroups(): KnowledgeOntologyGroups {
+  return {
+    departments: [],
+    roles: [],
+    areas: [],
+    equipment: [],
+    businessProcesses: [],
+    documentTypes: [],
+    tags: [],
+  };
+}
+
+function ontologyGroupValues(groups: KnowledgeOntologyGroups): KnowledgeOntologyEntity[] {
+  return [
+    ...groups.departments,
+    ...groups.roles,
+    ...groups.areas,
+    ...groups.equipment,
+    ...groups.businessProcesses,
+    ...groups.documentTypes,
+    ...groups.tags,
+  ];
+}
+
 function matchesText(object: KnowledgeObject, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -236,6 +338,7 @@ function matchesText(object: KnowledgeObject, query: string): boolean {
     object.sourceSectionHeading,
     object.manualTitle,
     object.category,
+    ...ontologyGroupValues(object.ontology).map((item) => `${item.name} ${item.code}`),
     ...object.evidence.map((item) => item.sourceSectionBody),
   ].some((value) => value.toLowerCase().includes(needle));
 }
@@ -266,6 +369,169 @@ async function selectVersionsByKnowledgeIds(knowledgeIds: string[]): Promise<Kno
 
   if (error) throw error;
   return (data ?? []) as KnowledgeVersionRow[];
+}
+
+async function selectOntologyLinks(knowledgeIds: string[]): Promise<OntologyLinkRow[]> {
+  const client = ensureSupabase();
+  const uniqueIds = Array.from(new Set(knowledgeIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const { data, error } = await client
+    .from('os_knowledge_ontology_links')
+    .select('id,knowledge_id,department_id,role_id,area_id,equipment_id,business_process_id,document_type_id,tag_id,notes')
+    .in('knowledge_id', uniqueIds);
+
+  if (error) {
+    if (isMissingOntologyTableError(error)) return [];
+    throw error;
+  }
+
+  return (data ?? []) as OntologyLinkRow[];
+}
+
+async function selectOntologyEntities(
+  table: string,
+  ids: string[],
+  type: OntologyKind,
+  hasDescription = true,
+): Promise<KnowledgeOntologyEntity[]> {
+  const client = ensureSupabase();
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const columns = hasDescription ? 'id,name,code,description,status' : 'id,name,code,status';
+  const { data, error } = await client.from(table).select(columns).in('id', uniqueIds).eq('status', 'active');
+
+  if (error) {
+    if (isMissingOntologyTableError(error)) return [];
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as OntologyEntityRow[])
+    .map((row) => ({
+      id: row.id,
+      type,
+      name: row.name,
+      code: row.code,
+      description: row.description ?? null,
+      status: row.status,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function buildOntologyFromLinks(
+  ontologyLinks: OntologyLinkRow[],
+): Promise<{
+  byKnowledgeId: Map<string, KnowledgeOntologyGroups>;
+  options: KnowledgeOntologyGroups;
+}> {
+  const departmentIds = ontologyLinks.flatMap((row) => (row.department_id ? [row.department_id] : []));
+  const roleIds = ontologyLinks.flatMap((row) => (row.role_id ? [row.role_id] : []));
+  const areaIds = ontologyLinks.flatMap((row) => (row.area_id ? [row.area_id] : []));
+  const equipmentIds = ontologyLinks.flatMap((row) => (row.equipment_id ? [row.equipment_id] : []));
+  const businessProcessIds = ontologyLinks.flatMap((row) => (row.business_process_id ? [row.business_process_id] : []));
+  const documentTypeIds = ontologyLinks.flatMap((row) => (row.document_type_id ? [row.document_type_id] : []));
+  const tagIds = ontologyLinks.flatMap((row) => (row.tag_id ? [row.tag_id] : []));
+
+  const [
+    departments,
+    roles,
+    areas,
+    equipment,
+    businessProcesses,
+    documentTypes,
+    tags,
+  ] = await Promise.all([
+    selectOntologyEntities('os_departments', departmentIds, 'department', false),
+    selectOntologyEntities('os_roles', roleIds, 'role'),
+    selectOntologyEntities('os_areas', areaIds, 'area'),
+    selectOntologyEntities('os_equipment', equipmentIds, 'equipment'),
+    selectOntologyEntities('os_business_processes', businessProcessIds, 'businessProcess'),
+    selectOntologyEntities('os_document_types', documentTypeIds, 'documentType'),
+    selectOntologyEntities('os_tags', tagIds, 'tag'),
+  ]);
+
+  const entityMaps = {
+    departments: new Map(departments.map((item) => [item.id, item])),
+    roles: new Map(roles.map((item) => [item.id, item])),
+    areas: new Map(areas.map((item) => [item.id, item])),
+    equipment: new Map(equipment.map((item) => [item.id, item])),
+    businessProcesses: new Map(businessProcesses.map((item) => [item.id, item])),
+    documentTypes: new Map(documentTypes.map((item) => [item.id, item])),
+    tags: new Map(tags.map((item) => [item.id, item])),
+  };
+
+  const byKnowledgeId = new Map<string, KnowledgeOntologyGroups>();
+  for (const link of ontologyLinks) {
+    const groups = byKnowledgeId.get(link.knowledge_id) ?? emptyOntologyGroups();
+    if (link.department_id) {
+      const entity = entityMaps.departments.get(link.department_id);
+      if (entity) groups.departments.push(entity);
+    }
+    if (link.role_id) {
+      const entity = entityMaps.roles.get(link.role_id);
+      if (entity) groups.roles.push(entity);
+    }
+    if (link.area_id) {
+      const entity = entityMaps.areas.get(link.area_id);
+      if (entity) groups.areas.push(entity);
+    }
+    if (link.equipment_id) {
+      const entity = entityMaps.equipment.get(link.equipment_id);
+      if (entity) groups.equipment.push(entity);
+    }
+    if (link.business_process_id) {
+      const entity = entityMaps.businessProcesses.get(link.business_process_id);
+      if (entity) groups.businessProcesses.push(entity);
+    }
+    if (link.document_type_id) {
+      const entity = entityMaps.documentTypes.get(link.document_type_id);
+      if (entity) groups.documentTypes.push(entity);
+    }
+    if (link.tag_id) {
+      const entity = entityMaps.tags.get(link.tag_id);
+      if (entity) groups.tags.push(entity);
+    }
+    byKnowledgeId.set(link.knowledge_id, groups);
+  }
+
+  return {
+    byKnowledgeId,
+    options: {
+      departments,
+      roles,
+      areas,
+      equipment,
+      businessProcesses,
+      documentTypes,
+      tags,
+    },
+  };
+}
+
+function countOntologyObjects(
+  objects: KnowledgeObject[],
+  group: keyof Pick<KnowledgeOntologyGroups, 'departments' | 'roles' | 'documentTypes'>,
+): Array<{ id: string; name: string; count: number }> {
+  const counts = new Map<string, { id: string; name: string; count: number }>();
+  for (const object of objects) {
+    for (const entity of object.ontology[group]) {
+      const current = counts.get(entity.id) ?? { id: entity.id, name: entity.name, count: 0 };
+      current.count += 1;
+      counts.set(entity.id, current);
+    }
+  }
+
+  return Array.from(counts.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function buildOntologyStats(objects: KnowledgeObject[]): KnowledgeOntologyStats {
+  return {
+    objectsByDepartment: countOntologyObjects(objects, 'departments'),
+    objectsByRole: countOntologyObjects(objects, 'roles'),
+    objectsByDocumentType: countOntologyObjects(objects, 'documentTypes'),
+    objectsWithoutClassification: objects.filter((object) => ontologyGroupValues(object.ontology).length === 0).length,
+  };
 }
 
 function buildCategories(objects: KnowledgeObject[]): KnowledgeCategory[] {
@@ -447,7 +713,6 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   if (knowledgeError) throw knowledgeError;
 
   const canonicalRows = (knowledgeRows ?? []) as CanonicalKnowledgeRow[];
-  const knowledgeIds = canonicalRows.map((row) => row.id);
   const currentVersionIds = canonicalRows.flatMap((row) => (row.current_approved_version_id ? [row.current_approved_version_id] : []));
 
   const currentVersionRows = await selectByIds<KnowledgeVersionRow>(
@@ -468,6 +733,8 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   const approvedKnowledgeIds = approvedKnowledge.map((row) => row.id);
 
   const allVersionRows = await selectVersionsByKnowledgeIds(approvedKnowledgeIds);
+  const ontologyLinks = await selectOntologyLinks(approvedKnowledgeIds);
+  const { byKnowledgeId: ontologyByKnowledgeId, options: ontologyOptions } = await buildOntologyFromLinks(ontologyLinks);
 
   const { data: evidenceData, error: evidenceError } = await client
     .from('os_evidence_links')
@@ -572,6 +839,7 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
       updatedAt: knowledge.updated_at,
       preview: previewText(approvedVersion.body),
       related: [],
+      ontology: ontologyByKnowledgeId.get(knowledge.id) ?? emptyOntologyGroups(),
     }];
   });
 
@@ -606,6 +874,8 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
     categories: buildCategories(objectsWithRelationships),
     relationships,
     relationshipTypes,
+    ontologyOptions,
+    ontologyStats: buildOntologyStats(objectsWithRelationships),
     versions: objectsWithRelationships
       .flatMap((object) => object.versions)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),

@@ -164,6 +164,17 @@ button {
   gap: 12px;
 }
 
+.dashboardOntology {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 220px;
+  gap: 12px;
+}
+
+.ontologyUnclassified {
+  display: grid;
+  align-content: center;
+}
+
 .metricCard,
 .resultCard,
 .placeholderPanel,
@@ -461,6 +472,16 @@ pre {
 }
 
 .wideSelect {
+  min-width: 0;
+}
+
+.ontologyFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.ontologySelect {
   min-width: 0;
 }
 
@@ -1038,6 +1059,108 @@ tbody tr:hover,
   letter-spacing: 0;
 }
 
+.objectTabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #dce3ec;
+}
+
+.objectTab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #5c6c82;
+  padding: 9px 12px;
+}
+
+.objectTab.active {
+  border-bottom-color: #101820;
+  color: #101820;
+  font-weight: 800;
+}
+
+.ontologyPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.readOnlyBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #4c5d73;
+  padding: 12px;
+}
+
+.readOnlyBanner strong {
+  color: #172033;
+}
+
+.ontologyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ontologyGroup {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.ontologyGroup > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ontologyGroup h4,
+.ontologyGroup p {
+  margin: 0;
+}
+
+.ontologyGroup p {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ontologyGroup > div:first-child span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #4c5d73;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 7px;
+}
+
+.ontologyPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ontologyPills span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #344154;
+  padding: 5px 8px;
+}
+
+.ontologyPills small {
+  color: #64748b;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1063,9 +1186,12 @@ tbody tr:hover,
   .toolbar,
   .knowledgeToolbar,
   .metricGrid,
+  .dashboardOntology,
   .countGrid,
+  .ontologyFilterGrid,
   .expandedEvidence,
   .detailGrid,
+  .ontologyGrid,
   .splitPanel,
   .objectLayout,
   .manualBrowser,
