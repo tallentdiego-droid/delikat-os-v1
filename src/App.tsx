@@ -1,25 +1,48 @@
 import { useState } from 'react';
-import { Brain, Database, LayoutDashboard, Search } from 'lucide-react';
+import { Brain, Building2, Database, LayoutDashboard, Search, Settings, Workflow } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 
-type Page = 'dashboard' | 'knowledge' | 'command';
+type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'command' | 'settings';
 
 const navigation = [
-  { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'knowledge' as const, label: 'Knowledge Base', icon: Database },
+  { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
+  { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
+  { id: 'organization' as const, label: 'Organization', icon: Building2 },
+  { id: 'operations' as const, label: 'Operations', icon: Workflow },
   { id: 'command' as const, label: 'AI Command Center', icon: Brain },
+  { id: 'settings' as const, label: 'Settings', icon: Settings },
 ];
 
 function pageTitle(page: Page): string {
-  if (page === 'knowledge') return 'Knowledge Base';
+  if (page === 'knowledge') return 'Knowledge';
+  if (page === 'organization') return 'Organization';
+  if (page === 'operations') return 'Operations';
   if (page === 'command') return 'AI Command Center';
-  return 'Dashboard';
+  if (page === 'settings') return 'Settings';
+  return 'Home';
+}
+
+function PlaceholderPage({ label }: { label: string }): JSX.Element {
+  return (
+    <section className="pageStack">
+      <div className="sectionHeader">
+        <div>
+          <h2>{label}</h2>
+          <p>This module will consume the Knowledge Engine instead of owning knowledge.</p>
+        </div>
+      </div>
+      <div className="placeholderPanel">
+        <h3>Knowledge-first foundation</h3>
+        <p>Operational content remains centralized in Supabase canonical knowledge.</p>
+      </div>
+    </section>
+  );
 }
 
 export function App(): JSX.Element {
-  const [page, setPage] = useState<Page>('dashboard');
+  const [page, setPage] = useState<Page>('home');
 
   return (
     <div className="appShell">
@@ -62,9 +85,12 @@ export function App(): JSX.Element {
         </header>
 
         <main className="mainPanel">
-          {page === 'dashboard' && <DashboardPage />}
+          {page === 'home' && <DashboardPage />}
           {page === 'knowledge' && <KnowledgeBasePage />}
+          {page === 'organization' && <PlaceholderPage label="Organization" />}
+          {page === 'operations' && <PlaceholderPage label="Operations" />}
           {page === 'command' && <CommandCenterPage />}
+          {page === 'settings' && <PlaceholderPage label="Settings" />}
         </main>
       </div>
     </div>

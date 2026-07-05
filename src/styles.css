@@ -364,6 +364,375 @@ pre {
   max-width: 760px;
 }
 
+.knowledgeEngine {
+  max-width: 1480px;
+}
+
+.engineStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.engineStats span {
+  border: 1px solid #d8e0ea;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.loadingPanel {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #607086;
+  padding: 24px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid #dce3ec;
+}
+
+.tabButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #5c6c82;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.tabButton.active {
+  border-bottom-color: #101820;
+  color: #101820;
+  font-weight: 700;
+}
+
+.tabPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.knowledgeToolbar {
+  grid-template-columns: minmax(280px, 1fr) 150px minmax(220px, 320px);
+}
+
+.wideSelect {
+  min-width: 0;
+}
+
+.detailPanel,
+.listPanel,
+.tableWrap,
+.categoryPanel,
+.relationshipCard,
+.versionCard {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.detailPanel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.detailHeader,
+.categoryHeader,
+.versionFooter {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.detailHeader h3,
+.categoryHeader h3,
+.versionCard h3,
+.sectionNode h4,
+.detailPanel h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 14px;
+}
+
+.evidenceList {
+  display: grid;
+  gap: 12px;
+}
+
+.evidencePanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 7px 12px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.evidenceGrid.compact {
+  grid-template-columns: 90px minmax(0, 1fr);
+}
+
+.evidenceGrid strong {
+  color: #172033;
+  overflow-wrap: anywhere;
+}
+
+.timeline,
+.versionList {
+  display: grid;
+  gap: 10px;
+}
+
+.timelineItem,
+.versionCard {
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.timelineItem.current,
+.versionCard.current {
+  border-color: #83c59a;
+  background: #f6fbf7;
+}
+
+.timelineItem div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timelineItem p,
+.versionCard p {
+  margin: 8px 0 0;
+  color: #58677c;
+}
+
+.currentBadge,
+.versionFooter strong {
+  color: #276343;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.emptyInline {
+  border: 1px dashed #cdd6e2;
+  border-radius: 8px;
+  color: #607086;
+  padding: 14px;
+}
+
+.splitPanel,
+.objectLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.objectLayout {
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+}
+
+.listPanel {
+  display: grid;
+  gap: 6px;
+  max-height: 72vh;
+  overflow: auto;
+  padding: 8px;
+}
+
+.listButton {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #172033;
+  padding: 10px;
+  text-align: left;
+}
+
+.listButton:hover,
+.listButton.active {
+  background: #eef3f8;
+}
+
+.listButton span,
+.listButton small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sectionTree {
+  display: grid;
+  gap: 12px;
+}
+
+.sectionNode {
+  border-left: 3px solid #d8e0ea;
+  padding-left: 12px;
+}
+
+.sectionNode p {
+  color: #56667b;
+  line-height: 1.5;
+}
+
+.nestedObjects {
+  display: grid;
+  gap: 6px;
+}
+
+.miniObject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 7px;
+  padding: 8px;
+}
+
+.miniObject span {
+  flex: 1;
+}
+
+.miniObject small {
+  color: #64748b;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 820px;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e6edf4;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #5d6c81;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+td {
+  color: #172033;
+  font-size: 13px;
+}
+
+tbody tr:hover,
+.selectedRow {
+  background: #f2f6fa;
+}
+
+.tableLink {
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.tableLink:hover {
+  text-decoration: underline;
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.categoryPanel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.categoryHeader strong {
+  color: #101820;
+  font-size: 26px;
+}
+
+.categoryObjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.categoryObjects span {
+  border: 1px solid #e1e8f0;
+  border-radius: 999px;
+  color: #4c5d73;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.relationshipMatrix {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.relationshipCard {
+  padding: 14px;
+}
+
+.relationshipCard span {
+  color: #607086;
+  display: block;
+  font-size: 12px;
+}
+
+.relationshipCard strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 5px;
+}
+
+.versionCard {
+  display: grid;
+  gap: 10px;
+}
+
 @media (max-width: 860px) {
   .appShell {
     grid-template-columns: 1fr;
@@ -381,8 +750,17 @@ pre {
   }
 
   .toolbar,
+  .knowledgeToolbar,
   .metricGrid,
-  .expandedEvidence {
+  .expandedEvidence,
+  .detailGrid,
+  .splitPanel,
+  .objectLayout,
+  .relationshipMatrix {
     grid-template-columns: 1fr;
+  }
+
+  .mainPanel {
+    padding: 18px 16px 34px;
   }
 }
