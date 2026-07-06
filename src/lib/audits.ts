@@ -4,7 +4,7 @@ import { supabase, supabaseConfigError } from './supabase';
 
 export type AuditTemplateStatus = 'draft' | 'active' | 'archived';
 export type AuditRunStatus = 'planned' | 'in_progress' | 'passed' | 'failed' | 'cancelled';
-export type AuditRunItemStatus = 'pass' | 'fail' | 'not_applicable' | 'blocked';
+export type AuditRunItemStatus = 'pending' | 'passed' | 'failed' | 'not_applicable' | 'blocked';
 
 export interface AuditReference {
   id: string;
@@ -111,6 +111,11 @@ export interface AuditEngineData {
 export interface AuditRunCreationResult {
   run: AuditRun;
   created: boolean;
+}
+
+export interface AuditRunItemUpdateResult {
+  run: AuditRun;
+  item: AuditRunItem | null;
 }
 
 interface AuditTemplateRow {
@@ -244,6 +249,11 @@ interface AuditRunCreationRow {
   completedCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AuditRunItemUpdateResponse {
+  runId: string;
+  itemId: string;
 }
 
 function buildChecklistLookups(data: Awaited<ReturnType<typeof getChecklistEngineData>>, knowledge: Awaited<ReturnType<typeof getKnowledgeEngineData>>): ChecklistLookups {
@@ -500,4 +510,53 @@ export async function createAuditRunFromTemplate(
     } as AuditRun);
 
   return { run, created: payload.created ?? false };
+}
+
+export async function updateAuditRunItem(input: {
+  auditRunItemId: string;
+  status: AuditRunItemStatus;
+  score?: number | null;
+  notes?: string | null;
+}): Promise<AuditRunItemUpdateResult> {
+  const response = await fetch('/api/audits/run-items', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Audit item update failed.');
+  }
+
+  const payload = (await response.json()) as AuditRunItemUpdateResponse;
+  const runs = await loadAuditRuns();
+  const run = runs.find((item) => item.id === payload.runId);
+  const item = run?.items.find((entry) => entry.id === payload.itemId) ?? null;
+
+  if (!run) {
+    throw new Error('Audit run was not found after updating the item.');
+  }
+
+  return { run, item };
+}
+
+export async function recalculateAuditRunScoreAndStatus(auditRunId: string): Promise<AuditRun | null> {
+  const response = await fetch('/api/audits/runs/recalculate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ auditRunId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Audit run recalculation failed.');
+  }
+
+  const runs = await loadAuditRuns();
+  return runs.find((item) => item.id === auditRunId) ?? null;
 }

@@ -2,9 +2,10 @@ import type { ReactNode } from 'react';
 
 function toneFromStatus(status: string): string {
   const value = status.toLowerCase();
-  if (value.includes('active') || value.includes('approved') || value.includes('satisfied') || value.includes('completed')) return 'success';
+  if (value.includes('active') || value.includes('approved') || value.includes('satisfied') || value.includes('completed') || value.includes('passed')) return 'success';
   if (value.includes('missing') || value.includes('failed') || value.includes('archived')) return 'danger';
-  if (value.includes('pending') || value.includes('draft') || value.includes('assigned') || value.includes('in_progress')) return 'warning';
+  if (value.includes('pending') || value.includes('draft') || value.includes('assigned') || value.includes('in_progress') || value.includes('blocked')) return 'warning';
+  if (value.includes('skipped') || value.includes('not_applicable')) return 'neutral';
   return 'neutral';
 }
 
@@ -18,4 +19,3 @@ export function StatusBadge({
   const tone = toneFromStatus(status);
   return <span className={`statusBadge ${tone}`}>{label ?? status}</span>;
 }
-

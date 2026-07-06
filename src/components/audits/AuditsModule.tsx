@@ -3,10 +3,14 @@ import { AlertCircle, ArrowRight, ClipboardList, Search, ShieldAlert, ShieldChec
 import {
   createAuditRunFromTemplate,
   getAuditEngineData,
+  recalculateAuditRunScoreAndStatus,
+  updateAuditRunItem,
   type AuditEngineData,
   type AuditRun,
   type AuditTemplate,
   type AuditTemplateItem,
+  type AuditRunItem,
+  type AuditRunItemStatus,
 } from '../../lib/audits';
 import { EmptyState, KnowledgeGapCard, LinkedKnowledgePanel, MetricCard, OSCard, StatusBadge, CoverageBadge } from '../os';
 
@@ -144,21 +148,117 @@ function AuditItemCard({ item, onOpenKnowledgeBase }: { item: AuditTemplateItem;
   );
 }
 
-function AuditRunCard({ run }: { run: AuditRun }): JSX.Element {
+function AuditRunCard({
+  run,
+  selected,
+  onSelect,
+}: {
+  run: AuditRun;
+  selected: boolean;
+  onSelect: (runId: string) => void;
+}): JSX.Element {
   return (
-    <OSCard className="auditRunCard">
-      <div className="auditRunHeader">
-        <div>
-          <strong>{run.templateTitle ?? 'Audit run'}</strong>
-          <p>{run.businessDate ? `Business date ${formatDate(run.businessDate)}` : 'No business date recorded'}</p>
+    <OSCard className={selected ? 'auditRunCard active' : 'auditRunCard'}>
+      <button className="auditRunButton" onClick={() => onSelect(run.id)} type="button">
+        <div className="auditRunHeader">
+          <div>
+            <strong>{run.templateTitle ?? 'Audit run'}</strong>
+            <p>{run.businessDate ? `Business date ${formatDate(run.businessDate)}` : 'No business date recorded'}</p>
+          </div>
+          <StatusBadge status={run.status} />
         </div>
-        <StatusBadge status={run.status} />
+        <div className="auditRunMeta">
+          <span>{run.itemCount} items</span>
+          <span>{run.completedCount} completed</span>
+          <span>{run.totalScore ?? 'No score yet'}</span>
+          <span>Started {formatDate(run.startedAt)}</span>
+        </div>
+      </button>
+    </OSCard>
+  );
+}
+
+function AuditRunItemEditor({
+  item,
+  saving,
+  onSave,
+}: {
+  item: AuditRunItem;
+  saving: boolean;
+  onSave: (input: { auditRunItemId: string; status: AuditRunItemStatus; score?: number | null; notes?: string | null }) => Promise<void>;
+}): JSX.Element {
+  const [status, setStatus] = useState<AuditRunItemStatus>(item.status);
+  const [score, setScore] = useState<string>(item.score !== null && item.score !== undefined ? String(item.score) : '');
+  const [notes, setNotes] = useState(item.notes ?? '');
+
+  useEffect(() => {
+    setStatus(item.status);
+    setScore(item.score !== null && item.score !== undefined ? String(item.score) : '');
+    setNotes(item.notes ?? '');
+  }, [item]);
+
+  const supportsScore = item.templateItem?.maxScore !== null && item.templateItem?.maxScore !== undefined;
+
+  return (
+    <OSCard className="runItemEditor">
+      <div className="runItemEditorHeader">
+        <div>
+          <strong>{item.templateItem?.title ?? 'Audit item'}</strong>
+          <p>{item.templateItem?.description ?? item.templateItem?.checklistTemplateItem?.description ?? 'Linked audit item from the template.'}</p>
+        </div>
+        <StatusBadge status={item.status} />
       </div>
-      <div className="auditRunMeta">
-        <span>{run.itemCount} items</span>
-        <span>{run.completedCount} completed</span>
-        <span>{run.totalScore ?? 'No score yet'}</span>
-        <span>Started {formatDate(run.startedAt)}</span>
+      <div className="runItemEditorMeta">
+        <span>{item.templateItem?.evidenceRequired ? 'Evidence required' : 'No evidence requirement'}</span>
+        {item.completedAt && <span>Completed {formatDate(item.completedAt)}</span>}
+        {supportsScore && <span>{item.templateItem?.maxScore ?? 0} max score</span>}
+      </div>
+      <div className="runItemEditorControls">
+        <label className="selectField">
+          <span>Status</span>
+          <select value={status} onChange={(event) => setStatus(event.target.value as AuditRunItemStatus)}>
+            <option value="pending">Pending</option>
+            <option value="passed">Passed</option>
+            <option value="failed">Failed</option>
+            <option value="not_applicable">Not applicable</option>
+            <option value="blocked">Blocked</option>
+          </select>
+        </label>
+        {supportsScore && (
+          <label className="textField">
+            <span>Score</span>
+            <input
+              inputMode="decimal"
+              min="0"
+              max={item.templateItem?.maxScore ?? undefined}
+              type="number"
+              value={score}
+              onChange={(event) => setScore(event.target.value)}
+            />
+          </label>
+        )}
+        <label className="textAreaField">
+          <span>Notes</span>
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
+        </label>
+        <div className="runItemFooter">
+          <span>{item.completedAt ? 'Completion recorded' : 'Not completed yet'}</span>
+          <button
+            className="iconTextButton"
+            disabled={saving}
+            onClick={() =>
+              void onSave({
+                auditRunItemId: item.id,
+                status,
+                score: supportsScore && score.trim().length > 0 ? Number(score) : null,
+                notes: notes.trim() || null,
+              })
+            }
+            type="button"
+          >
+            {saving ? 'Saving...' : 'Save item'}
+          </button>
+        </div>
       </div>
     </OSCard>
   );
@@ -170,18 +270,27 @@ function AuditTemplateDetail({
   onCreateRun,
   creatingTemplateId,
   todayRuns,
+  selectedRunId,
+  onSelectRun,
+  onUpdateRunItem,
+  savingItemId,
 }: {
   template: AuditTemplate;
   onOpenKnowledgeBase?: () => void;
   onCreateRun: (templateId: string) => Promise<void>;
   creatingTemplateId: string | null;
   todayRuns: AuditRun[];
+  selectedRunId: string | null;
+  onSelectRun: (runId: string) => void;
+  onUpdateRunItem: (input: { auditRunItemId: string; status: AuditRunItemStatus; score?: number | null; notes?: string | null }) => Promise<void>;
+  savingItemId: string | null;
 }): JSX.Element {
   const missingItems = template.items.filter((item) => item.coverageStatus === 'missing');
   const linkedKnowledgeItems = template.items
     .flatMap((item) => item.matchedKnowledge.map((knowledge) => ({ item, knowledge })))
     .filter((entry, index, list) => list.findIndex((candidate) => candidate.knowledge.id === entry.knowledge.id) === index);
   const templateRunsToday = todayRuns.filter((run) => run.auditTemplateId === template.id);
+  const selectedRun = [...templateRunsToday, ...template.runs].find((run) => run.id === selectedRunId) ?? templateRunsToday[0] ?? template.runs[0] ?? null;
 
   return (
     <div className="detailStack auditDetail">
@@ -263,7 +372,7 @@ function AuditTemplateDetail({
         {template.runs.length > 0 ? (
           <div className="auditRunList">
             {template.runs.map((run) => (
-              <AuditRunCard key={run.id} run={run} />
+              <AuditRunCard key={run.id} run={run} selected={run.id === selectedRun?.id} onSelect={onSelectRun} />
             ))}
           </div>
         ) : (
@@ -280,11 +389,40 @@ function AuditTemplateDetail({
         {templateRunsToday.length > 0 ? (
           <div className="auditRunList">
             {templateRunsToday.map((run) => (
-              <AuditRunCard key={run.id} run={run} />
+              <AuditRunCard key={run.id} run={run} selected={run.id === selectedRun?.id} onSelect={onSelectRun} />
             ))}
           </div>
         ) : (
           <EmptyState icon={ClipboardList} title="No run created today" description="The template is ready, but no audit run exists for today yet." />
+        )}
+      </section>
+
+      <section className="detailSection">
+        <h4>Run items</h4>
+        {selectedRun ? (
+          <div className="runItemList">
+            <div className="runItemSummary">
+              <span>{selectedRun.templateTitle ?? template.title}</span>
+              <StatusBadge status={selectedRun.status} />
+              <span>{selectedRun.itemCount} items</span>
+              <span>{selectedRun.completedCount} completed</span>
+              {selectedRun.totalScore !== null && <span>{selectedRun.totalScore} score</span>}
+            </div>
+            {selectedRun.items.length > 0 ? (
+              selectedRun.items.map((item) => (
+                <AuditRunItemEditor
+                  key={item.id}
+                  item={item}
+                  saving={savingItemId === item.id}
+                  onSave={onUpdateRunItem}
+                />
+              ))
+            ) : (
+              <EmptyState icon={ClipboardList} title="No run items" description="Run items will appear when the template is seeded in Supabase." />
+            )}
+          </div>
+        ) : (
+          <EmptyState icon={Star} title="Select a run" description="Choose an audit run above to review and score its items." />
         )}
       </section>
     </div>
@@ -296,14 +434,20 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
   const [runSummary, setRunSummary] = useState<AuditRun | null>(null);
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     getAuditEngineData()
       .then((nextData) => {
-        if (isMounted) setData(nextData);
+        if (!isMounted) return;
+        setData(nextData);
+        setSelectedAuditId(nextData.templates[0]?.id ?? null);
+        const initialRun = nextData.runs.find((run) => run.businessDate === todayBusinessDate()) ?? nextData.runs[0] ?? null;
+        setSelectedRunId(initialRun?.id ?? null);
       })
       .catch((reason: unknown) => {
         if (isMounted) setError(friendlyError(reason));
@@ -321,6 +465,11 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
       if (current && nextData.templates.some((template) => template.id === current)) return current;
       return nextData.templates[0]?.id ?? null;
     });
+    setSelectedRunId((current) => {
+      if (current && nextData.runs.some((run) => run.id === current)) return current;
+      const nextRun = nextData.runs.find((run) => run.businessDate === todayBusinessDate()) ?? nextData.runs[0] ?? null;
+      return nextRun?.id ?? null;
+    });
   };
 
   const handleCreateRun = async (templateId: string): Promise<void> => {
@@ -329,6 +478,7 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
     try {
       const result = await createAuditRunFromTemplate(templateId, todayBusinessDate());
       setRunSummary(result.run);
+      setSelectedRunId(result.run.id);
       await reloadData();
     } catch (reason) {
       setError(friendlyError(reason));
@@ -350,6 +500,26 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
   }, [filteredTemplates, selectedAuditId]);
   const today = todayBusinessDate();
   const todayRuns = useMemo(() => (data?.runs ?? []).filter((run) => run.businessDate === today), [data?.runs, today]);
+  const selectedRun = useMemo(() => {
+    const runs = data?.runs ?? [];
+    return runs.find((run) => run.id === selectedRunId) ?? todayRuns[0] ?? runs[0] ?? null;
+  }, [data?.runs, selectedRunId, todayRuns]);
+
+  const handleUpdateRunItem = async (input: { auditRunItemId: string; status: AuditRunItemStatus; score?: number | null; notes?: string | null }): Promise<void> => {
+    setSavingItemId(input.auditRunItemId);
+    setError(null);
+    try {
+      await updateAuditRunItem(input);
+      if (selectedRun) {
+        await recalculateAuditRunScoreAndStatus(selectedRun.id);
+      }
+      await reloadData();
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setSavingItemId(null);
+    }
+  };
 
   useEffect(() => {
     if (!selectedTemplate) {
@@ -445,6 +615,10 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
               onCreateRun={handleCreateRun}
               creatingTemplateId={creatingTemplateId}
               todayRuns={todayRuns}
+              selectedRunId={selectedRun?.id ?? null}
+              onSelectRun={setSelectedRunId}
+              onUpdateRunItem={handleUpdateRunItem}
+              savingItemId={savingItemId}
             />
           ) : (
             <EmptyState

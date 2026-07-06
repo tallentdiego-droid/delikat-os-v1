@@ -361,6 +361,32 @@ button {
   white-space: nowrap;
 }
 
+.textField,
+.textAreaField {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.textField input,
+.textAreaField textarea {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #111827;
+  resize: vertical;
+}
+
+.textField span,
+.textAreaField span {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .detailHeaderActions {
   display: flex;
   align-items: center;
@@ -2157,6 +2183,99 @@ tbody tr:hover,
   overflow-wrap: anywhere;
 }
 
+.checklistRunCard.active,
+.auditRunCard.active {
+  border-color: #bfd0e2;
+  background: #f6f9fc;
+}
+
+.checklistRunButton,
+.auditRunButton {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.runItemList {
+  display: grid;
+  gap: 10px;
+}
+
+.runItemSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #516175;
+  font-size: 13px;
+}
+
+.runItemSummary span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 4px 8px;
+}
+
+.runItemEditor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.runItemEditorHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runItemEditorHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.runItemEditorHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.runItemEditorMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.runItemEditorMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.runItemEditorControls {
+  display: grid;
+  gap: 10px;
+}
+
+.runItemFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #5a687d;
+  font-size: 13px;
+}
+
 .checklistSummaryGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -2272,10 +2391,6 @@ tbody tr:hover,
 
 .auditItemCard > p {
   color: #344154;
-}
-
-.auditRunCard {
-  background: #fbfcfe;
 }
 
 .auditSummaryGrid {

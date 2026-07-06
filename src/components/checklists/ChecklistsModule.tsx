@@ -3,10 +3,14 @@ import { AlertCircle, ArrowRight, ClipboardList, Search, ShieldAlert, Workflow }
 import {
   createChecklistRunFromTemplate,
   getChecklistEngineData,
+  recalculateChecklistRunStatus,
+  updateChecklistRunItem,
   type ChecklistEngineData,
   type ChecklistTemplate,
   type ChecklistTemplateItem,
   type ChecklistRun,
+  type ChecklistRunItem,
+  type ChecklistRunItemStatus,
 } from '../../lib/checklists';
 import { CoverageBadge, EmptyState, KnowledgeGapCard, LinkedKnowledgePanel, MetricCard as SharedMetricCard, OSCard, StatusBadge } from '../os';
 
@@ -142,20 +146,87 @@ function ChecklistItemCard({ item, onOpenKnowledgeBase }: { item: ChecklistTempl
   );
 }
 
-function ChecklistRunCard({ run }: { run: ChecklistRun }): JSX.Element {
+function ChecklistRunCard({
+  run,
+  selected,
+  onSelect,
+}: {
+  run: ChecklistRun;
+  selected: boolean;
+  onSelect: (runId: string) => void;
+}): JSX.Element {
   return (
-    <OSCard className="checklistRunCard">
-      <div className="checklistRunHeader">
-        <div>
-          <strong>{run.templateTitle ?? 'Checklist run'}</strong>
-          <p>{run.businessDate ? `Business date ${formatDate(run.businessDate)}` : 'No business date recorded'}</p>
+    <OSCard className={selected ? 'checklistRunCard active' : 'checklistRunCard'}>
+      <button className="checklistRunButton" onClick={() => onSelect(run.id)} type="button">
+        <div className="checklistRunHeader">
+          <div>
+            <strong>{run.templateTitle ?? 'Checklist run'}</strong>
+            <p>{run.businessDate ? `Business date ${formatDate(run.businessDate)}` : 'No business date recorded'}</p>
+          </div>
+          <StatusBadge status={run.status} />
         </div>
-        <StatusBadge status={run.status} />
+        <div className="checklistRunMeta">
+          <span>{run.itemCount} items</span>
+          <span>{run.completedCount} completed</span>
+          <span>Started {formatDate(run.startedAt)}</span>
+        </div>
+      </button>
+    </OSCard>
+  );
+}
+
+function ChecklistRunItemEditor({
+  item,
+  saving,
+  onSave,
+}: {
+  item: ChecklistRunItem;
+  saving: boolean;
+  onSave: (input: { checklistRunItemId: string; status: ChecklistRunItemStatus; notes?: string | null }) => Promise<void>;
+}): JSX.Element {
+  const [status, setStatus] = useState<ChecklistRunItemStatus>(item.status);
+  const [notes, setNotes] = useState(item.notes ?? '');
+
+  useEffect(() => {
+    setStatus(item.status);
+    setNotes(item.notes ?? '');
+  }, [item]);
+
+  return (
+    <OSCard className="runItemEditor">
+      <div className="runItemEditorHeader">
+        <div>
+          <strong>{item.templateItem?.title ?? 'Checklist item'}</strong>
+          <p>{item.templateItem?.description ?? item.templateItem?.processStep?.description ?? 'Linked checklist item from the template.'}</p>
+        </div>
+        <StatusBadge status={item.status} />
       </div>
-      <div className="checklistRunMeta">
-        <span>{run.itemCount} items</span>
-        <span>{run.completedCount} completed</span>
-        <span>Started {formatDate(run.startedAt)}</span>
+      <div className="runItemEditorMeta">
+        <span>{item.templateItem?.completionRequired ? 'Required' : 'Optional'}</span>
+        <span>{item.templateItem?.evidenceRequired ? 'Evidence required' : 'No evidence requirement'}</span>
+        {item.completedAt && <span>Completed {formatDate(item.completedAt)}</span>}
+      </div>
+      <div className="runItemEditorControls">
+        <label className="selectField">
+          <span>Status</span>
+          <select value={status} onChange={(event) => setStatus(event.target.value as ChecklistRunItemStatus)}>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="skipped">Skipped</option>
+            <option value="blocked">Blocked</option>
+            <option value="not_applicable">Not applicable</option>
+          </select>
+        </label>
+        <label className="textAreaField">
+          <span>Notes</span>
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
+        </label>
+        <div className="runItemFooter">
+          <span>{item.completedAt ? 'Completion recorded' : 'Not completed yet'}</span>
+          <button className="iconTextButton" disabled={saving} onClick={() => void onSave({ checklistRunItemId: item.id, status, notes: notes.trim() || null })} type="button">
+            {saving ? 'Saving...' : 'Save item'}
+          </button>
+        </div>
       </div>
     </OSCard>
   );
@@ -167,18 +238,27 @@ function ChecklistTemplateDetail({
   onCreateRun,
   creatingTemplateId,
   todayRuns,
+  selectedRunId,
+  onSelectRun,
+  onUpdateRunItem,
+  savingItemId,
 }: {
   template: ChecklistTemplate;
   onOpenKnowledgeBase?: () => void;
   onCreateRun: (templateId: string) => Promise<void>;
   creatingTemplateId: string | null;
   todayRuns: ChecklistRun[];
+  selectedRunId: string | null;
+  onSelectRun: (runId: string) => void;
+  onUpdateRunItem: (input: { checklistRunItemId: string; status: ChecklistRunItemStatus; notes?: string | null }) => Promise<void>;
+  savingItemId: string | null;
 }): JSX.Element {
   const missingItems = template.items.filter((item) => item.coverageStatus === 'missing');
   const linkedKnowledgeItems = template.items
     .flatMap((item) => item.matchedKnowledge.map((knowledge) => ({ item, knowledge })))
     .filter((entry, index, list) => list.findIndex((candidate) => candidate.knowledge.id === entry.knowledge.id) === index);
   const templateRunsToday = todayRuns.filter((run) => run.checklistTemplateId === template.id);
+  const selectedRun = [...templateRunsToday, ...template.runs].find((run) => run.id === selectedRunId) ?? templateRunsToday[0] ?? template.runs[0] ?? null;
 
   return (
     <div className="detailStack checklistDetail">
@@ -257,7 +337,7 @@ function ChecklistTemplateDetail({
         {template.runs.length > 0 ? (
           <div className="checklistRunList">
             {template.runs.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((run) => (
-              <ChecklistRunCard key={run.id} run={run} />
+              <ChecklistRunCard key={run.id} run={run} selected={run.id === selectedRun?.id} onSelect={onSelectRun} />
             ))}
           </div>
         ) : (
@@ -270,11 +350,39 @@ function ChecklistTemplateDetail({
         {templateRunsToday.length > 0 ? (
           <div className="checklistRunList">
             {templateRunsToday.map((run) => (
-              <ChecklistRunCard key={run.id} run={run} />
+              <ChecklistRunCard key={run.id} run={run} selected={run.id === selectedRun?.id} onSelect={onSelectRun} />
             ))}
           </div>
         ) : (
           <EmptyState icon={Workflow} title="No run created today" description="The template is ready, but no checklist run exists for today yet." />
+        )}
+      </section>
+
+      <section className="detailSection">
+        <h4>Run items</h4>
+        {selectedRun ? (
+          <div className="runItemList">
+            <div className="runItemSummary">
+              <span>{selectedRun.templateTitle ?? template.title}</span>
+              <StatusBadge status={selectedRun.status} />
+              <span>{selectedRun.itemCount} items</span>
+              <span>{selectedRun.completedCount} completed</span>
+            </div>
+            {selectedRun.items.length > 0 ? (
+              selectedRun.items.map((item) => (
+                <ChecklistRunItemEditor
+                  key={item.id}
+                  item={item}
+                  saving={savingItemId === item.id}
+                  onSave={onUpdateRunItem}
+                />
+              ))
+            ) : (
+              <EmptyState icon={ClipboardList} title="No run items" description="Run items will appear when the template is seeded in Supabase." />
+            )}
+          </div>
+        ) : (
+          <EmptyState icon={Workflow} title="Select a run" description="Choose a checklist run above to review and complete its items." />
         )}
       </section>
     </div>
@@ -284,10 +392,12 @@ function ChecklistTemplateDetail({
 export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps = {}): JSX.Element {
   const [data, setData] = useState<ChecklistEngineData | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
   const [runSummary, setRunSummary] = useState<ChecklistRun | null>(null);
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -297,6 +407,8 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
         if (!isMounted) return;
         setData(nextData);
         setSelectedTemplateId(nextData.templates[0]?.id ?? null);
+        const initialRun = nextData.runs.find((run) => run.businessDate === todayBusinessDate()) ?? nextData.runs[0] ?? null;
+        setSelectedRunId(initialRun?.id ?? null);
       })
       .catch((reason: unknown) => {
         if (isMounted) setError(friendlyError(reason));
@@ -314,6 +426,11 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
       if (current && nextData.templates.some((template) => template.id === current)) return current;
       return nextData.templates[0]?.id ?? null;
     });
+    setSelectedRunId((current) => {
+      if (current && nextData.runs.some((run) => run.id === current)) return current;
+      const nextRun = nextData.runs.find((run) => run.businessDate === todayBusinessDate()) ?? nextData.runs[0] ?? null;
+      return nextRun?.id ?? null;
+    });
   };
 
   const handleCreateRun = async (templateId: string): Promise<void> => {
@@ -322,6 +439,7 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
     try {
       const result = await createChecklistRunFromTemplate(templateId, todayBusinessDate());
       setRunSummary(result.run);
+      setSelectedRunId(result.run.id);
       await reloadData();
     } catch (reason) {
       setError(friendlyError(reason));
@@ -338,6 +456,26 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
   );
   const today = todayBusinessDate();
   const todayRuns = useMemo(() => (data?.runs ?? []).filter((run) => run.businessDate === today), [data?.runs, today]);
+  const selectedRun = useMemo(() => {
+    const runs = data?.runs ?? [];
+    return runs.find((run) => run.id === selectedRunId) ?? todayRuns[0] ?? runs[0] ?? null;
+  }, [data?.runs, selectedRunId, todayRuns]);
+
+  const handleUpdateRunItem = async (input: { checklistRunItemId: string; status: ChecklistRunItemStatus; notes?: string | null }): Promise<void> => {
+    setSavingItemId(input.checklistRunItemId);
+    setError(null);
+    try {
+      await updateChecklistRunItem(input);
+      if (selectedRun) {
+        await recalculateChecklistRunStatus(selectedRun.id);
+      }
+      await reloadData();
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setSavingItemId(null);
+    }
+  };
 
   useEffect(() => {
     if (!selectedTemplate || selectedTemplate.id === selectedTemplateId) return;
@@ -427,6 +565,10 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
               onCreateRun={handleCreateRun}
               creatingTemplateId={creatingTemplateId}
               todayRuns={todayRuns}
+              selectedRunId={selectedRun?.id ?? null}
+              onSelectRun={setSelectedRunId}
+              onUpdateRunItem={handleUpdateRunItem}
+              savingItemId={savingItemId}
             />
           ) : (
             <EmptyState icon={ShieldAlert} title="Select a checklist template" description="Choose a template to inspect its steps, linked knowledge, and coverage gaps." />

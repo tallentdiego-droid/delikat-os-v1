@@ -4,7 +4,7 @@ import { supabase, supabaseConfigError } from './supabase';
 
 export type ChecklistTemplateStatus = 'draft' | 'active' | 'archived';
 export type ChecklistRunStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-export type ChecklistRunItemStatus = 'pass' | 'fail' | 'not_applicable' | 'blocked';
+export type ChecklistRunItemStatus = 'pending' | 'completed' | 'skipped' | 'blocked' | 'not_applicable';
 
 export interface ChecklistTemplateItem {
   id: string;
@@ -95,6 +95,11 @@ export interface ChecklistEngineData {
 export interface ChecklistRunCreationResult {
   run: ChecklistRun;
   created: boolean;
+}
+
+export interface ChecklistRunItemUpdateResult {
+  run: ChecklistRun;
+  item: ChecklistRunItem | null;
 }
 
 interface ChecklistTemplateRow {
@@ -244,6 +249,11 @@ interface ChecklistRunCreationRow {
   completedCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ChecklistRunItemUpdateResponse {
+  runId: string;
+  itemId: string;
 }
 
 function buildCoverageLookup(coverage: Awaited<ReturnType<typeof getKnowledgeEngineData>>['coverage']): Map<string, ChecklistCoverageLookup> {
@@ -412,6 +422,54 @@ export async function createChecklistRunFromTemplate(
     } as ChecklistRun);
 
   return { run, created: payload.created ?? false };
+}
+
+export async function updateChecklistRunItem(input: {
+  checklistRunItemId: string;
+  status: ChecklistRunItemStatus;
+  notes?: string | null;
+}): Promise<ChecklistRunItemUpdateResult> {
+  const response = await fetch('/api/checklists/run-items', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Checklist item update failed.');
+  }
+
+  const payload = (await response.json()) as ChecklistRunItemUpdateResponse;
+  const runs = await loadChecklistRuns();
+  const run = runs.find((item) => item.id === payload.runId);
+  const item = run?.items.find((entry) => entry.id === payload.itemId) ?? null;
+
+  if (!run) {
+    throw new Error('Checklist run was not found after updating the item.');
+  }
+
+  return { run, item };
+}
+
+export async function recalculateChecklistRunStatus(checklistRunId: string): Promise<ChecklistRun | null> {
+  const response = await fetch('/api/checklists/runs/recalculate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ checklistRunId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Checklist run recalculation failed.');
+  }
+
+  const runs = await loadChecklistRuns();
+  return runs.find((item) => item.id === checklistRunId) ?? null;
 }
 
 export async function getChecklistEngineData(): Promise<ChecklistEngineData> {

@@ -118,7 +118,7 @@ export default async function handler(req: any, res: any): Promise<void> {
       organization_id: ORGANIZATION_ID,
       audit_run_id: run.id,
       audit_template_item_id: item.id,
-      status: 'not_applicable',
+      status: 'pending',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));

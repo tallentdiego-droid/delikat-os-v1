@@ -267,6 +267,15 @@ export function DashboardPage(): JSX.Element {
 
   const checklistTodayRuns = useMemo(() => (checklistsEngine?.runs ?? []).filter((run) => run.businessDate === today), [checklistsEngine?.runs, today]);
   const auditTodayRuns = useMemo(() => (auditsEngine?.runs ?? []).filter((run) => run.businessDate === today), [auditsEngine?.runs, today]);
+  const checklistActiveRuns = useMemo(() => (checklistsEngine?.runs ?? []).filter((run) => run.status === 'scheduled' || run.status === 'in_progress'), [checklistsEngine?.runs]);
+  const checklistCompletedRuns = useMemo(() => (checklistsEngine?.runs ?? []).filter((run) => run.status === 'completed'), [checklistsEngine?.runs]);
+  const auditActiveRuns = useMemo(() => (auditsEngine?.runs ?? []).filter((run) => run.status === 'planned' || run.status === 'in_progress'), [auditsEngine?.runs]);
+  const auditCompletedRuns = useMemo(() => (auditsEngine?.runs ?? []).filter((run) => run.status === 'passed' || run.status === 'failed'), [auditsEngine?.runs]);
+  const latestAuditScore = useMemo(() => {
+    const scoredRuns = (auditsEngine?.runs ?? []).filter((run) => run.totalScore !== null);
+    if (!scoredRuns.length) return null;
+    return scoredRuns.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]?.totalScore ?? null;
+  }, [auditsEngine?.runs]);
 
   const topMissingKnowledge = coverage?.topMissing.slice(0, 4) ?? [];
 
@@ -602,8 +611,12 @@ export function DashboardPage(): JSX.Element {
               {checklistsEngine?.stats.runCount ?? '...'}
             </span>
             <span>
-              <strong>Open runs</strong>
-              {checklistsEngine?.stats.openRunCount ?? '...'}
+              <strong>Active runs</strong>
+              {checklistActiveRuns.length}
+            </span>
+            <span>
+              <strong>Completed runs</strong>
+              {checklistCompletedRuns.length}
             </span>
             <span>
               <strong>Latest template update</strong>
@@ -655,12 +668,20 @@ export function DashboardPage(): JSX.Element {
               {auditsEngine?.stats.runCount ?? '...'}
             </span>
             <span>
-              <strong>Open runs</strong>
-              {auditsEngine?.stats.openRunCount ?? '...'}
+              <strong>Active runs</strong>
+              {auditActiveRuns.length}
             </span>
             <span>
               <strong>Completed runs</strong>
+              {auditCompletedRuns.length}
+            </span>
+            <span>
+              <strong>Completed run records</strong>
               {auditsEngine?.stats.completedRunCount ?? '...'}
+            </span>
+            <span>
+              <strong>Latest audit score</strong>
+              {latestAuditScore ?? '...'}
             </span>
             <span>
               <strong>Execution state</strong>
