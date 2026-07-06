@@ -548,6 +548,229 @@ pre {
   font-size: 13px;
 }
 
+.executionSummaryGrid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.executionCallout {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.executionCalloutHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.executionCalloutHeader strong {
+  display: block;
+  color: #172033;
+  font-size: 14px;
+}
+
+.executionCalloutHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.executionCalloutMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.executionCalloutMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.executionTimeline {
+  display: grid;
+  gap: 16px;
+}
+
+.executionTimelineSummary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.executionTimelineGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.executionGroup {
+  display: grid;
+  gap: 12px;
+}
+
+.executionGroupHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.executionGroupHeader h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+}
+
+.executionGroupHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.executionGroupCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.executionGroupList {
+  display: grid;
+  gap: 12px;
+}
+
+.executionCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.executionCardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.executionCardHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.executionCardHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.executionCardBadges,
+.executionCardMeta,
+.executionCardTiming {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.executionCardMeta span,
+.executionCardTiming span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.executionCardTiming {
+  color: #435268;
+}
+
+.executionCardBlocked {
+  border-left: 3px solid #d66b6b;
+  background: #fff7f7;
+  color: #9f1d1d;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.executionCardAction {
+  align-self: start;
+}
+
+.executionQuickStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.executionQuickCard {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.executionQuickHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #172033;
+}
+
+.executionQuickCard p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.executionBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #3f4f63;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 9px;
+}
+
+.executionBadge.success {
+  background: #f0fdf4;
+  border-color: #a7e3b5;
+  color: #127a31;
+}
+
+.executionBadge.warning {
+  background: #fff9ed;
+  border-color: #f4d47a;
+  color: #8a6510;
+}
+
+.executionBadge.danger {
+  background: #fff5f5;
+  border-color: #f5b5b5;
+  color: #c0372d;
+}
+
 .commandActionCard {
   display: grid;
   gap: 10px;
@@ -2473,6 +2696,9 @@ tbody tr:hover,
   .trainingToolbar,
   .metricGrid,
   .dashboardSummaryGrid,
+  .executionSummaryGrid,
+  .executionTimelineSummary,
+  .executionQuickStrip,
   .dashboardFocusGrid,
   .roleGrid,
   .checklistLayout,
