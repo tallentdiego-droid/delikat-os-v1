@@ -92,6 +92,11 @@ export interface ChecklistEngineData {
   stats: ChecklistStats;
 }
 
+export interface ChecklistRunCreationResult {
+  run: ChecklistRun;
+  created: boolean;
+}
+
 interface ChecklistTemplateRow {
   id: string;
   organization_id: string;
@@ -195,6 +200,12 @@ function ensureSupabase() {
   return supabase;
 }
 
+function todayBusinessDate(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function isMissingChecklistTableError(error: { code?: string; message?: string }): boolean {
   return (
     error.code === '42P01' ||
@@ -215,6 +226,24 @@ async function selectRows<T>(table: string, columns: string, orderColumn = 'crea
     throw error;
   }
   return (data ?? []) as T[];
+}
+
+interface ChecklistRunCreationResponse {
+  run: ChecklistRunCreationRow;
+  created: boolean;
+}
+
+interface ChecklistRunCreationRow {
+  id: string;
+  checklistTemplateId: string;
+  checklistTemplateTitle: string;
+  checklistTemplateCode: string;
+  businessDate: string;
+  status: ChecklistRunStatus;
+  itemCount: number;
+  completedCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function buildCoverageLookup(coverage: Awaited<ReturnType<typeof getKnowledgeEngineData>>['coverage']): Map<string, ChecklistCoverageLookup> {
@@ -334,6 +363,55 @@ function buildRunItems(rows: ChecklistRunItemRow[], templateItems: Map<string, C
   }
 
   return byRun;
+}
+
+export async function loadChecklistRuns(): Promise<ChecklistRun[]> {
+  return (await getChecklistEngineData()).runs;
+}
+
+export async function createChecklistRunFromTemplate(
+  checklistTemplateId: string,
+  businessDate = todayBusinessDate(),
+): Promise<ChecklistRunCreationResult> {
+  const response = await fetch('/api/checklists/runs', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ checklistTemplateId, businessDate }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Checklist run creation failed.');
+  }
+
+  const payload = (await response.json()) as { run?: ChecklistRunCreationRow; created?: boolean };
+  if (!payload.run) throw new Error('Checklist run creation did not return a run.');
+  const row = payload.run;
+
+  const runs = await loadChecklistRuns();
+  const run =
+    runs.find((item) => item.id === row.id) ??
+    ({
+      id: row.id,
+      checklistTemplateId: row.checklistTemplateId,
+      businessDate: row.businessDate,
+      assignedRoleId: null,
+      assignedUserId: null,
+      status: row.status,
+      startedAt: null,
+      completedAt: null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      templateTitle: row.checklistTemplateTitle,
+      templateCode: row.checklistTemplateCode,
+      itemCount: row.itemCount,
+      completedCount: row.completedCount,
+      items: [],
+    } as ChecklistRun);
+
+  return { run, created: payload.created ?? false };
 }
 
 export async function getChecklistEngineData(): Promise<ChecklistEngineData> {

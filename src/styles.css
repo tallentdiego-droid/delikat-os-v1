@@ -269,6 +269,34 @@ button {
   color: #9f1d1d;
 }
 
+.notice.success {
+  border: 1px solid #b9dfc3;
+  background: #f4fbf6;
+  color: #25653c;
+}
+
+.noticeText {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.noticeText strong {
+  font-size: 14px;
+}
+
+.noticeText p {
+  margin: 0;
+}
+
+.noticeMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
 .actionNotice {
   justify-content: space-between;
 }
@@ -331,6 +359,14 @@ button {
   color: #1f2937;
   padding: 7px 9px;
   white-space: nowrap;
+}
+
+.detailHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .previewText {
@@ -2116,6 +2152,11 @@ tbody tr:hover,
   background: #fbfcfe;
 }
 
+.checklistRunCard strong,
+.auditRunCard strong {
+  overflow-wrap: anywhere;
+}
+
 .checklistSummaryGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -2219,6 +2260,10 @@ tbody tr:hover,
   display: grid;
   gap: 10px;
   padding: 12px;
+}
+
+.auditRunCard {
+  background: #fbfcfe;
 }
 
 .auditItemCard.gap {

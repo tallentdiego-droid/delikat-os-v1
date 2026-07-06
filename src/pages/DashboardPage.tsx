@@ -43,6 +43,12 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
 }
 
+function todayBusinessDate(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function toSearchText(parts: Array<string | null | undefined>): string {
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
@@ -212,6 +218,7 @@ export function DashboardPage(): JSX.Element {
   const [auditsEngine, setAuditsEngine] = useState<AuditEngineData | null>(null);
   const [trainingEngine, setTrainingEngine] = useState<TrainingEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const today = todayBusinessDate();
 
   useEffect(() => {
     let isMounted = true;
@@ -257,6 +264,9 @@ export function DashboardPage(): JSX.Element {
       ),
     [auditsEngine, checklistsEngine, coverage, operationsEngine, trainingEngine],
   );
+
+  const checklistTodayRuns = useMemo(() => (checklistsEngine?.runs ?? []).filter((run) => run.businessDate === today), [checklistsEngine?.runs, today]);
+  const auditTodayRuns = useMemo(() => (auditsEngine?.runs ?? []).filter((run) => run.businessDate === today), [auditsEngine?.runs, today]);
 
   const topMissingKnowledge = coverage?.topMissing.slice(0, 4) ?? [];
 
@@ -574,6 +584,14 @@ export function DashboardPage(): JSX.Element {
               <strong>Missing coverage</strong>
               {checklistsEngine?.stats.itemsMissingCoverage ?? '...'}
             </span>
+            <span>
+              <strong>Today’s runs</strong>
+              {checklistTodayRuns.length}
+            </span>
+            <span>
+              <strong>Execution state</strong>
+              {(checklistsEngine?.stats.runCount ?? 0) === 0 ? 'Foundation ready, execution not started' : checklistTodayRuns.length > 0 ? 'Active today' : 'Ready, waiting for today'}
+            </span>
           </div>
         </section>
         <section className="countPanel">
@@ -618,6 +636,14 @@ export function DashboardPage(): JSX.Element {
             <span>
               <strong>No audit runs yet</strong>
               {(auditsEngine?.stats.runCount ?? 0) === 0 ? 'Yes' : 'No'}
+            </span>
+            <span>
+              <strong>Today’s runs</strong>
+              {auditTodayRuns.length}
+            </span>
+            <span>
+              <strong>Execution state</strong>
+              {(auditsEngine?.stats.runCount ?? 0) === 0 ? 'Foundation ready, execution not started' : auditTodayRuns.length > 0 ? 'Active today' : 'Ready, waiting for today'}
             </span>
           </div>
         </section>

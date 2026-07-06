@@ -108,6 +108,11 @@ export interface AuditEngineData {
   stats: AuditStats;
 }
 
+export interface AuditRunCreationResult {
+  run: AuditRun;
+  created: boolean;
+}
+
 interface AuditTemplateRow {
   id: string;
   organization_id: string;
@@ -195,6 +200,12 @@ function ensureSupabase() {
   return supabase;
 }
 
+function todayBusinessDate(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function isMissingAuditTableError(error: { code?: string; message?: string }): boolean {
   return (
     error.code === '42P01' ||
@@ -215,6 +226,24 @@ async function selectRows<T>(table: string, columns: string, orderColumn = 'crea
     throw error;
   }
   return (data ?? []) as T[];
+}
+
+interface AuditRunCreationResponse {
+  run: AuditRunCreationRow;
+  created: boolean;
+}
+
+interface AuditRunCreationRow {
+  id: string;
+  auditTemplateId: string;
+  auditTemplateTitle: string;
+  auditTemplateCode: string;
+  businessDate: string;
+  status: AuditRunStatus;
+  itemCount: number;
+  completedCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function buildChecklistLookups(data: Awaited<ReturnType<typeof getChecklistEngineData>>, knowledge: Awaited<ReturnType<typeof getKnowledgeEngineData>>): ChecklistLookups {
@@ -421,4 +450,54 @@ export async function getAuditEngineData(): Promise<AuditEngineData> {
 
 export function auditPreview(value: string, maxLength = 180): string {
   return previewText(value, maxLength);
+}
+
+export async function loadAuditRuns(): Promise<AuditRun[]> {
+  return (await getAuditEngineData()).runs;
+}
+
+export async function createAuditRunFromTemplate(
+  auditTemplateId: string,
+  businessDate = todayBusinessDate(),
+): Promise<AuditRunCreationResult> {
+  const response = await fetch('/api/audits/runs', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ auditTemplateId, businessDate }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Audit run creation failed.');
+  }
+
+  const payload = (await response.json()) as { run?: AuditRunCreationRow; created?: boolean };
+  if (!payload.run) throw new Error('Audit run creation did not return a run.');
+  const row = payload.run;
+
+  const runs = await loadAuditRuns();
+  const run =
+    runs.find((item) => item.id === row.id) ??
+    ({
+      id: row.id,
+      auditTemplateId: row.auditTemplateId,
+      businessDate: row.businessDate,
+      locationId: null,
+      status: row.status,
+      auditorUserId: null,
+      startedAt: null,
+      completedAt: null,
+      totalScore: null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      itemCount: row.itemCount,
+      completedCount: row.completedCount,
+      templateTitle: row.auditTemplateTitle,
+      templateCode: row.auditTemplateCode,
+      items: [],
+    } as AuditRun);
+
+  return { run, created: payload.created ?? false };
 }

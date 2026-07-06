@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, ClipboardList, Search, ShieldAlert, Workflow } from 'lucide-react';
-import { getChecklistEngineData, type ChecklistEngineData, type ChecklistTemplate, type ChecklistTemplateItem, type ChecklistRun } from '../../lib/checklists';
+import {
+  createChecklistRunFromTemplate,
+  getChecklistEngineData,
+  type ChecklistEngineData,
+  type ChecklistTemplate,
+  type ChecklistTemplateItem,
+  type ChecklistRun,
+} from '../../lib/checklists';
 import { CoverageBadge, EmptyState, KnowledgeGapCard, LinkedKnowledgePanel, MetricCard as SharedMetricCard, OSCard, StatusBadge } from '../os';
 
 interface ChecklistsModuleProps {
@@ -19,6 +26,12 @@ function formatDate(value: string | null): string {
 
 function valueOrDefault(value: string | null | undefined): string {
   return value && value.length > 0 ? value : 'Unassigned';
+}
+
+function todayBusinessDate(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
 }
 
 function searchText(template: ChecklistTemplate): string {
@@ -151,14 +164,21 @@ function ChecklistRunCard({ run }: { run: ChecklistRun }): JSX.Element {
 function ChecklistTemplateDetail({
   template,
   onOpenKnowledgeBase,
+  onCreateRun,
+  creatingTemplateId,
+  todayRuns,
 }: {
   template: ChecklistTemplate;
   onOpenKnowledgeBase?: () => void;
+  onCreateRun: (templateId: string) => Promise<void>;
+  creatingTemplateId: string | null;
+  todayRuns: ChecklistRun[];
 }): JSX.Element {
   const missingItems = template.items.filter((item) => item.coverageStatus === 'missing');
   const linkedKnowledgeItems = template.items
     .flatMap((item) => item.matchedKnowledge.map((knowledge) => ({ item, knowledge })))
     .filter((entry, index, list) => list.findIndex((candidate) => candidate.knowledge.id === entry.knowledge.id) === index);
+  const templateRunsToday = todayRuns.filter((run) => run.checklistTemplateId === template.id);
 
   return (
     <div className="detailStack checklistDetail">
@@ -168,7 +188,17 @@ function ChecklistTemplateDetail({
             <h3>{template.title}</h3>
             <p>{template.description ?? 'Read-only checklist foundation built from live operational processes.'}</p>
           </div>
-          <CoverageBadge coveragePercent={template.coveragePercent} label={template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} gaps` : 'fully covered'} />
+          <div className="detailHeaderActions">
+            <CoverageBadge coveragePercent={template.coveragePercent} label={template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} gaps` : 'fully covered'} />
+            <button
+              className="iconTextButton"
+              disabled={creatingTemplateId === template.id}
+              onClick={() => void onCreateRun(template.id)}
+              type="button"
+            >
+              {creatingTemplateId === template.id ? 'Creating run...' : 'Create today’s run'}
+            </button>
+          </div>
         </div>
         <div className="summaryGrid">
           <MetricCard label="Linked process" value={template.process?.name ?? 'None'} helper={template.process?.code ?? undefined} />
@@ -177,6 +207,7 @@ function ChecklistTemplateDetail({
           <MetricCard label="Area" value={valueOrDefault(template.area?.title)} helper={template.area?.code ?? undefined} />
           <MetricCard label="Items" value={template.itemCount} helper={`${template.linkedKnowledgeCount} linked knowledge items`} />
           <MetricCard label="Runs" value={template.runCount} helper={`${template.openRunCount} open runs`} />
+          <MetricCard label="Today" value={templateRunsToday.length} helper={templateRunsToday.length === 0 ? 'Execution not started' : 'Active today'} />
         </div>
       </section>
 
@@ -233,6 +264,19 @@ function ChecklistTemplateDetail({
           <EmptyState icon={Workflow} title="No runs yet" description="Checklist run history will appear once the catalog is executed in Supabase." />
         )}
       </section>
+
+      <section className="detailSection">
+        <h4>Today’s runs</h4>
+        {templateRunsToday.length > 0 ? (
+          <div className="checklistRunList">
+            {templateRunsToday.map((run) => (
+              <ChecklistRunCard key={run.id} run={run} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState icon={Workflow} title="No run created today" description="The template is ready, but no checklist run exists for today yet." />
+        )}
+      </section>
     </div>
   );
 }
@@ -242,6 +286,8 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
+  const [runSummary, setRunSummary] = useState<ChecklistRun | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -261,12 +307,37 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
     };
   }, []);
 
+  const reloadData = async (): Promise<void> => {
+    const nextData = await getChecklistEngineData();
+    setData(nextData);
+    setSelectedTemplateId((current) => {
+      if (current && nextData.templates.some((template) => template.id === current)) return current;
+      return nextData.templates[0]?.id ?? null;
+    });
+  };
+
+  const handleCreateRun = async (templateId: string): Promise<void> => {
+    setCreatingTemplateId(templateId);
+    setError(null);
+    try {
+      const result = await createChecklistRunFromTemplate(templateId, todayBusinessDate());
+      setRunSummary(result.run);
+      await reloadData();
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setCreatingTemplateId(null);
+    }
+  };
+
   const filteredTemplates = useMemo(() => (data?.templates ?? []).filter((template) => matches(template, query)), [data, query]);
   const groupedTemplates = useMemo(() => groupByDepartment(filteredTemplates), [filteredTemplates]);
   const selectedTemplate = useMemo(
     () => filteredTemplates.find((template) => template.id === selectedTemplateId) ?? filteredTemplates[0] ?? null,
     [filteredTemplates, selectedTemplateId],
   );
+  const today = todayBusinessDate();
+  const todayRuns = useMemo(() => (data?.runs ?? []).filter((run) => run.businessDate === today), [data?.runs, today]);
 
   useEffect(() => {
     if (!selectedTemplate || selectedTemplate.id === selectedTemplateId) return;
@@ -308,7 +379,24 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
         <MetricCard label="Checklist items" value={data?.stats.totalItems ?? '...'} helper="Derived from live process steps" />
         <MetricCard label="Templates with gaps" value={data?.stats.templatesWithGaps ?? '...'} helper="Need knowledge coverage" />
         <MetricCard label="Missing coverage" value={data?.stats.itemsMissingCoverage ?? '...'} helper="Checklist items without approved knowledge" />
+        <MetricCard label="Today's runs" value={todayRuns.length} helper={todayRuns.length === 0 ? 'Execution not started today' : 'Active today'} />
+        <MetricCard label="Open runs" value={data?.stats.openRunCount ?? '...'} helper="Scheduled or in progress" />
       </div>
+
+      {runSummary && (
+        <OSCard className="notice success">
+          <div className="noticeText">
+            <strong>Checklist run ready</strong>
+            <p>
+              {runSummary.templateTitle ?? 'Checklist'} was created for {runSummary.businessDate ?? today} with {runSummary.itemCount} items.
+            </p>
+          </div>
+          <div className="noticeMeta">
+            <StatusBadge status={runSummary.status} />
+            <span>{runSummary.createdAt ? `Created ${formatDate(runSummary.createdAt)}` : 'Created just now'}</span>
+          </div>
+        </OSCard>
+      )}
 
       <div className="checklistLayout">
         <section className="listPanel checklistListPanel">
@@ -333,7 +421,13 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
 
         <section className="detailPanel checklistDetailPanel">
           {selectedTemplate ? (
-            <ChecklistTemplateDetail template={selectedTemplate} onOpenKnowledgeBase={onOpenKnowledgeBase} />
+            <ChecklistTemplateDetail
+              template={selectedTemplate}
+              onOpenKnowledgeBase={onOpenKnowledgeBase}
+              onCreateRun={handleCreateRun}
+              creatingTemplateId={creatingTemplateId}
+              todayRuns={todayRuns}
+            />
           ) : (
             <EmptyState icon={ShieldAlert} title="Select a checklist template" description="Choose a template to inspect its steps, linked knowledge, and coverage gaps." />
           )}

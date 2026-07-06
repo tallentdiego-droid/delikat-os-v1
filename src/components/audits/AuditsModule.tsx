@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, ClipboardList, Search, ShieldAlert, ShieldCheck, Star } from 'lucide-react';
-import { getAuditEngineData, type AuditEngineData, type AuditRun, type AuditTemplate, type AuditTemplateItem } from '../../lib/audits';
+import {
+  createAuditRunFromTemplate,
+  getAuditEngineData,
+  type AuditEngineData,
+  type AuditRun,
+  type AuditTemplate,
+  type AuditTemplateItem,
+} from '../../lib/audits';
 import { EmptyState, KnowledgeGapCard, LinkedKnowledgePanel, MetricCard, OSCard, StatusBadge, CoverageBadge } from '../os';
 
 interface AuditsModuleProps {
@@ -15,6 +22,12 @@ function friendlyError(reason: unknown): string {
 function formatDate(value: string | null): string {
   if (!value) return 'Not recorded';
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function todayBusinessDate(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
 }
 
 function auditTypeLabel(value: string): string {
@@ -154,14 +167,21 @@ function AuditRunCard({ run }: { run: AuditRun }): JSX.Element {
 function AuditTemplateDetail({
   template,
   onOpenKnowledgeBase,
+  onCreateRun,
+  creatingTemplateId,
+  todayRuns,
 }: {
   template: AuditTemplate;
   onOpenKnowledgeBase?: () => void;
+  onCreateRun: (templateId: string) => Promise<void>;
+  creatingTemplateId: string | null;
+  todayRuns: AuditRun[];
 }): JSX.Element {
   const missingItems = template.items.filter((item) => item.coverageStatus === 'missing');
   const linkedKnowledgeItems = template.items
     .flatMap((item) => item.matchedKnowledge.map((knowledge) => ({ item, knowledge })))
     .filter((entry, index, list) => list.findIndex((candidate) => candidate.knowledge.id === entry.knowledge.id) === index);
+  const templateRunsToday = todayRuns.filter((run) => run.auditTemplateId === template.id);
 
   return (
     <div className="detailStack auditDetail">
@@ -171,7 +191,17 @@ function AuditTemplateDetail({
             <h3>{template.title}</h3>
             <p>{template.description ?? 'Read-only audit foundation built from live checklist templates and process steps.'}</p>
           </div>
-          <CoverageBadge coveragePercent={template.coveragePercent} label={template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} gaps` : 'fully covered'} />
+          <div className="detailHeaderActions">
+            <CoverageBadge coveragePercent={template.coveragePercent} label={template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} gaps` : 'fully covered'} />
+            <button
+              className="iconTextButton"
+              disabled={creatingTemplateId === template.id}
+              onClick={() => void onCreateRun(template.id)}
+              type="button"
+            >
+              {creatingTemplateId === template.id ? 'Creating run...' : 'Create today’s run'}
+            </button>
+          </div>
         </div>
         <div className="summaryGrid">
           <MetricCard label="Linked checklist" value={template.checklistTemplate?.title ?? 'None'} helper={template.checklistTemplate?.code ?? undefined} />
@@ -180,6 +210,7 @@ function AuditTemplateDetail({
           <MetricCard label="Role" value={template.checklistTemplate?.role?.title ?? 'Unassigned'} helper={template.checklistTemplate?.role?.code ?? undefined} />
           <MetricCard label="Area" value={template.checklistTemplate?.area?.title ?? 'Unassigned'} helper={template.checklistTemplate?.area?.code ?? undefined} />
           <MetricCard label="Items" value={template.itemCount} helper={`${template.linkedKnowledgeCount} linked knowledge items`} />
+          <MetricCard label="Today" value={templateRunsToday.length} helper={templateRunsToday.length === 0 ? 'Execution not started' : 'Active today'} />
         </div>
       </section>
 
@@ -243,6 +274,19 @@ function AuditTemplateDetail({
           />
         )}
       </section>
+
+      <section className="detailSection">
+        <h4>Today’s runs</h4>
+        {templateRunsToday.length > 0 ? (
+          <div className="auditRunList">
+            {templateRunsToday.map((run) => (
+              <AuditRunCard key={run.id} run={run} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState icon={ClipboardList} title="No run created today" description="The template is ready, but no audit run exists for today yet." />
+        )}
+      </section>
     </div>
   );
 }
@@ -252,6 +296,8 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
+  const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
+  const [runSummary, setRunSummary] = useState<AuditRun | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -268,6 +314,29 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
     };
   }, []);
 
+  const reloadData = async (): Promise<void> => {
+    const nextData = await getAuditEngineData();
+    setData(nextData);
+    setSelectedAuditId((current) => {
+      if (current && nextData.templates.some((template) => template.id === current)) return current;
+      return nextData.templates[0]?.id ?? null;
+    });
+  };
+
+  const handleCreateRun = async (templateId: string): Promise<void> => {
+    setCreatingTemplateId(templateId);
+    setError(null);
+    try {
+      const result = await createAuditRunFromTemplate(templateId, todayBusinessDate());
+      setRunSummary(result.run);
+      await reloadData();
+    } catch (reason) {
+      setError(friendlyError(reason));
+    } finally {
+      setCreatingTemplateId(null);
+    }
+  };
+
   const filteredTemplates = useMemo(() => {
     const templates = data?.templates ?? [];
     return templates.filter((template) => matches(template, query)).sort((a, b) => a.title.localeCompare(b.title));
@@ -279,6 +348,8 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
     }
     return filteredTemplates[0] ?? null;
   }, [filteredTemplates, selectedAuditId]);
+  const today = todayBusinessDate();
+  const todayRuns = useMemo(() => (data?.runs ?? []).filter((run) => run.businessDate === today), [data?.runs, today]);
 
   useEffect(() => {
     if (!selectedTemplate) {
@@ -327,7 +398,23 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
         <MetricCard label="Audit items" value={data?.stats.totalItems ?? '...'} helper={`${templatesWithGaps} templates with gaps`} />
         <MetricCard label="Open runs" value={data?.stats.openRunCount ?? '...'} helper={noRunsYet ? 'No audit runs yet' : 'Live audit execution records'} />
         <MetricCard label="Completed runs" value={data?.stats.completedRunCount ?? '...'} helper="Closed audit records" />
+        <MetricCard label="Today’s runs" value={todayRuns.length} helper={todayRuns.length === 0 ? 'Execution not started today' : 'Active today'} />
       </div>
+
+      {runSummary && (
+        <OSCard className="notice success">
+          <div className="noticeText">
+            <strong>Audit run ready</strong>
+            <p>
+              {runSummary.templateTitle ?? 'Audit'} was created for {runSummary.businessDate} with {runSummary.itemCount} items.
+            </p>
+          </div>
+          <div className="noticeMeta">
+            <StatusBadge status={runSummary.status} />
+            <span>{runSummary.createdAt ? `Created ${formatDate(runSummary.createdAt)}` : 'Created just now'}</span>
+          </div>
+        </OSCard>
+      )}
 
       {data && filteredTemplates.length === 0 ? (
         <EmptyState
@@ -352,7 +439,13 @@ export function AuditsModule({ onOpenKnowledgeBase }: AuditsModuleProps = {}): J
 
         <section className="auditDetailPanel">
           {selectedTemplate ? (
-            <AuditTemplateDetail template={selectedTemplate} onOpenKnowledgeBase={onOpenKnowledgeBase} />
+            <AuditTemplateDetail
+              template={selectedTemplate}
+              onOpenKnowledgeBase={onOpenKnowledgeBase}
+              onCreateRun={handleCreateRun}
+              creatingTemplateId={creatingTemplateId}
+              todayRuns={todayRuns}
+            />
           ) : (
             <EmptyState
               icon={Star}
