@@ -7,22 +7,25 @@ import {
   type KnowledgeOntologyStats,
   type KnowledgeStats,
 } from '../lib/knowledge';
+import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
 
 export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [ontologyStats, setOntologyStats] = useState<KnowledgeOntologyStats | null>(null);
   const [coverage, setCoverage] = useState<KnowledgeCoverageSummary | null>(null);
+  const [operationsStats, setOperationsStats] = useState<OperationsStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getKnowledgeStats(), getKnowledgeEngineData()])
-      .then(([nextStats, engineData]) => {
+    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData()])
+      .then(([nextStats, engineData, operationsData]) => {
         if (isMounted) {
           setStats(nextStats);
           setOntologyStats(engineData.ontologyStats);
           setCoverage(engineData.coverage);
+          setOperationsStats(operationsData.stats);
         }
       })
       .catch((reason: unknown) => {
@@ -197,6 +200,47 @@ export function DashboardPage(): JSX.Element {
                 0
               </span>
             )}
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboardCoverageGrid">
+        <section className="countPanel">
+          <h3>Operations summary</h3>
+          <div className="countList">
+            <span>
+              <strong>Total processes</strong>
+              {operationsStats?.totalProcesses ?? '...'}
+            </span>
+            <span>
+              <strong>Critical processes</strong>
+              {operationsStats?.criticalProcesses ?? '...'}
+            </span>
+            <span>
+              <strong>Missing knowledge</strong>
+              {operationsStats?.processesMissingKnowledge ?? '...'}
+            </span>
+            <span>
+              <strong>Avg steps per process</strong>
+              {operationsStats?.averageStepsPerProcess ?? '...'}
+            </span>
+          </div>
+        </section>
+        <section className="countPanel">
+          <h3>Dependency graph</h3>
+          <div className="countList">
+            <span>
+              <strong>Dependency links</strong>
+              {operationsStats?.dependencyLinks ?? '...'}
+            </span>
+            <span>
+              <strong>Connected processes</strong>
+              {operationsStats?.dependencyConnectedProcesses ?? '...'}
+            </span>
+            <span>
+              <strong>Isolated processes</strong>
+              {operationsStats?.isolatedProcesses ?? '...'}
+            </span>
           </div>
         </section>
       </div>

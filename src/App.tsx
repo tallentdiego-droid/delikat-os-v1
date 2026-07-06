@@ -3,6 +3,7 @@ import { Brain, Building2, Database, LayoutDashboard, Search, Settings, Workflow
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
+import { OperationsPage } from './pages/OperationsPage';
 
 type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'command' | 'settings';
 
@@ -88,7 +89,7 @@ export function App(): JSX.Element {
           {page === 'home' && <DashboardPage />}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
-          {page === 'operations' && <PlaceholderPage label="Operations" />}
+          {page === 'operations' && <OperationsPage />}
           {page === 'command' && <CommandCenterPage />}
           {page === 'settings' && <PlaceholderPage label="Settings" />}
         </main>

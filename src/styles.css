@@ -1079,6 +1079,128 @@ tbody tr:hover,
   font-weight: 800;
 }
 
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.operationsEngine {
+  max-width: 1520px;
+}
+
+.operationsSidebar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.processExplorer {
+  display: grid;
+  gap: 14px;
+}
+
+.operationsToolbar {
+  grid-template-columns: minmax(0, 1fr) 170px 170px;
+}
+
+.operationsFilters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operationsLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.processList {
+  max-height: 72vh;
+}
+
+.detailStack {
+  display: grid;
+  gap: 14px;
+}
+
+.detailSection {
+  display: grid;
+  gap: 12px;
+}
+
+.detailSection h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.referenceGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.referenceCard {
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.referenceHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.referenceHeader strong {
+  color: #172033;
+  display: block;
+  font-size: 14px;
+}
+
+.referenceHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.referenceBody {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.referenceBody span {
+  color: #172033;
+  font-size: 13px;
+}
+
+.referenceBody small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.operationReferenceChip {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d7dde7;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+}
+
+.operationReferenceChip strong {
+  color: #344154;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.operationReferenceChip small {
+  color: #172033;
+  font-size: 12px;
+}
+
 .ontologyPanel {
   display: grid;
   gap: 14px;
@@ -1185,15 +1307,20 @@ tbody tr:hover,
 
   .toolbar,
   .knowledgeToolbar,
+  .operationsToolbar,
   .metricGrid,
   .dashboardOntology,
   .countGrid,
   .ontologyFilterGrid,
+  .operationsFilters,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,
+  .summaryGrid,
   .splitPanel,
   .objectLayout,
+  .operationsLayout,
+  .operationsSidebar,
   .manualBrowser,
   .graphLayout,
   .relationshipColumns,
