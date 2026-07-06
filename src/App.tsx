@@ -89,7 +89,7 @@ export function App(): JSX.Element {
           {page === 'home' && <DashboardPage />}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
-          {page === 'operations' && <OperationsPage />}
+          {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'command' && <CommandCenterPage />}
           {page === 'settings' && <PlaceholderPage label="Settings" />}
         </main>

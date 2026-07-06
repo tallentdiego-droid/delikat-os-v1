@@ -1,4 +1,13 @@
-import { getKnowledgeEngineData, previewText, type KnowledgeObject, type KnowledgeOntologyEntity, type KnowledgeOntologyGroups } from './knowledge';
+import {
+  getKnowledgeEngineData,
+  previewText,
+  type KnowledgeCoverageSummary,
+  type KnowledgeObject,
+  type KnowledgeOntologyEntity,
+  type KnowledgeOntologyGroups,
+  type RequiredKnowledgeGroup,
+  type RequiredKnowledgeItem,
+} from './knowledge';
 import { supabase, supabaseConfigError } from './supabase';
 
 export type ProcessTriggerType = 'opening' | 'closing' | 'scheduled' | 'event' | 'manual';
@@ -90,10 +99,17 @@ export interface OperationsStats {
   isolatedProcesses: number;
 }
 
+export interface OperationsCatalogData {
+  ontologyOptions: KnowledgeOntologyGroups;
+  requiredKnowledgeGroups: RequiredKnowledgeGroup[];
+  requiredKnowledgeItems: RequiredKnowledgeItem[];
+  coverage: KnowledgeCoverageSummary;
+}
+
 export interface OperationsEngineData {
   processes: OperationsProcess[];
   stats: OperationsStats;
-  ontologyOptions: KnowledgeOntologyGroups;
+  catalog: OperationsCatalogData;
 }
 
 interface ProcessRow {
@@ -433,7 +449,12 @@ export async function getOperationsEngineData(): Promise<OperationsEngineData> {
         dependencyConnectedProcesses: 0,
         isolatedProcesses: 0,
       },
-      ontologyOptions: knowledgeData.ontologyOptions,
+      catalog: {
+        ontologyOptions: knowledgeData.ontologyOptions,
+        requiredKnowledgeGroups: knowledgeData.requiredKnowledgeGroups,
+        requiredKnowledgeItems: knowledgeData.requiredKnowledgeItems,
+        coverage: knowledgeData.coverage,
+      },
     };
   }
 
@@ -639,7 +660,12 @@ export async function getOperationsEngineData(): Promise<OperationsEngineData> {
   return {
     processes,
     stats: buildOperationsStats(processes),
-    ontologyOptions: ontology,
+    catalog: {
+      ontologyOptions: ontology,
+      requiredKnowledgeGroups: knowledgeData.requiredKnowledgeGroups,
+      requiredKnowledgeItems: knowledgeData.requiredKnowledgeItems,
+      coverage: knowledgeData.coverage,
+    },
   };
 }
 

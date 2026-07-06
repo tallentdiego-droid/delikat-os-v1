@@ -1,5 +1,9 @@
 import { OperationsModule } from '../components/operations/OperationsModule';
 
-export function OperationsPage(): JSX.Element {
-  return <OperationsModule />;
+interface OperationsPageProps {
+  onOpenKnowledgeBase?: () => void;
+}
+
+export function OperationsPage({ onOpenKnowledgeBase }: OperationsPageProps = {}): JSX.Element {
+  return <OperationsModule onOpenKnowledgeBase={onOpenKnowledgeBase} />;
 }

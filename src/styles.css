@@ -1171,6 +1171,154 @@ tbody tr:hover,
   gap: 14px;
 }
 
+.catalogTab {
+  display: grid;
+  gap: 14px;
+}
+
+.catalogGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.catalogGrid.twoColumn {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.catalogBlock {
+  align-content: start;
+}
+
+.requiredItemList {
+  display: grid;
+  gap: 8px;
+}
+
+.requiredItemRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.requiredItemRow strong {
+  display: block;
+  color: #172033;
+  font-size: 13px;
+}
+
+.requiredItemRow span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.starterProcessCatalog {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.starterProcessCard {
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.starterProcessHeader,
+.starterProcessMeta,
+.starterProcessGap,
+.gapSummaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.starterProcessHeader {
+  justify-content: space-between;
+}
+
+.starterProcessHeader strong {
+  color: #172033;
+}
+
+.starterProcessHeader span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.starterProcessMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #344154;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.gapBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.gapBadge.missing {
+  background: #fff5f5;
+  border-color: #f5b5b5;
+  color: #c0372d;
+}
+
+.gapBadge.satisfied {
+  background: #f0fdf4;
+  border-color: #a7e3b5;
+  color: #127a31;
+}
+
+.coverageCallout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px 14px;
+}
+
+.coverageCallout strong {
+  color: #172033;
+}
+
+.coverageCallout p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.coverageCallout .tableLink {
+  white-space: nowrap;
+}
+
+.stepGap {
+  margin-top: 4px;
+}
+
 .processExplorer {
   display: grid;
   gap: 14px;
@@ -1389,6 +1537,8 @@ tbody tr:hover,
   .countGrid,
   .ontologyFilterGrid,
   .operationsFilters,
+  .catalogGrid,
+  .starterProcessCatalog,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,

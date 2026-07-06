@@ -3,11 +3,12 @@ import { AlertCircle, Boxes, Clock3, FileText, GitBranch, Layers3, Search, Shiel
 import {
   getOperationsEngineData,
   type OperationsEngineData,
+  type OperationsCatalogData,
   type OperationsProcess,
   type OperationsReference,
 } from '../../lib/operations';
 
-type OperationsTab = 'dashboard' | 'processes';
+type OperationsTab = 'dashboard' | 'catalog' | 'processes';
 type DetailTab = 'overview' | 'steps' | 'dependencies' | 'inputs' | 'outputs' | 'knowledge';
 
 const triggerOptions: Array<'all' | OperationsProcess['triggerType']> = ['all', 'opening', 'closing', 'scheduled', 'event', 'manual'];
@@ -55,6 +56,23 @@ function referenceLabel(reference: OperationsReference | null): string {
 
 function uniqueValues(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b));
+}
+
+function ontologyValues(groups: OperationsCatalogData['ontologyOptions']): Array<{ label: string; items: Array<{ id: string; title: string; subtitle: string | null; code: string | null }> }> {
+  return [
+    { label: 'Departments', items: groups.departments.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })) },
+    { label: 'Roles', items: groups.roles.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })) },
+    { label: 'Areas', items: groups.areas.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })) },
+    { label: 'Equipment', items: groups.equipment.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })) },
+    {
+      label: 'Business Processes',
+      items: groups.businessProcesses.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })),
+    },
+    {
+      label: 'Document Types',
+      items: groups.documentTypes.map((entity) => ({ id: entity.id, title: entity.name, subtitle: entity.description, code: entity.code })),
+    },
+  ];
 }
 
 interface ProcessDepartmentGroup {
@@ -259,15 +277,148 @@ function KnowledgeLinkCard({ reference }: { reference: OperationsReference }): J
   );
 }
 
+function CatalogPills({
+  items,
+}: {
+  items: Array<{ id: string; title: string; subtitle: string | null; code: string | null }>;
+}): JSX.Element {
+  return (
+    <div className="ontologyPills">
+      {items.map((item) => (
+        <span key={item.id}>
+          <strong>{item.title}</strong>
+          <small>{item.code ?? item.subtitle ?? 'Seeded'}</small>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CatalogBlock({
+  title,
+  subtitle,
+  count,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  count: number;
+  children: JSX.Element;
+}): JSX.Element {
+  return (
+    <section className="ontologyGroup catalogBlock">
+      <div>
+        <div>
+          <h4>{title}</h4>
+          <p>{subtitle}</p>
+        </div>
+        <span>{count}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function CatalogScreen({ data }: { data: OperationsEngineData }): JSX.Element {
+  const ontologySections = ontologyValues(data.catalog.ontologyOptions);
+  const coverageById = new Map<string, 'missing' | 'satisfied'>(
+    [...data.catalog.coverage.missing, ...data.catalog.coverage.satisfied].map((result) => [result.item.id, result.status]),
+  );
+
+  const requiredItems = [...data.catalog.requiredKnowledgeItems].sort((a, b) => a.sortOrder - b.sortOrder);
+  const requiredGroups = [...data.catalog.requiredKnowledgeGroups].sort((a, b) => a.sortOrder - b.sortOrder);
+  const starterProcesses = data.processes.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="catalogPanel">
+      <section className="countPanel">
+        <h3>Seeded operations catalog</h3>
+        <p className="quietText">Departments, roles, areas, equipment, business processes, and required knowledge now come from live Supabase records.</p>
+      </section>
+
+      <div className="catalogGrid">
+        {ontologySections.map((section) => (
+          <CatalogBlock
+            key={section.label}
+            count={section.items.length}
+            subtitle="Live seeded ontology"
+            title={section.label}
+          >
+            <CatalogPills items={section.items.slice(0, 6)} />
+          </CatalogBlock>
+        ))}
+      </div>
+
+      <div className="catalogGrid twoColumn">
+        <CatalogBlock count={requiredGroups.length} subtitle="Required knowledge scaffolding" title="Required knowledge groups">
+          <CatalogPills
+            items={requiredGroups.map((group) => ({
+              id: group.id,
+              title: group.name,
+              subtitle: group.description,
+              code: group.code,
+            }))}
+          />
+        </CatalogBlock>
+
+        <CatalogBlock count={requiredItems.length} subtitle="Coverage definitions" title="Required knowledge items">
+          <div className="requiredItemList">
+            {requiredItems.map((item) => (
+              <div className="requiredItemRow" key={item.id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.groupName ?? 'Unassigned group'}</span>
+                </div>
+                <span className={coverageById.get(item.id) === 'missing' ? 'gapBadge missing' : 'gapBadge satisfied'}>
+                  {coverageById.get(item.id) ?? 'missing'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CatalogBlock>
+      </div>
+
+      <section className="countPanel">
+        <h3>Starter processes</h3>
+        <div className="starterProcessCatalog">
+          {starterProcesses.map((process) => (
+            <article className="starterProcessCard" key={process.id}>
+              <div className="starterProcessHeader">
+                <strong>{process.name}</strong>
+                <span>{process.stepCount} steps</span>
+              </div>
+              <div className="starterProcessMeta">
+                <span>{process.department?.title ?? 'Unassigned department'}</span>
+                <span>{process.area?.title ?? 'No area'}</span>
+                <span>{process.role?.title ?? 'No role'}</span>
+              </div>
+              <div className="starterProcessGap">
+                <span className={process.knowledgeLinkCount === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
+                  {process.knowledgeLinkCount === 0 ? 'missing knowledge' : 'covered'}
+                </span>
+                <span className={process.steps.some((step) => !step.requiredKnowledge) ? 'gapBadge missing' : 'gapBadge satisfied'}>
+                  {process.steps.some((step) => !step.requiredKnowledge) ? 'weak step coverage' : 'step coverage set'}
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ProcessDetail({
   process,
   detailTab,
   onDetailTabChange,
+  onOpenKnowledgeBase,
   showTabs = true,
 }: {
   process: OperationsProcess | null;
   detailTab: DetailTab;
   onDetailTabChange: (tab: DetailTab) => void;
+  onOpenKnowledgeBase?: () => void;
   showTabs?: boolean;
 }): JSX.Element {
   if (!process) {
@@ -313,6 +464,31 @@ function ProcessDetail({
         <div className="detailStack">
           {process.description ? <p className="previewText">{process.description}</p> : <div className="emptyInline">No process description recorded.</div>}
           <ProcessSummary process={process} />
+          <div className="gapSummaryRow">
+            <span className={process.knowledgeLinkCount === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
+              {process.knowledgeLinkCount === 0 ? 'missing knowledge links' : 'knowledge linked'}
+            </span>
+            <span className={process.steps.some((step) => !step.requiredKnowledge) ? 'gapBadge missing' : 'gapBadge satisfied'}>
+              {process.steps.some((step) => !step.requiredKnowledge) ? 'step coverage gaps' : 'step knowledge complete'}
+            </span>
+            <span className={process.inputs.length === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
+              {process.inputs.length === 0 ? 'no process inputs' : 'inputs defined'}
+            </span>
+            <span className={process.outputs.length === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
+              {process.outputs.length === 0 ? 'no process outputs' : 'outputs defined'}
+            </span>
+          </div>
+          {(process.knowledgeLinkCount === 0 || process.steps.some((step) => !step.requiredKnowledge)) && (
+            <div className="coverageCallout">
+              <div>
+                <strong>Coverage gap detected</strong>
+                <p>Review the required knowledge catalog in Knowledge to close the missing links. Delikat does not generate SOP content here.</p>
+              </div>
+              <button className="tableLink" onClick={onOpenKnowledgeBase} type="button">
+                Open Knowledge coverage
+              </button>
+            </div>
+          )}
           <section className="detailSection">
             <h4>Knowledge links</h4>
             {process.knowledgeLinks.length === 0 ? (
@@ -344,6 +520,7 @@ function ProcessDetail({
                     <span>{step.expectedDurationMinutes ? `${step.expectedDurationMinutes} min` : 'Duration not set'}</span>
                   </div>
                   {step.description ? <p>{step.description}</p> : <p>No step description recorded.</p>}
+                  {!step.requiredKnowledge && <span className="gapBadge missing stepGap">Missing required knowledge</span>}
                   <div className="referenceGrid compact">
                     <ReferenceChip reference={step.requiredKnowledge} />
                     <ReferenceChip reference={step.requiredEquipment} />
@@ -440,7 +617,7 @@ function ProcessDetail({
           )}
           <div className="readOnlyBanner">
             <strong>Read-only foundation</strong>
-            <span>Creating or editing these relationships will come later, after users and permissions are added.</span>
+            <span>Closing coverage gaps happens in the Knowledge module. Creating or editing these relationships will come later, after users and permissions are added.</span>
           </div>
         </section>
       )}
@@ -452,10 +629,12 @@ function OperationsDashboard({
   data,
   selectedProcess,
   onSelectProcess,
+  onOpenKnowledgeBase,
 }: {
   data: OperationsEngineData;
   selectedProcess: OperationsProcess | null;
   onSelectProcess: (id: string) => void;
+  onOpenKnowledgeBase?: () => void;
 }): JSX.Element {
   const critical = data.processes.filter((process) => process.criticality === 'critical').slice(0, 5);
   const missingKnowledge = data.processes.filter((process) => process.knowledgeLinkCount === 0).slice(0, 5);
@@ -605,13 +784,17 @@ function OperationsDashboard({
         <div className="listPanel">
           <ProcessList processes={data.processes} selectedId={selectedProcess?.id ?? null} onSelect={onSelectProcess} />
         </div>
-        <ProcessDetail detailTab="overview" onDetailTabChange={() => undefined} process={selectedProcess} showTabs={false} />
+        <ProcessDetail detailTab="overview" onDetailTabChange={() => undefined} onOpenKnowledgeBase={onOpenKnowledgeBase} process={selectedProcess} showTabs={false} />
       </div>
     </section>
   );
 }
 
-export function OperationsModule(): JSX.Element {
+interface OperationsModuleProps {
+  onOpenKnowledgeBase?: () => void;
+}
+
+export function OperationsModule({ onOpenKnowledgeBase }: OperationsModuleProps = {}): JSX.Element {
   const [data, setData] = useState<OperationsEngineData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -672,7 +855,7 @@ export function OperationsModule(): JSX.Element {
       <div className="sectionHeader">
         <div>
           <h2>Operations</h2>
-          <p>Operational processes, their steps, dependencies, inputs, outputs, and linked knowledge.</p>
+          <p>Operational processes, seeded catalog data, steps, dependencies, inputs, outputs, and linked knowledge.</p>
         </div>
         <div className="engineStats" aria-label="Operations counts">
           <span>{data?.stats.totalProcesses ?? '...'} processes</span>
@@ -704,6 +887,7 @@ export function OperationsModule(): JSX.Element {
           <div className="tabs" role="tablist" aria-label="Operations views">
             {[
               { id: 'dashboard' as const, label: 'Dashboard', icon: Workflow },
+              { id: 'catalog' as const, label: 'Catalog', icon: Layers3 },
               { id: 'processes' as const, label: 'Process List', icon: Boxes },
             ].map((item) => {
               const Icon = item.icon;
@@ -724,7 +908,32 @@ export function OperationsModule(): JSX.Element {
           </div>
 
           <div className="tabPanel">
-            {tab === 'dashboard' && <OperationsDashboard data={data} onSelectProcess={setSelectedProcessId} selectedProcess={selectedProcess} />}
+            {tab === 'dashboard' && (
+              <OperationsDashboard
+                data={data}
+                onOpenKnowledgeBase={onOpenKnowledgeBase}
+                onSelectProcess={setSelectedProcessId}
+                selectedProcess={selectedProcess}
+              />
+            )}
+            {tab === 'catalog' && (
+              <section className="catalogTab">
+                <CatalogScreen data={data} />
+                <div className="readOnlyBanner">
+                  <strong>Coverage first</strong>
+                  <span>
+                    Weak coverage is tracked in the Knowledge workspace.
+                    {onOpenKnowledgeBase ? (
+                      <button className="tableLink inlineAction" onClick={onOpenKnowledgeBase} type="button">
+                        Open Knowledge coverage
+                      </button>
+                    ) : (
+                      ' Open the Knowledge workspace to review missing requirements and approved objects.'
+                    )}
+                  </span>
+                </div>
+              </section>
+            )}
 
             {tab === 'processes' && (
               <section className="processExplorer">
@@ -827,7 +1036,12 @@ export function OperationsModule(): JSX.Element {
                   <div className="listPanel">
                     <ProcessList processes={filteredProcesses} selectedId={selectedProcessId} onSelect={setSelectedProcessId} />
                   </div>
-                  <ProcessDetail detailTab={detailTab} onDetailTabChange={setDetailTab} process={selectedProcess} />
+                  <ProcessDetail
+                    detailTab={detailTab}
+                    onDetailTabChange={setDetailTab}
+                    onOpenKnowledgeBase={onOpenKnowledgeBase}
+                    process={selectedProcess}
+                  />
                 </div>
               </section>
             )}
