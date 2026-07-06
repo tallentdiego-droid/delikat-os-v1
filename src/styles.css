@@ -548,6 +548,54 @@ pre {
   font-size: 13px;
 }
 
+.commandActionCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.commandActionHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commandActionHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.commandActionHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.commandActionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.commandActionMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.commandActionFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .processCard {
   display: grid;
   gap: 10px;

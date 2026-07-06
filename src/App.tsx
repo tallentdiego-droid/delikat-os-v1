@@ -95,7 +95,15 @@ export function App(): JSX.Element {
         </header>
 
         <main className="mainPanel">
-          {page === 'home' && <DashboardPage />}
+          {page === 'home' && (
+            <DashboardPage
+              onOpenAudits={() => setPage('audits')}
+              onOpenChecklists={() => setPage('checklists')}
+              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onOpenOperations={() => setPage('operations')}
+              onOpenTraining={() => setPage('training')}
+            />
+          )}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
