@@ -9,8 +9,14 @@ import {
 } from '../lib/knowledge';
 import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
 import type { OperationsEngineData } from '../lib/operations';
+import { getChecklistEngineData, type ChecklistEngineData } from '../lib/checklists';
 import { getTrainingEngineData, type TrainingEngineData } from '../lib/training';
 import { KnowledgeGapCard, MetricCard } from '../components/os';
+
+function formatDate(value: string | null): string {
+  if (!value) return 'Not recorded';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
+}
 
 export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
@@ -18,20 +24,22 @@ export function DashboardPage(): JSX.Element {
   const [coverage, setCoverage] = useState<KnowledgeCoverageSummary | null>(null);
   const [operationsStats, setOperationsStats] = useState<OperationsStats | null>(null);
   const [operationsEngine, setOperationsEngine] = useState<OperationsEngineData | null>(null);
+  const [checklistsEngine, setChecklistsEngine] = useState<ChecklistEngineData | null>(null);
   const [trainingEngine, setTrainingEngine] = useState<TrainingEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData(), getTrainingEngineData()])
-      .then(([nextStats, engineData, operationsData, trainingData]) => {
+    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData(), getChecklistEngineData(), getTrainingEngineData()])
+      .then(([nextStats, engineData, operationsData, checklistData, trainingData]) => {
         if (isMounted) {
           setStats(nextStats);
           setOntologyStats(engineData.ontologyStats);
           setCoverage(engineData.coverage);
           setOperationsStats(operationsData.stats);
           setOperationsEngine(operationsData);
+          setChecklistsEngine(checklistData);
           setTrainingEngine(trainingData);
         }
       })
@@ -55,6 +63,12 @@ export function DashboardPage(): JSX.Element {
       .map(([department, processes]) => ({ department, processes }))
       .sort((a, b) => a.department.localeCompare(b.department));
   }, [operationsEngine]);
+
+  const latestChecklistUpdate = useMemo(() => {
+    const timestamps = checklistsEngine?.templates.map((template) => template.updatedAt).filter(Boolean) ?? [];
+    if (timestamps.length === 0) return null;
+    return timestamps.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  }, [checklistsEngine]);
 
   return (
     <section className="pageStack">
@@ -314,6 +328,47 @@ export function DashboardPage(): JSX.Element {
             <span>
               <strong>Missing coverage</strong>
               {trainingEngine?.stats.itemsMissingCoverage ?? '...'}
+            </span>
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboardCoverageGrid">
+        <section className="countPanel">
+          <h3>Checklist readiness</h3>
+          <div className="countList">
+            <span>
+              <strong>Total templates</strong>
+              {checklistsEngine?.stats.totalTemplates ?? '...'}
+            </span>
+            <span>
+              <strong>Total checklist items</strong>
+              {checklistsEngine?.stats.totalItems ?? '...'}
+            </span>
+            <span>
+              <strong>Templates with gaps</strong>
+              {checklistsEngine?.stats.templatesWithGaps ?? '...'}
+            </span>
+            <span>
+              <strong>Missing coverage</strong>
+              {checklistsEngine?.stats.itemsMissingCoverage ?? '...'}
+            </span>
+          </div>
+        </section>
+        <section className="countPanel">
+          <h3>Checklist execution</h3>
+          <div className="countList">
+            <span>
+              <strong>Runs</strong>
+              {checklistsEngine?.stats.runCount ?? '...'}
+            </span>
+            <span>
+              <strong>Open runs</strong>
+              {checklistsEngine?.stats.openRunCount ?? '...'}
+            </span>
+            <span>
+              <strong>Latest template update</strong>
+              {latestChecklistUpdate ? formatDate(latestChecklistUpdate) : '...'}
             </span>
           </div>
         </section>
