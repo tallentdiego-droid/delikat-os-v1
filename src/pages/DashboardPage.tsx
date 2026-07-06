@@ -10,6 +10,7 @@ import {
 import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
 import type { OperationsEngineData } from '../lib/operations';
 import { getChecklistEngineData, type ChecklistEngineData } from '../lib/checklists';
+import { getAuditEngineData, type AuditEngineData } from '../lib/audits';
 import { getTrainingEngineData, type TrainingEngineData } from '../lib/training';
 import { KnowledgeGapCard, MetricCard } from '../components/os';
 
@@ -25,14 +26,22 @@ export function DashboardPage(): JSX.Element {
   const [operationsStats, setOperationsStats] = useState<OperationsStats | null>(null);
   const [operationsEngine, setOperationsEngine] = useState<OperationsEngineData | null>(null);
   const [checklistsEngine, setChecklistsEngine] = useState<ChecklistEngineData | null>(null);
+  const [auditsEngine, setAuditsEngine] = useState<AuditEngineData | null>(null);
   const [trainingEngine, setTrainingEngine] = useState<TrainingEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData(), getChecklistEngineData(), getTrainingEngineData()])
-      .then(([nextStats, engineData, operationsData, checklistData, trainingData]) => {
+    Promise.all([
+      getKnowledgeStats(),
+      getKnowledgeEngineData(),
+      getOperationsEngineData(),
+      getChecklistEngineData(),
+      getAuditEngineData(),
+      getTrainingEngineData(),
+    ])
+      .then(([nextStats, engineData, operationsData, checklistData, auditData, trainingData]) => {
         if (isMounted) {
           setStats(nextStats);
           setOntologyStats(engineData.ontologyStats);
@@ -40,6 +49,7 @@ export function DashboardPage(): JSX.Element {
           setOperationsStats(operationsData.stats);
           setOperationsEngine(operationsData);
           setChecklistsEngine(checklistData);
+          setAuditsEngine(auditData);
           setTrainingEngine(trainingData);
         }
       })
@@ -363,6 +373,47 @@ export function DashboardPage(): JSX.Element {
             <span>
               <strong>Latest template update</strong>
               {checklistsEngine?.templates.length ? formatDate(checklistsEngine.templates[0].updatedAt) : '...'}
+            </span>
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboardCoverageGrid">
+        <section className="countPanel">
+          <h3>Audit readiness</h3>
+          <div className="countList">
+            <span>
+              <strong>Total templates</strong>
+              {auditsEngine?.stats.totalTemplates ?? '...'}
+            </span>
+            <span>
+              <strong>Total audit items</strong>
+              {auditsEngine?.stats.totalItems ?? '...'}
+            </span>
+            <span>
+              <strong>Templates with gaps</strong>
+              {auditsEngine?.stats.templatesWithGaps ?? '...'}
+            </span>
+            <span>
+              <strong>No audit runs yet</strong>
+              {(auditsEngine?.stats.runCount ?? 0) === 0 ? 'Yes' : 'No'}
+            </span>
+          </div>
+        </section>
+        <section className="countPanel">
+          <h3>Audit execution</h3>
+          <div className="countList">
+            <span>
+              <strong>Runs</strong>
+              {auditsEngine?.stats.runCount ?? '...'}
+            </span>
+            <span>
+              <strong>Open runs</strong>
+              {auditsEngine?.stats.openRunCount ?? '...'}
+            </span>
+            <span>
+              <strong>Completed runs</strong>
+              {auditsEngine?.stats.completedRunCount ?? '...'}
             </span>
           </div>
         </section>

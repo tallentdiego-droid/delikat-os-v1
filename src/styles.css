@@ -1546,6 +1546,31 @@ tbody tr:hover,
   letter-spacing: 0;
 }
 
+.detailSectionHeader,
+.checklistDetailHeader,
+.auditDetailHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailSectionHeader strong,
+.checklistDetailHeader strong,
+.auditDetailHeader strong {
+  color: #172033;
+  display: block;
+}
+
+.detailSectionHeader p,
+.checklistDetailHeader p,
+.auditDetailHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .referenceGrid {
   display: grid;
   gap: 10px;
@@ -2001,6 +2026,123 @@ tbody tr:hover,
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.auditLayout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.auditListPanel,
+.auditDetailPanel {
+  min-width: 0;
+}
+
+.auditTemplateList,
+.auditItemList,
+.auditRunList {
+  display: grid;
+  gap: 10px;
+}
+
+.auditTemplateCard {
+  padding: 0;
+}
+
+.auditTemplateCard.active {
+  border-color: #bfd0e2;
+  background: #f6f9fc;
+}
+
+.auditTemplateButton {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+}
+
+.auditTemplateHeader,
+.auditItemHeader,
+.auditRunHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auditTemplateHeader strong,
+.auditItemHeader strong,
+.auditRunHeader strong {
+  color: #172033;
+  display: block;
+}
+
+.auditTemplateHeader p,
+.auditItemHeader p,
+.auditRunHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.auditTemplateMeta,
+.auditTemplateFooter,
+.auditItemMeta,
+.auditItemLinks,
+.auditRunMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.auditTemplateMeta span,
+.auditTemplateFooter span,
+.auditItemMeta span,
+.auditItemLinks span,
+.auditRunMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.auditTemplateFooter {
+  justify-content: space-between;
+}
+
+.auditDetail {
+  min-width: 0;
+}
+
+.auditItemCard,
+.auditRunCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.auditItemCard.gap {
+  border-style: dashed;
+}
+
+.auditItemCard > p {
+  color: #344154;
+}
+
+.auditRunCard {
+  background: #fbfcfe;
+}
+
+.auditSummaryGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -2030,7 +2172,9 @@ tbody tr:hover,
   .metricGrid,
   .dashboardSummaryGrid,
   .checklistLayout,
+  .auditLayout,
   .checklistSummaryGrid,
+  .auditSummaryGrid,
   .dashboardOntology,
   .countGrid,
   .ontologyFilterGrid,

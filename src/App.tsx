@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, Workflow } from 'lucide-react';
+import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Workflow } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { ChecklistsPage } from './pages/ChecklistsPage';
+import { AuditsPage } from './pages/AuditsPage';
 import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'training' | 'checklists' | 'command' | 'settings';
+type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
@@ -16,6 +17,7 @@ const navigation = [
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
   { id: 'training' as const, label: 'Training', icon: GraduationCap },
   { id: 'checklists' as const, label: 'Checklists', icon: ClipboardList },
+  { id: 'audits' as const, label: 'Audits', icon: ShieldAlert },
   { id: 'command' as const, label: 'AI Command Center', icon: Brain },
   { id: 'settings' as const, label: 'Settings', icon: Settings },
 ];
@@ -26,6 +28,7 @@ function pageTitle(page: Page): string {
   if (page === 'operations') return 'Operations';
   if (page === 'training') return 'Training';
   if (page === 'checklists') return 'Checklists';
+  if (page === 'audits') return 'Audits';
   if (page === 'command') return 'AI Command Center';
   if (page === 'settings') return 'Settings';
   return 'Home';
@@ -98,6 +101,7 @@ export function App(): JSX.Element {
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'training' && <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'checklists' && <ChecklistsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
+          {page === 'audits' && <AuditsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'command' && <CommandCenterPage />}
           {page === 'settings' && <PlaceholderPage label="Settings" />}
         </main>
