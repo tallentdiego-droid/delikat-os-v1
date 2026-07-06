@@ -524,6 +524,166 @@ pre {
   font-size: 13px;
 }
 
+.sopCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.sopCardHeader,
+.sopCoverageHeader,
+.sopEvidenceHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sopCardHeader strong,
+.sopCoverageHeader strong,
+.sopEvidenceHeader strong {
+  color: #172033;
+  display: block;
+  font-size: 15px;
+}
+
+.sopCardHeader p,
+.sopCoverageHeader p,
+.sopEvidenceHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.sopCardBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sopCardSource {
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid #d7dde7;
+  padding-left: 10px;
+}
+
+.sopCardSource span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sopCardSource strong {
+  color: #172033;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sopCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sopCardMeta span {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d7dde7;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+}
+
+.sopCardMeta small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sopCardMeta strong {
+  color: #172033;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sopCoverageWarning {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.sopCoverageWarning .quietText {
+  margin: 0;
+}
+
+.sopStepList {
+  display: grid;
+  gap: 10px;
+}
+
+.sopStepCard {
+  display: grid;
+  gap: 10px;
+}
+
+.sopStepSummary {
+  color: #344154;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.sopEvidenceList,
+.sopRelatedKnowledgeGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.sopEvidenceCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.sopEvidenceMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sopEvidenceMeta span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sopEvidenceMeta strong {
+  color: #172033;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sopEvidenceCard pre,
+.sopCard pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.sopRelatedKnowledgeCard {
+  padding: 14px;
+}
+
 .knowledgeGapCard {
   display: grid;
   gap: 10px;

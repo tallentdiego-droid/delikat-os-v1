@@ -133,13 +133,13 @@ function ChecklistItemCard({ item, onOpenKnowledgeBase }: { item: ChecklistTempl
       </div>
       <p className="previewText">{item.description ?? item.processStep?.description ?? item.gapSummary ?? 'Process-step-derived checklist item.'}</p>
       <div className="checklistItemLinks">
-        {matchedKnowledge ? <span>Knowledge: {matchedKnowledge.title}</span> : <span>No required knowledge linked yet.</span>}
+        {matchedKnowledge ? <span>SOP: {matchedKnowledge.title}</span> : <span>No SOP link yet.</span>}
         {item.processStep && <span>Process step: {item.processStep.title}</span>}
       </div>
       {hasGap && onOpenKnowledgeBase && (
         <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
           <ArrowRight aria-hidden="true" size={16} />
-          Review knowledge coverage
+          Review SOP coverage
         </button>
       )}
     </OSCard>
@@ -266,7 +266,7 @@ function ChecklistTemplateDetail({
         <div className="checklistDetailHeader">
           <div>
             <h3>{template.title}</h3>
-            <p>{template.description ?? 'Read-only checklist foundation built from live operational processes.'}</p>
+            <p>{template.description ?? 'Read-only checklist foundation built from live operational processes and SOPs.'}</p>
           </div>
           <div className="detailHeaderActions">
             <CoverageBadge coveragePercent={template.coveragePercent} label={template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} gaps` : 'fully covered'} />
@@ -285,7 +285,7 @@ function ChecklistTemplateDetail({
           <MetricCard label="Department" value={valueOrDefault(template.department?.title)} helper={template.department?.code ?? undefined} />
           <MetricCard label="Role" value={valueOrDefault(template.role?.title)} helper={template.role?.code ?? undefined} />
           <MetricCard label="Area" value={valueOrDefault(template.area?.title)} helper={template.area?.code ?? undefined} />
-          <MetricCard label="Items" value={template.itemCount} helper={`${template.linkedKnowledgeCount} linked knowledge items`} />
+          <MetricCard label="Items" value={template.itemCount} helper={`${template.linkedKnowledgeCount} linked SOPs`} />
           <MetricCard label="Runs" value={template.runCount} helper={`${template.openRunCount} open runs`} />
           <MetricCard label="Today" value={templateRunsToday.length} helper={templateRunsToday.length === 0 ? 'Execution not started' : 'Active today'} />
         </div>
@@ -294,14 +294,14 @@ function ChecklistTemplateDetail({
       {missingItems.length > 0 && (
         <KnowledgeGapCard
           title="Checklist coverage gaps"
-          description="Some checklist items do not yet point at approved knowledge."
+          description="Some checklist items do not yet point at approved SOPs."
           coveragePercent={template.coveragePercent}
           detail="We are showing the gap instead of inventing a missing procedure."
           action={
             onOpenKnowledgeBase ? (
               <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
                 <ArrowRight aria-hidden="true" size={16} />
-                Open Knowledge Base
+                Open SOP coverage
               </button>
             ) : undefined
           }
@@ -309,7 +309,7 @@ function ChecklistTemplateDetail({
       )}
 
       <LinkedKnowledgePanel
-        title="Linked knowledge"
+        title="Linked SOPs"
         items={linkedKnowledgeItems.map((entry) => ({
           id: `${entry.knowledge.id}:${entry.item.id}`,
           title: entry.knowledge.title,
@@ -318,7 +318,7 @@ function ChecklistTemplateDetail({
           status: entry.knowledge.status,
           notes: entry.knowledge.manualTitle,
         }))}
-        emptyLabel="No checklist items currently point at approved knowledge."
+        emptyLabel="No checklist items currently point at approved SOPs."
       />
 
       <section className="detailSection">
@@ -487,7 +487,7 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
       <div className="sectionHeader">
         <div>
           <h2>Checklists</h2>
-          <p>Read-only checklist foundation generated from live operational processes.</p>
+          <p>Read-only checklist foundation generated from live operational processes and SOPs.</p>
         </div>
         <div className="resultsMeta">{data ? <span>{data.stats.totalTemplates} templates, {data.stats.totalItems} items</span> : <span>Loading live checklist data</span>}</div>
       </div>
@@ -515,8 +515,8 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
       <div className="metricGrid checklistSummaryGrid">
         <MetricCard label="Templates" value={data?.stats.totalTemplates ?? '...'} helper="Starter templates from seeded processes" />
         <MetricCard label="Checklist items" value={data?.stats.totalItems ?? '...'} helper="Derived from live process steps" />
-        <MetricCard label="Templates with gaps" value={data?.stats.templatesWithGaps ?? '...'} helper="Need knowledge coverage" />
-        <MetricCard label="Missing coverage" value={data?.stats.itemsMissingCoverage ?? '...'} helper="Checklist items without approved knowledge" />
+        <MetricCard label="Templates with gaps" value={data?.stats.templatesWithGaps ?? '...'} helper="Need SOP coverage" />
+        <MetricCard label="Missing coverage" value={data?.stats.itemsMissingCoverage ?? '...'} helper="Checklist items without approved SOPs" />
         <MetricCard label="Today's runs" value={todayRuns.length} helper={todayRuns.length === 0 ? 'Execution not started today' : 'Active today'} />
         <MetricCard label="Open runs" value={data?.stats.openRunCount ?? '...'} helper="Scheduled or in progress" />
       </div>
@@ -571,7 +571,7 @@ export function ChecklistsModule({ onOpenKnowledgeBase }: ChecklistsModuleProps 
               savingItemId={savingItemId}
             />
           ) : (
-            <EmptyState icon={ShieldAlert} title="Select a checklist template" description="Choose a template to inspect its steps, linked knowledge, and coverage gaps." />
+            <EmptyState icon={ShieldAlert} title="Select a checklist template" description="Choose a template to inspect its steps, linked SOPs, and coverage gaps." />
           )}
         </section>
       </div>

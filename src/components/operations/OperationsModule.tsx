@@ -8,10 +8,11 @@ import {
   type OperationsReference,
 } from '../../lib/operations';
 import {
-  KnowledgeGapCard,
-  LinkedKnowledgePanel,
   MetricCard as SharedMetricCard,
   ProcessCard,
+  SOPCoverageWarning,
+  SOPRelatedKnowledge,
+  SOPStepList,
 } from '../os';
 
 type OperationsTab = 'dashboard' | 'catalog' | 'processes';
@@ -26,7 +27,7 @@ const detailTabs: Array<{ id: DetailTab; label: string; icon: typeof FileText }>
   { id: 'dependencies', label: 'Dependencies', icon: GitBranch },
   { id: 'inputs', label: 'Inputs', icon: Boxes },
   { id: 'outputs', label: 'Outputs', icon: Layers3 },
-  { id: 'knowledge', label: 'Knowledge Links', icon: ShieldCheck },
+  { id: 'knowledge', label: 'Linked SOPs', icon: ShieldCheck },
 ];
 
 function dateLabel(value: string | null): string {
@@ -48,7 +49,7 @@ function referenceSummary(reference: OperationsReference | null): string {
 
 function referenceLabel(reference: OperationsReference | null): string {
   if (!reference) return 'Unlinked';
-  if (reference.kind === 'knowledge') return 'Knowledge';
+  if (reference.kind === 'knowledge') return 'SOP';
   if (reference.kind === 'checklist') return 'Checklist';
   if (reference.kind === 'checklistItem') return 'Checklist Item';
   if (reference.kind === 'equipment') return 'Equipment';
@@ -153,15 +154,6 @@ function MetricCard({ label, value, helper }: { label: string; value: string | n
   return <SharedMetricCard label={label} value={value} helper={helper} />;
 }
 
-function ReferenceChip({ reference }: { reference: OperationsReference | null }): JSX.Element {
-  return (
-    <span className="operationReferenceChip">
-      <strong>{referenceLabel(reference)}</strong>
-      <small>{reference ? reference.title : 'Unlinked'}</small>
-    </span>
-  );
-}
-
 function ProcessList({
   processes,
   selectedId,
@@ -251,24 +243,6 @@ function ReferencePanel({
   );
 }
 
-function KnowledgeLinkCard({ reference }: { reference: OperationsReference }): JSX.Element {
-  return (
-    <article className="referenceCard">
-      <div className="referenceHeader">
-        <div>
-          <strong>{reference.title}</strong>
-          <p>{reference.subtitle ?? 'Approved knowledge'}</p>
-        </div>
-        <span className="relationshipBadge outgoing">knowledge</span>
-      </div>
-      <div className="referenceBody">
-        <span>{reference.preview ?? 'Approved body available in the Knowledge module.'}</span>
-        <small>{reference.code ?? reference.id}</small>
-      </div>
-    </article>
-  );
-}
-
 function CatalogPills({
   items,
 }: {
@@ -325,7 +299,7 @@ function CatalogScreen({ data }: { data: OperationsEngineData }): JSX.Element {
     <div className="catalogPanel">
       <section className="countPanel">
         <h3>Seeded operations catalog</h3>
-        <p className="quietText">Departments, roles, areas, equipment, business processes, and required knowledge now come from live Supabase records.</p>
+        <p className="quietText">Departments, roles, areas, equipment, business processes, and training requirements now come from live Supabase records.</p>
       </section>
 
       <div className="catalogGrid">
@@ -356,7 +330,7 @@ function CatalogScreen({ data }: { data: OperationsEngineData }): JSX.Element {
         <CatalogBlock count={requiredItems.length} subtitle="Coverage definitions" title="Required knowledge items">
           <div className="requiredItemList">
             {requiredItems.map((item) => (
-              <KnowledgeGapCard
+              <SOPCoverageWarning
                 key={item.id}
                 title={item.title}
                 description={item.groupName ?? 'Unassigned group'}
@@ -398,7 +372,7 @@ function ProcessDetail({
       <div className="detailPanel">
         <div className="emptyState refined">
           <h3>No process selected</h3>
-          <p>Choose a process from the list to inspect its steps, dependencies, inputs, outputs, and knowledge links.</p>
+          <p>Choose a process from the list to inspect its steps, dependencies, inputs, outputs, and linked SOPs.</p>
         </div>
       </div>
     );
@@ -438,10 +412,10 @@ function ProcessDetail({
           <ProcessSummary process={process} />
           <div className="gapSummaryRow">
             <span className={process.knowledgeLinkCount === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
-              {process.knowledgeLinkCount === 0 ? 'missing knowledge links' : 'knowledge linked'}
+              {process.knowledgeLinkCount === 0 ? 'missing SOP links' : 'SOP linked'}
             </span>
             <span className={process.steps.some((step) => !step.requiredKnowledge) ? 'gapBadge missing' : 'gapBadge satisfied'}>
-              {process.steps.some((step) => !step.requiredKnowledge) ? 'step coverage gaps' : 'step knowledge complete'}
+              {process.steps.some((step) => !step.requiredKnowledge) ? 'step coverage gaps' : 'step SOP complete'}
             </span>
             <span className={process.inputs.length === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
               {process.inputs.length === 0 ? 'no process inputs' : 'inputs defined'}
@@ -451,30 +425,30 @@ function ProcessDetail({
             </span>
           </div>
           {(process.knowledgeLinkCount === 0 || process.steps.some((step) => !step.requiredKnowledge)) && (
-            <KnowledgeGapCard
+            <SOPCoverageWarning
               action={
                 onOpenKnowledgeBase ? (
                   <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
-                    Open Knowledge coverage
+                    Open SOP coverage
                   </button>
                 ) : undefined
               }
               coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100}
-              description="Review the required knowledge catalog in Knowledge to close the missing links. Delikat does not generate SOP content here."
+              description="Review the SOP catalog in Knowledge to close the missing links. Delikat does not generate SOP content here."
               title="Coverage gap detected"
             />
           )}
-          <LinkedKnowledgePanel
-            emptyLabel="This process does not yet link to approved knowledge objects."
+          <SOPRelatedKnowledge
+            emptyLabel="This process does not yet link to approved SOPs."
             items={process.knowledgeLinks.map((reference) => ({
               id: reference.id,
               title: reference.title,
               subtitle: reference.subtitle,
-              preview: reference.preview,
+              summary: reference.preview,
               status: reference.status,
               notes: reference.code ?? reference.id,
             }))}
-            title="Knowledge links"
+            title="Linked SOPs"
           />
         </div>
       )}
@@ -485,25 +459,24 @@ function ProcessDetail({
           {process.steps.length === 0 ? (
             <div className="emptyInline">No steps have been recorded for this process.</div>
           ) : (
-            <div className="timeline">
-              {process.steps.map((step) => (
-                <article className="timelineItem" key={step.id}>
-                  <div>
-                    <strong>
-                      {step.sequence}. {step.title}
-                    </strong>
-                    <span>{step.expectedDurationMinutes ? `${step.expectedDurationMinutes} min` : 'Duration not set'}</span>
-                  </div>
-                  {step.description ? <p>{step.description}</p> : <p>No step description recorded.</p>}
-                  {!step.requiredKnowledge && <span className="gapBadge missing stepGap">Missing required knowledge</span>}
-                  <div className="referenceGrid compact">
-                    <ReferenceChip reference={step.requiredKnowledge} />
-                    <ReferenceChip reference={step.requiredEquipment} />
-                    <ReferenceChip reference={step.requiredChecklistItem} />
-                  </div>
-                </article>
-              ))}
-            </div>
+            <SOPStepList
+              emptyLabel="No process steps have been recorded for this process."
+              items={process.steps.map((step) => ({
+                id: step.id,
+                sequence: step.sequence,
+                title: step.title,
+                summary: step.description,
+                durationLabel: step.expectedDurationMinutes ? `${step.expectedDurationMinutes} min` : 'Duration not set',
+                status: step.requiredKnowledge ? 'SOP linked' : 'Missing SOP',
+                notes: step.requiredKnowledge ? null : 'This step still needs an approved SOP link.',
+                references: [
+                  { label: 'SOP', value: step.requiredKnowledge?.title ?? 'Missing SOP' },
+                  { label: 'Equipment', value: step.requiredEquipment?.title ?? 'Unlinked' },
+                  { label: 'Checklist item', value: step.requiredChecklistItem?.title ?? 'Unlinked' },
+                ],
+              }))}
+              title="Process steps"
+            />
           )}
         </section>
       )}
@@ -580,15 +553,22 @@ function ProcessDetail({
 
       {detailTab === 'knowledge' && (
         <section className="detailSection">
-          <h4>Knowledge links</h4>
+          <h4>Linked SOPs</h4>
           {process.knowledgeLinks.length === 0 ? (
-            <div className="emptyInline">No approved knowledge objects are linked to this process.</div>
+            <div className="emptyInline">No approved SOPs are linked to this process.</div>
           ) : (
-            <div className="referenceGrid">
-              {process.knowledgeLinks.map((reference) => (
-                <KnowledgeLinkCard key={reference.id} reference={reference} />
-              ))}
-            </div>
+            <SOPRelatedKnowledge
+              emptyLabel="No approved SOPs are linked to this process."
+              items={process.knowledgeLinks.map((reference) => ({
+                id: reference.id,
+                title: reference.title,
+                subtitle: reference.subtitle,
+                summary: reference.preview,
+                status: reference.status,
+                notes: reference.code ?? reference.id,
+              }))}
+              title="Linked SOPs"
+            />
           )}
           <div className="readOnlyBanner">
             <strong>Read-only foundation</strong>
@@ -623,14 +603,14 @@ function OperationsDashboard({
       <div className="sectionHeader">
         <div>
           <h2>Operations</h2>
-          <p>Read-only operational structure built on approved knowledge and live Supabase records.</p>
+          <p>Read-only operational structure built on approved SOPs and live Supabase records.</p>
         </div>
       </div>
 
       <div className="coverageSummary">
         <MetricCard label="Total Processes" value={data.stats.totalProcesses} helper="Active process records" />
         <MetricCard label="Critical Processes" value={data.stats.criticalProcesses} helper="Criticality set to critical" />
-        <MetricCard label="Missing Knowledge" value={data.stats.processesMissingKnowledge} helper="Processes with no knowledge links" />
+        <MetricCard label="Missing SOPs" value={data.stats.processesMissingKnowledge} helper="Processes with no SOP links" />
         <MetricCard label="Avg Steps" value={data.stats.averageStepsPerProcess} helper="Steps per active process" />
       </div>
 
@@ -671,7 +651,7 @@ function OperationsDashboard({
           </div>
         </section>
         <section className="countPanel">
-          <h3>Processes missing knowledge</h3>
+          <h3>Processes missing SOPs</h3>
           <div className="countList">
             {missingKnowledge.length ? (
               missingKnowledge.map((process) => (
@@ -682,7 +662,7 @@ function OperationsDashboard({
               ))
             ) : (
               <span>
-                <strong>No missing knowledge</strong>
+                <strong>No missing SOPs</strong>
                 0
               </span>
             )}
@@ -733,7 +713,7 @@ function OperationsDashboard({
                 {selectedProcess.role?.title ?? 'No role'}
               </span>
               <span>
-                <strong>{selectedProcess.knowledgeLinkCount} knowledge links</strong>
+                <strong>{selectedProcess.knowledgeLinkCount} SOP links</strong>
                 {selectedProcess.stepCount} steps
               </span>
             </div>
@@ -830,12 +810,12 @@ export function OperationsModule({ onOpenKnowledgeBase }: OperationsModuleProps 
       <div className="sectionHeader">
         <div>
           <h2>Operations</h2>
-          <p>Operational processes, seeded catalog data, steps, dependencies, inputs, outputs, and linked knowledge.</p>
+          <p>Operational processes, seeded catalog data, steps, dependencies, inputs, outputs, and linked SOPs.</p>
         </div>
         <div className="engineStats" aria-label="Operations counts">
           <span>{data?.stats.totalProcesses ?? '...'} processes</span>
           <span>{data?.stats.criticalProcesses ?? '...'} critical</span>
-          <span>{data?.stats.processesMissingKnowledge ?? '...'} missing knowledge</span>
+          <span>{data?.stats.processesMissingKnowledge ?? '...'} missing SOPs</span>
         </div>
       </div>
 
@@ -854,7 +834,7 @@ export function OperationsModule({ onOpenKnowledgeBase }: OperationsModuleProps 
           <div className="loadingPulse" />
           <div>
             <strong>Loading Operations Engine</strong>
-            <p>Fetching processes, steps, dependencies, inputs, outputs, and linked knowledge.</p>
+            <p>Fetching processes, steps, dependencies, inputs, outputs, and linked SOPs.</p>
           </div>
         </div>
       ) : data ? (
@@ -900,7 +880,7 @@ export function OperationsModule({ onOpenKnowledgeBase }: OperationsModuleProps 
                     Weak coverage is tracked in the Knowledge workspace.
                     {onOpenKnowledgeBase ? (
                       <button className="tableLink inlineAction" onClick={onOpenKnowledgeBase} type="button">
-                        Open Knowledge coverage
+                        Open SOP coverage
                       </button>
                     ) : (
                       ' Open the Knowledge workspace to review missing requirements and approved objects.'
@@ -917,7 +897,7 @@ export function OperationsModule({ onOpenKnowledgeBase }: OperationsModuleProps 
                     <Search aria-hidden="true" size={17} />
                     <input
                       onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Search processes, steps, inputs, outputs, and knowledge links"
+                      placeholder="Search processes, steps, inputs, outputs, and SOP links"
                       value={query}
                     />
                   </label>

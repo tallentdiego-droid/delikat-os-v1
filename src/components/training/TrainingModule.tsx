@@ -4,8 +4,10 @@ import { getTrainingEngineData, type TrainingEngineData, type TrainingPath, type
 import {
   CoverageBadge,
   EmptyState,
-  KnowledgeGapCard,
   MetricCard as SharedMetricCard,
+  SOPCard,
+  SOPCoverageWarning,
+  SOPRelatedKnowledge,
   TrainingPathCard as SharedTrainingPathCard,
 } from '../os';
 
@@ -78,7 +80,7 @@ function groupPathsByRole(paths: TrainingPath[]): Array<{ role: string; paths: T
 
 function itemReferences(item: TrainingPathItem): string[] {
   const refs = [
-    item.knowledgeObject?.title ? `Knowledge: ${item.knowledgeObject.title}` : null,
+    item.knowledgeObject?.title ? `SOP: ${item.knowledgeObject.title}` : null,
     item.process ? `Process: ${item.process.name}` : null,
     item.processStep ? `Step: ${item.processStep.title}` : null,
   ];
@@ -97,41 +99,62 @@ function TrainingPathItemCard({
   item: TrainingPathItem;
   onOpenKnowledgeBase?: () => void;
 }): JSX.Element {
+  const linkedKnowledge = item.matchedKnowledge[0] ?? item.knowledgeObject;
+  const linkedKnowledgeItems = linkedKnowledge
+    ? [
+        {
+          id: linkedKnowledge.id,
+          title: linkedKnowledge.title,
+          subtitle: linkedKnowledge.manualTitle,
+          summary: linkedKnowledge.preview,
+          status: linkedKnowledge.status,
+          notes: linkedKnowledge.manualCode ?? linkedKnowledge.sourceSectionHeading,
+        },
+      ]
+    : [];
+
   return (
-    <article className="trainingItemCard">
-      <div className="trainingItemHeader">
-        <div>
-          <strong>{item.requiredKnowledgeItem.title}</strong>
-          <p>{item.requiredKnowledgeItem.description ?? 'Required knowledge item from the coverage engine.'}</p>
-        </div>
-        <CoverageBadge coveragePercent={item.coverageStatus === 'satisfied' ? 100 : 0} label={item.coverageStatus} />
-      </div>
-      <div className="trainingItemMeta">
-        <span>#{item.sortOrder}</span>
-        <span>{item.itemType}</span>
-        <span>{item.completionRequired ? 'Required' : 'Optional'}</span>
-      </div>
+    <SOPCard
+      className="trainingItemCard"
+      coverageLabel={item.coverageStatus === 'satisfied' ? 'SOP covered' : 'Missing SOP'}
+      coveragePercent={item.coverageStatus === 'satisfied' ? 100 : 0}
+      metadata={[
+        { label: 'Step', value: `#${item.sortOrder}` },
+        { label: 'Type', value: item.itemType },
+        { label: 'Required', value: item.completionRequired ? 'Yes' : 'No' },
+      ]}
+      sourceDetail={item.requiredKnowledgeItem.code}
+      sourceLabel="Training requirement"
+      status={item.coverageStatus === 'satisfied' ? 'satisfied' : 'missing'}
+      summary={item.requiredKnowledgeItem.description ?? item.gapSummary ?? 'Training requirement from the coverage engine.'}
+      title={item.requiredKnowledgeItem.title}
+    >
       <div className="trainingItemLinks">
         {itemReferences(item).length ? (
           itemReferences(item).map((label) => <span key={label}>{label}</span>)
         ) : (
-          <span>No linked knowledge or process record yet.</span>
+          <span>No linked SOP or process record yet.</span>
         )}
       </div>
-      <p className="previewText">
-        {item.coverageStatus === 'satisfied'
-          ? item.matchedKnowledge[0]
-            ? item.matchedKnowledge[0].preview
-            : 'Coverage is satisfied by existing approved knowledge.'
-          : item.gapSummary ?? 'No approved knowledge currently satisfies this item.'}
-      </p>
-      {item.coverageStatus === 'missing' && onOpenKnowledgeBase && (
-        <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
-          <BookOpenText aria-hidden="true" size={16} />
-          Open Knowledge coverage
-        </button>
+      {linkedKnowledgeItems.length > 0 ? (
+        <SOPRelatedKnowledge emptyLabel="No linked SOP preview yet." items={linkedKnowledgeItems} title="Linked SOP" />
+      ) : (
+        <SOPCoverageWarning
+          action={
+            onOpenKnowledgeBase ? (
+              <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
+                <BookOpenText aria-hidden="true" size={16} />
+                Open SOP coverage
+              </button>
+            ) : undefined
+          }
+          coveragePercent={0}
+          description="This training requirement does not yet have an approved SOP linked to it."
+          detail={item.gapSummary ?? 'No approved SOP currently satisfies this requirement.'}
+          title="Missing SOP"
+        />
       )}
-    </article>
+    </SOPCard>
   );
 }
 
@@ -155,7 +178,7 @@ function TrainingPathDetail({
         <div className="trainingDetailHeader">
           <div>
             <h3>{path.title}</h3>
-            <p>{path.description ?? 'Starter training path built from existing Delikat knowledge and operations data.'}</p>
+            <p>{path.description ?? 'Starter training path built from existing Delikat SOPs and operations data.'}</p>
           </div>
           <CoverageBadge coveragePercent={path.coveragePercent} label={path.missingItemCount > 0 ? `${path.missingItemCount} gaps` : 'fully covered'} />
         </div>
@@ -164,7 +187,7 @@ function TrainingPathDetail({
           <MetricCard label="Role" value={valueOrDefault(path.role?.name)} helper={path.role?.code ?? undefined} />
           <MetricCard label="Area" value={valueOrDefault(path.area?.name)} helper={path.area?.code ?? undefined} />
           <MetricCard label="Coverage" value={`${path.coveragePercent}%`} helper={`${path.satisfiedItemCount} of ${path.requiredItemCount} items`} />
-          <MetricCard label="Knowledge links" value={path.linkedKnowledgeCount} helper="Approved knowledge objects" />
+          <MetricCard label="SOP links" value={path.linkedKnowledgeCount} helper="Approved SOPs" />
           <MetricCard label="Process links" value={path.linkedProcessCount} helper={`${path.linkedProcessStepCount} step links`} />
         </div>
       </section>
@@ -173,7 +196,7 @@ function TrainingPathDetail({
         <div className="trainingDetailBanner">
           <div>
             <strong>Read-only training foundation</strong>
-            <p>Training paths are generated from live required knowledge, operations processes, and coverage gaps.</p>
+            <p>Training paths are generated from live training requirements, operations processes, and coverage gaps.</p>
           </div>
           {missingItems.length > 0 && onOpenKnowledgeBase && (
             <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
@@ -200,11 +223,11 @@ function TrainingPathDetail({
         {missingItems.length > 0 ? (
           <div className="trainingGapList">
             {missingItems.map((item) => (
-              <KnowledgeGapCard
+              <SOPCoverageWarning
                 key={item.id}
                 title={item.requiredKnowledgeItem.title}
-                description="Required knowledge item is not yet satisfied by approved knowledge."
-                detail={item.gapSummary ?? 'No approved knowledge object is linked yet.'}
+                description="Training requirement is not yet satisfied by an approved SOP."
+                detail={item.gapSummary ?? 'No approved SOP is linked yet.'}
                 coveragePercent={0}
               />
             ))}
@@ -314,7 +337,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
         <div className="sectionHeader">
           <div>
             <h2>Training</h2>
-            <p>Read-only training paths generated from live knowledge and operations data.</p>
+            <p>Read-only training paths generated from live SOP, operations, and coverage data.</p>
           </div>
         </div>
         <EmptyState icon={AlertCircle} title="Training data could not load" description={error} />
@@ -328,13 +351,13 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
         <div className="sectionHeader">
           <div>
             <h2>Training</h2>
-            <p>Read-only training paths generated from live knowledge and operations data.</p>
+            <p>Read-only training paths generated from live SOP, operations, and coverage data.</p>
           </div>
         </div>
         <EmptyState
           icon={GraduationCap}
           title="Loading training foundation"
-          description="Pulling starter paths, required knowledge items, and coverage gaps from Supabase."
+          description="Pulling starter paths, training requirements, and coverage gaps from Supabase."
         />
       </section>
     );
@@ -346,13 +369,13 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
         <div className="sectionHeader">
           <div>
             <h2>Training</h2>
-            <p>Read-only training paths generated from live knowledge and operations data.</p>
+            <p>Read-only training paths generated from live SOP, operations, and coverage data.</p>
           </div>
         </div>
         <div className="toolbar trainingToolbar">
           <label className="searchField">
             <Search aria-hidden="true" size={16} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search training paths or linked knowledge" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search training paths or linked SOPs" />
           </label>
           <label className="selectField">
             <span>Role</span>
@@ -391,7 +414,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
       <div className="sectionHeader">
         <div>
           <h2>Training</h2>
-          <p>Read-only training paths generated from live knowledge and operations data.</p>
+          <p>Read-only training paths generated from live SOP, operations, and coverage data.</p>
         </div>
         <div className="engineStats">
           <span>{data.stats.totalPaths} paths</span>
@@ -404,7 +427,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
       <div className="toolbar trainingToolbar">
         <label className="searchField">
           <Search aria-hidden="true" size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search training paths or linked knowledge" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search training paths or linked SOPs" />
         </label>
         <label className="selectField">
           <span>Role</span>
@@ -454,7 +477,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
             <EmptyState
               icon={ShieldAlert}
               title="No training path selected"
-              description="Choose a seeded path to inspect linked knowledge, process steps, and coverage gaps."
+              description="Choose a seeded path to inspect linked SOPs, process steps, and coverage gaps."
             />
           )}
         </div>

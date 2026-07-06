@@ -23,7 +23,7 @@ export function ProcessCard({
               <strong>{process.name}</strong>
               <p>{process.description ?? 'Operational process from the seeded catalog.'}</p>
             </div>
-            <CoverageBadge coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100} label={process.knowledgeLinkCount === 0 ? 'Missing knowledge' : 'Knowledge linked'} />
+            <CoverageBadge coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100} label={process.knowledgeLinkCount === 0 ? 'Missing SOP' : 'SOP linked'} />
           </div>
           <div className="processCardMeta">
             <span>{process.department?.title ?? 'Unassigned department'}</span>
@@ -44,7 +44,7 @@ export function ProcessCard({
               <strong>{process.name}</strong>
               <p>{process.description ?? 'Operational process from the seeded catalog.'}</p>
             </div>
-            <CoverageBadge coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100} label={process.knowledgeLinkCount === 0 ? 'Missing knowledge' : 'Knowledge linked'} />
+            <CoverageBadge coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100} label={process.knowledgeLinkCount === 0 ? 'Missing SOP' : 'SOP linked'} />
           </div>
           <div className="processCardMeta">
             <span>{process.department?.title ?? 'Unassigned department'}</span>
@@ -62,4 +62,3 @@ export function ProcessCard({
     </OSCard>
   );
 }
-

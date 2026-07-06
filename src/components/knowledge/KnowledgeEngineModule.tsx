@@ -4,11 +4,18 @@ import {
   getKnowledgeEngineData,
   previewText,
   type KnowledgeEngineData,
+  type KnowledgeCoverageSummary,
   type KnowledgeObject,
   type KnowledgeOntologyEntity,
   type KnowledgeOntologyGroups,
   type ManualFilter,
 } from '../../lib/knowledge';
+import {
+  SOPCard,
+  SOPCoverageWarning,
+  SOPEvidencePanel,
+  SOPRelatedKnowledge,
+} from '../os';
 
 type KnowledgeTab = 'search' | 'manuals' | 'objects' | 'categories' | 'relationships' | 'versions';
 type ObjectTab = 'knowledge' | 'ontology';
@@ -43,11 +50,60 @@ function fileLabel(sourceUri: string): string {
   return sourceUri.split('/').pop() || sourceUri || 'Source file';
 }
 
+function objectCoverageSummary(object: KnowledgeObject, coverage: KnowledgeCoverageSummary): {
+  coveragePercent: number;
+  label: string;
+  detail: string;
+  missingCount: number;
+  satisfiedCount: number;
+} {
+  const matches = [...coverage.missing, ...coverage.satisfied].filter((result) => result.matchedObjects.some((matched) => matched.id === object.id));
+  if (matches.length === 0) {
+    return {
+      coveragePercent: 0,
+      label: 'Missing SOP coverage',
+      detail: 'This approved SOP has not been mapped to any training requirement yet.',
+      missingCount: 0,
+      satisfiedCount: 0,
+    };
+  }
+
+  const satisfiedCount = matches.filter((result) => result.status === 'satisfied').length;
+  const missingCount = matches.filter((result) => result.status === 'missing').length;
+  const coveragePercent = Math.round((satisfiedCount / matches.length) * 100);
+
+  return {
+    coveragePercent,
+    label: missingCount > 0 ? 'Coverage gaps remain' : 'Coverage ready',
+    detail: missingCount > 0
+      ? `${missingCount} training requirement${missingCount === 1 ? '' : 's'} still need approved SOP coverage.`
+      : 'All mapped training requirements are covered by approved SOPs.',
+    missingCount,
+    satisfiedCount,
+  };
+}
+
+function objectContext(object: KnowledgeObject): Array<{ label: string; value: string }> {
+  const firstDepartment = object.ontology.departments[0];
+  const firstRole = object.ontology.roles[0];
+  const firstArea = object.ontology.areas[0];
+  const firstProcess = object.ontology.businessProcesses[0];
+  const firstDocumentType = object.ontology.documentTypes[0];
+
+  return [
+    firstDepartment ? { label: 'Department', value: firstDepartment.name } : null,
+    firstRole ? { label: 'Role', value: firstRole.name } : null,
+    firstArea ? { label: 'Area', value: firstArea.name } : null,
+    firstProcess ? { label: 'Process', value: firstProcess.name } : null,
+    firstDocumentType ? { label: 'Document type', value: firstDocumentType.name } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
+}
+
 function friendlyError(reason: unknown): string {
   if (reason instanceof Error && (reason.message.includes('Supabase') || reason.message.includes('deployment environment'))) {
     return reason.message;
   }
-  return 'Knowledge Engine could not reach the approved knowledge database. Ask an administrator to check the Supabase connection and read policies.';
+  return 'Knowledge Engine could not reach the approved SOP database. Ask an administrator to check the Supabase connection and read policies.';
 }
 
 function ontologyValues(groups: KnowledgeOntologyGroups): KnowledgeOntologyEntity[] {
@@ -120,7 +176,7 @@ function GlobalSearch({
     <div className="toolbar knowledgeToolbar globalSearch" role="search">
       <label className="searchField">
         <Search aria-hidden="true" size={17} />
-        <input onChange={(event) => onQueryChange(event.target.value)} placeholder="Search approved knowledge, evidence, manuals, and headings" value={query} />
+        <input onChange={(event) => onQueryChange(event.target.value)} placeholder="Search approved SOPs, evidence, manuals, and headings" value={query} />
       </label>
       <label className="selectField">
         <span>Manual</span>
@@ -195,32 +251,37 @@ function OntologyFilterBar({
   );
 }
 
-function SearchScreen({ objects, onOpenObject }: { objects: KnowledgeObject[]; onOpenObject: (id: string) => void }): JSX.Element {
-  if (objects.length === 0) return <EmptyState title="No knowledge found" message="No approved knowledge objects match the current filters." />;
+function SearchScreen({
+  objects,
+  coverage,
+  onOpenObject,
+}: {
+  objects: KnowledgeObject[];
+  coverage: KnowledgeCoverageSummary;
+  onOpenObject: (id: string) => void;
+}): JSX.Element {
+  if (objects.length === 0) return <EmptyState title="No SOPs found" message="No approved SOPs match the current filters." />;
   return (
     <div className="resultList">
       {objects.map((object) => (
-        <article className="resultCard" key={object.id}>
-          <div className="resultHeader">
-            <div>
-              <h3>{object.title}</h3>
-              <div className="sourceLine">
-                <span>{object.manualCode ?? 'Manual'}</span>
-                <span>{object.sourceSectionHeading}</span>
-                <span>Version {object.approvedVersion.versionNumber}</span>
-              </div>
-            </div>
+        <SOPCard
+          action={
             <button className="iconTextButton" onClick={() => onOpenObject(object.id)} type="button">
               <FileText aria-hidden="true" size={16} />
-              <span>Open</span>
+              <span>Open SOP</span>
             </button>
-          </div>
-          <p className="previewText">{object.preview}</p>
-          <div className="evidenceSummary">
-            <span>Source manual: {object.manualTitle}</span>
-            <span>Evidence: {object.evidence.length} source section{object.evidence.length === 1 ? '' : 's'}</span>
-          </div>
-        </article>
+          }
+          className="resultCard"
+          coverageLabel={objectCoverageSummary(object, coverage).label}
+          coveragePercent={objectCoverageSummary(object, coverage).coveragePercent}
+          metadata={objectContext(object).map((item) => ({ label: item.label, value: item.value }))}
+          sourceDetail={`${object.manualTitle} · ${object.sourceSectionHeading}`}
+          sourceLabel="Source document"
+          status={object.status}
+          summary={object.summary ?? object.preview}
+          key={object.id}
+          title={object.title}
+        />
       ))}
     </div>
   );
@@ -319,7 +380,7 @@ function CategoriesScreen({ data, objects, onOpenObject }: { data: KnowledgeEngi
   const filtered = data.categories
     .map((category) => ({ ...category, objects: objects.filter((object) => object.category === category.name) }))
     .filter((category) => category.objects.length > 0);
-  if (filtered.length === 0) return <EmptyState title="No categories found" message="Categories are derived from approved knowledge and current filters." />;
+  if (filtered.length === 0) return <EmptyState title="No categories found" message="Categories are derived from approved SOPs and current filters." />;
   return (
     <div className="categoryGrid">
       {filtered.map((category) => (
@@ -346,13 +407,13 @@ function RelationshipsScreen({ objects, onOpenObject }: { objects: KnowledgeObje
   const selected = objects.find((object) => object.id === selectedId) ?? objects[0];
   const incoming = selected?.related.filter((item) => item.direction === 'incoming') ?? [];
   const outgoing = selected?.related.filter((item) => item.direction === 'outgoing') ?? [];
-  if (!selected) return <EmptyState title="No relationship graph visible" message="Approved objects are required before relationships can display." />;
+  if (!selected) return <EmptyState title="No SOP graph visible" message="Approved SOPs are required before relationships can display." />;
   return (
     <div className="graphLayout">
       <div className="listPanel">
         {objects.map((object) => (
           <button className={object.id === selected.id ? 'listButton active' : 'listButton'} key={object.id} onClick={() => setSelectedId(object.id)} type="button">
-            <span>{object.manualCode ?? 'Knowledge'}</span>
+            <span>{object.manualCode ?? 'SOP'}</span>
             <strong>{object.title}</strong>
             <small>{object.related.length} relationships</small>
           </button>
@@ -362,11 +423,11 @@ function RelationshipsScreen({ objects, onOpenObject }: { objects: KnowledgeObje
         <div className="detailHeader">
           <h3>{selected.title}</h3>
           <button className="iconTextButton" onClick={() => onOpenObject(selected.id)} type="button">
-            Open Object
+            Open SOP
           </button>
         </div>
-        <RelationshipList title="Incoming relationships" rows={incoming} onOpenObject={onOpenObject} />
-        <RelationshipList title="Outgoing relationships" rows={outgoing} onOpenObject={onOpenObject} />
+        <RelationshipList title="Incoming SOPs" rows={incoming} onOpenObject={onOpenObject} />
+        <RelationshipList title="Outgoing SOPs" rows={outgoing} onOpenObject={onOpenObject} />
       </div>
     </div>
   );
@@ -381,7 +442,7 @@ function RelationshipList({
   rows: KnowledgeObject['related'];
   onOpenObject: (id: string) => void;
 }): JSX.Element {
-  if (rows.length === 0) return <EmptyState title={`No ${title.toLowerCase()}`} message="No approved graph relationships are recorded for this object yet." />;
+  if (rows.length === 0) return <EmptyState title={`No ${title.toLowerCase()}`} message="No approved SOP relationships are recorded for this object yet." />;
   return (
     <section className="relatedList">
       <h4>{title}</h4>
@@ -390,9 +451,9 @@ function RelationshipList({
           <span className={`relationshipBadge ${row.direction}`}>{row.relationship.typeName}</span>
           <strong>{row.object.title}</strong>
           <span>{row.object.status}</span>
-          <span>{row.object.manualCode ?? row.object.manualTitle}</span>
-          <button className="tableLink" onClick={() => onOpenObject(row.object.id)} type="button">
-            Open
+            <span>{row.object.manualCode ?? row.object.manualTitle}</span>
+            <button className="tableLink" onClick={() => onOpenObject(row.object.id)} type="button">
+            Open SOP
           </button>
         </div>
       ))}
@@ -410,24 +471,25 @@ function VersionsScreen({ data, onOpenObject }: { data: KnowledgeEngineData; onO
         if (!object) return null;
         const isCurrent = object.currentApprovedVersionId === version.id;
         return (
-          <article className={isCurrent ? 'versionCard current' : 'versionCard'} key={version.id}>
-            <div>
-              <h3>{object.title}</h3>
-              <div className="sourceLine">
-                <span>Version {version.versionNumber}</span>
-                <span>{version.status}</span>
-                <span>{object.category}</span>
-              </div>
-            </div>
-            <p>{previewText(version.body, 180)}</p>
-            <div className="versionFooter">
-              <span>{dateLabel(version.approvedAt ?? version.updatedAt)}</span>
-              {isCurrent && <strong>Current approved</strong>}
+          <SOPCard
+            action={
               <button className="tableLink" onClick={() => onOpenObject(object.id)} type="button">
-                Open object
+                Open SOP
               </button>
-            </div>
-          </article>
+            }
+            className={isCurrent ? 'versionCard current' : 'versionCard'}
+            key={version.id}
+            metadata={[
+              { label: 'Version', value: `v${version.versionNumber}` },
+              { label: 'Manual', value: object.manualCode ?? object.manualTitle },
+              { label: 'Updated', value: dateLabel(version.approvedAt ?? version.updatedAt) },
+            ]}
+            sourceDetail={object.category}
+            sourceLabel={isCurrent ? 'Current approved' : 'Version'}
+            status={version.status}
+            summary={previewText(version.body, 180)}
+            title={object.title}
+          />
         );
       })}
     </div>
@@ -459,10 +521,12 @@ function OntologyGroup({ label, items }: { label: string; items: KnowledgeOntolo
 
 function ObjectDrawer({
   object,
+  coverage,
   onClose,
   onOpenObject,
 }: {
   object: KnowledgeObject | null;
+  coverage: KnowledgeCoverageSummary;
   onClose: () => void;
   onOpenObject: (id: string) => void;
 }): JSX.Element | null {
@@ -470,6 +534,33 @@ function ObjectDrawer({
   if (!object) return null;
   const incoming = object.related.filter((item) => item.direction === 'incoming');
   const outgoing = object.related.filter((item) => item.direction === 'outgoing');
+  const coverageSummary = objectCoverageSummary(object, coverage);
+  const relatedIncoming = incoming.map((entry) => ({
+    id: `${entry.direction}:${entry.relationship.id}:${entry.object.id}`,
+    title: entry.object.title,
+    subtitle: entry.relationship.typeName,
+    summary: entry.object.manualTitle,
+    status: entry.object.status,
+    notes: entry.relationship.notes ?? entry.object.manualCode ?? undefined,
+    action: (
+      <button className="tableLink" onClick={() => onOpenObject(entry.object.id)} type="button">
+        Open SOP
+      </button>
+    ),
+  }));
+  const relatedOutgoing = outgoing.map((entry) => ({
+    id: `${entry.direction}:${entry.relationship.id}:${entry.object.id}`,
+    title: entry.object.title,
+    subtitle: entry.relationship.typeName,
+    summary: entry.object.manualTitle,
+    status: entry.object.status,
+    notes: entry.relationship.notes ?? entry.object.manualCode ?? undefined,
+    action: (
+      <button className="tableLink" onClick={() => onOpenObject(entry.object.id)} type="button">
+        Open SOP
+      </button>
+    ),
+  }));
   return (
     <div className="drawerBackdrop" role="presentation">
       <aside aria-label="Knowledge object detail" className="detailDrawer">
@@ -478,67 +569,81 @@ function ObjectDrawer({
           Close
         </button>
         <div className="objectDetailContent">
-          <div>
-            <h3>{object.title}</h3>
-            <div className="sourceLine">
-              <span>{object.status}</span>
-              <span>{object.manualTitle}</span>
-              <span>{object.category}</span>
-            </div>
-          </div>
+          <SOPCard
+            className="objectSummaryCard"
+            coverageLabel={coverageSummary.label}
+            coveragePercent={coverageSummary.coveragePercent}
+            metadata={objectContext(object).map((item) => ({ label: item.label, value: item.value }))}
+            sourceDetail={`${object.manualTitle} · ${object.sourceSectionHeading}`}
+            sourceLabel="Source document"
+            status={object.status}
+            summary={object.summary ?? previewText(object.approvedVersion.body, 220)}
+            title={object.title}
+          />
           <div className="objectTabs" role="tablist">
             {(['knowledge', 'ontology'] as ObjectTab[]).map((nextTab) => (
               <button className={tab === nextTab ? 'objectTab active' : 'objectTab'} key={nextTab} onClick={() => setTab(nextTab)} role="tab" type="button">
-                {nextTab === 'knowledge' ? 'Knowledge' : 'Ontology'}
+                {nextTab === 'knowledge' ? 'SOP' : 'Context'}
               </button>
             ))}
           </div>
           {tab === 'knowledge' ? (
             <>
-              <section>
-                <h4>Approved version</h4>
-                <pre>{object.approvedVersion.body}</pre>
+              {coverageSummary.missingCount > 0 && (
+                <SOPCoverageWarning
+                  coveragePercent={coverageSummary.coveragePercent}
+                  detail={coverageSummary.detail}
+                  description="This SOP is still missing some coverage links."
+                  title={coverageSummary.label}
+                  action={<span className="quietText">Review the related SOPs below.</span>}
+                />
+              )}
+              <section className="detailSection">
+                <h4>Approved body</h4>
+                <SOPCard
+                  className="approvedSopBody"
+                  metadata={[
+                    { label: 'Version', value: `v${object.approvedVersion.versionNumber}` },
+                    { label: 'Updated', value: dateLabel(object.updatedAt) },
+                  ]}
+                  sourceDetail={object.sourceFileUri}
+                  sourceLabel="Approved body"
+                  status={object.approvedVersion.status}
+                  summary={previewText(object.approvedVersion.body, 260)}
+                  title={object.title}
+                >
+                  <pre>{object.approvedVersion.body}</pre>
+                </SOPCard>
               </section>
-              <section>
-                <h4>Source evidence</h4>
-                {object.evidence.map((item) => (
-                  <div className="evidencePanel" key={item.id}>
-                    <div className="evidenceGrid">
-                      <span>Source manual</span>
-                      <strong>{item.sourceManualTitle}</strong>
-                      <span>Source file</span>
-                      <strong>{fileLabel(item.sourceFileUri)}</strong>
-                      <span>Source section</span>
-                      <strong>{item.sourceSectionHeading}</strong>
-                      <span>Hash</span>
-                      <strong className="hashLine">{item.sourceSectionHash}</strong>
-                    </div>
-                    <pre>{item.sourceSectionBody}</pre>
-                  </div>
-                ))}
-              </section>
-              <section>
+              <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={object.evidence} title="Source evidence" />
+              <SOPRelatedKnowledge emptyLabel="No incoming SOP relationships are recorded yet." items={relatedIncoming} title="Incoming SOPs" />
+              <SOPRelatedKnowledge emptyLabel="No outgoing SOP relationships are recorded yet." items={relatedOutgoing} title="Outgoing SOPs" />
+              <section className="detailSection">
                 <h4>Version history</h4>
                 <div className="timeline">
                   {object.versions.map((version) => (
-                    <div className={version.id === object.currentApprovedVersionId ? 'timelineItem current' : 'timelineItem'} key={version.id}>
-                      <div>
-                        <strong>Version {version.versionNumber}</strong>
-                        <span>{version.status}</span>
-                      </div>
-                      <p>{dateLabel(version.approvedAt ?? version.updatedAt)}</p>
-                    </div>
+                    <SOPCard
+                      className={version.id === object.currentApprovedVersionId ? 'versionSopCard current' : 'versionSopCard'}
+                      key={version.id}
+                      metadata={[
+                        { label: 'Version', value: `v${version.versionNumber}` },
+                        { label: 'Updated', value: dateLabel(version.approvedAt ?? version.updatedAt) },
+                      ]}
+                      sourceDetail={version.status}
+                      sourceLabel={version.id === object.currentApprovedVersionId ? 'Current approved' : 'Version'}
+                      status={version.status}
+                      summary={previewText(version.body, 180)}
+                      title={object.title}
+                    />
                   ))}
                 </div>
               </section>
-              <RelationshipList title="Incoming relationships" rows={incoming} onOpenObject={onOpenObject} />
-              <RelationshipList title="Outgoing relationships" rows={outgoing} onOpenObject={onOpenObject} />
             </>
           ) : (
             <div className="ontologyPanel">
               <div className="readOnlyBanner">
-                <strong>Ontology editing prepared</strong>
-                <span>Classifications are read-only until users and permissions are added.</span>
+                <strong>Context editing prepared</strong>
+                <span>These classifications stay read-only until users and permissions are added.</span>
               </div>
               <div className="ontologyGrid">
                 <OntologyGroup label="Departments" items={object.ontology.departments} />
@@ -634,7 +739,7 @@ export function KnowledgeEngineModule(): JSX.Element {
           <div className="loadingPulse" />
           <div>
             <strong>Loading Knowledge Engine</strong>
-            <p>Fetching approved objects, evidence, versions, relationships, and ontology links.</p>
+            <p>Fetching approved SOPs, evidence, versions, relationships, and context links.</p>
           </div>
         </div>
       ) : (
@@ -651,7 +756,7 @@ export function KnowledgeEngineModule(): JSX.Element {
             />
             <OntologyFilterBar filters={ontologyFilters} onChange={setOntologyFilters} options={data.ontologyOptions} />
             <div className="resultsMeta">
-              Showing {filteredObjects.length} of {data.objects.length} approved knowledge objects
+              Showing {filteredObjects.length} of {data.objects.length} approved SOPs
               {hasFilters && (
                 <button className="tableLink inlineAction" onClick={clearFilters} type="button">
                   Clear filters
@@ -670,14 +775,14 @@ export function KnowledgeEngineModule(): JSX.Element {
               })}
             </div>
             <div className="tabPanel">
-              {activeTab === 'search' && <SearchScreen objects={filteredObjects} onOpenObject={setSelectedObjectId} />}
+              {activeTab === 'search' && <SearchScreen coverage={data.coverage} objects={filteredObjects} onOpenObject={setSelectedObjectId} />}
               {activeTab === 'manuals' && <ManualsScreen data={data} onOpenObject={setSelectedObjectId} />}
               {activeTab === 'objects' && <ObjectsScreen objects={filteredObjects} onOpenObject={setSelectedObjectId} />}
               {activeTab === 'categories' && <CategoriesScreen data={data} objects={filteredObjects} onOpenObject={setSelectedObjectId} />}
               {activeTab === 'relationships' && <RelationshipsScreen objects={filteredObjects} onOpenObject={setSelectedObjectId} />}
               {activeTab === 'versions' && <VersionsScreen data={data} onOpenObject={setSelectedObjectId} />}
             </div>
-            <ObjectDrawer object={selectedObject} onClose={() => setSelectedObjectId(null)} onOpenObject={setSelectedObjectId} />
+            <ObjectDrawer coverage={data.coverage} object={selectedObject} onClose={() => setSelectedObjectId(null)} onOpenObject={setSelectedObjectId} />
           </>
         )
       )}
