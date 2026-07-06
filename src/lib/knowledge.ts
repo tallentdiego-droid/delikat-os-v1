@@ -160,6 +160,50 @@ export interface KnowledgeOntologyStats {
   objectsWithoutClassification: number;
 }
 
+export interface RequiredKnowledgeGroup {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  status: string;
+  sortOrder: number;
+}
+
+export interface RequiredKnowledgeItem {
+  id: string;
+  groupId: string | null;
+  groupName: string | null;
+  title: string;
+  code: string;
+  description: string | null;
+  priority: number;
+  status: string;
+  sortOrder: number;
+  ontology: KnowledgeOntologyGroups;
+}
+
+export interface KnowledgeCoverageResult {
+  item: RequiredKnowledgeItem;
+  status: 'missing' | 'satisfied';
+  matchedObjects: KnowledgeObject[];
+  completedAt: string | null;
+}
+
+export interface KnowledgeCoverageSummary {
+  requiredCount: number;
+  existingCount: number;
+  missingCount: number;
+  coveragePercent: number;
+  missing: KnowledgeCoverageResult[];
+  satisfied: KnowledgeCoverageResult[];
+  byDepartment: Array<{ id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }>;
+  byRole: Array<{ id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }>;
+  byArea: Array<{ id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }>;
+  byBusinessProcess: Array<{ id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }>;
+  topMissing: KnowledgeCoverageResult[];
+  recentlyCompleted: KnowledgeCoverageResult[];
+}
+
 export interface KnowledgeEngineData {
   manuals: KnowledgeManual[];
   objects: KnowledgeObject[];
@@ -168,6 +212,9 @@ export interface KnowledgeEngineData {
   relationshipTypes: KnowledgeRelationshipType[];
   ontologyOptions: KnowledgeOntologyGroups;
   ontologyStats: KnowledgeOntologyStats;
+  requiredKnowledgeGroups: RequiredKnowledgeGroup[];
+  requiredKnowledgeItems: RequiredKnowledgeItem[];
+  coverage: KnowledgeCoverageSummary;
   versions: KnowledgeVersion[];
 }
 
@@ -261,6 +308,32 @@ interface OntologyEntityRow {
   status: string;
 }
 
+interface RequiredKnowledgeGroupRow {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  status: string;
+  sort_order: number;
+}
+
+interface RequiredKnowledgeItemRow {
+  id: string;
+  group_id: string | null;
+  title: string;
+  code: string;
+  description: string | null;
+  priority: number;
+  status: string;
+  sort_order: number;
+  department_id: string | null;
+  role_id: string | null;
+  area_id: string | null;
+  equipment_id: string | null;
+  business_process_id: string | null;
+  document_type_id: string | null;
+}
+
 const MANUAL_CODE_PATTERN = /(?:^|\/)(M[1-9])[-_]/i;
 const DEFAULT_LIMIT = 80;
 
@@ -282,6 +355,10 @@ function isMissingOntologyTableError(error: { code?: string; message?: string })
     error.message?.toLowerCase().includes('could not find the table') === true ||
     error.message?.toLowerCase().includes('permission denied') === true
   );
+}
+
+function isMissingCoverageTableError(error: { code?: string; message?: string }): boolean {
+  return isMissingOntologyTableError(error);
 }
 
 function ensureSupabase() {
@@ -509,6 +586,97 @@ async function buildOntologyFromLinks(
   };
 }
 
+async function selectRequiredKnowledge(): Promise<{
+  groups: RequiredKnowledgeGroup[];
+  items: RequiredKnowledgeItem[];
+}> {
+  const client = ensureSupabase();
+  const { data: groupData, error: groupError } = await client
+    .from('os_required_knowledge_groups')
+    .select('id,name,code,description,status,sort_order')
+    .eq('status', 'active')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (groupError) {
+    if (isMissingCoverageTableError(groupError)) return { groups: [], items: [] };
+    throw groupError;
+  }
+
+  const { data: itemData, error: itemError } = await client
+    .from('os_required_knowledge_items')
+    .select('id,group_id,title,code,description,priority,status,sort_order,department_id,role_id,area_id,equipment_id,business_process_id,document_type_id')
+    .eq('status', 'active')
+    .order('sort_order', { ascending: true })
+    .order('title', { ascending: true });
+
+  if (itemError) {
+    if (isMissingCoverageTableError(itemError)) return { groups: [], items: [] };
+    throw itemError;
+  }
+
+  const groups = ((groupData ?? []) as RequiredKnowledgeGroupRow[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    description: row.description,
+    status: row.status,
+    sortOrder: row.sort_order,
+  }));
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const rows = (itemData ?? []) as RequiredKnowledgeItemRow[];
+
+  const [
+    departments,
+    roles,
+    areas,
+    equipment,
+    businessProcesses,
+    documentTypes,
+  ] = await Promise.all([
+    selectOntologyEntities('os_departments', rows.flatMap((row) => (row.department_id ? [row.department_id] : [])), 'department', false),
+    selectOntologyEntities('os_roles', rows.flatMap((row) => (row.role_id ? [row.role_id] : [])), 'role'),
+    selectOntologyEntities('os_areas', rows.flatMap((row) => (row.area_id ? [row.area_id] : [])), 'area'),
+    selectOntologyEntities('os_equipment', rows.flatMap((row) => (row.equipment_id ? [row.equipment_id] : [])), 'equipment'),
+    selectOntologyEntities('os_business_processes', rows.flatMap((row) => (row.business_process_id ? [row.business_process_id] : [])), 'businessProcess'),
+    selectOntologyEntities('os_document_types', rows.flatMap((row) => (row.document_type_id ? [row.document_type_id] : [])), 'documentType'),
+  ]);
+
+  const departmentById = new Map(departments.map((item) => [item.id, item]));
+  const roleById = new Map(roles.map((item) => [item.id, item]));
+  const areaById = new Map(areas.map((item) => [item.id, item]));
+  const equipmentById = new Map(equipment.map((item) => [item.id, item]));
+  const businessProcessById = new Map(businessProcesses.map((item) => [item.id, item]));
+  const documentTypeById = new Map(documentTypes.map((item) => [item.id, item]));
+
+  return {
+    groups,
+    items: rows.map((row) => {
+      const group = row.group_id ? groupById.get(row.group_id) : null;
+      return {
+        id: row.id,
+        groupId: row.group_id,
+        groupName: group?.name ?? null,
+        title: row.title,
+        code: row.code,
+        description: row.description,
+        priority: row.priority,
+        status: row.status,
+        sortOrder: row.sort_order,
+        ontology: {
+          departments: row.department_id && departmentById.has(row.department_id) ? [departmentById.get(row.department_id)!] : [],
+          roles: row.role_id && roleById.has(row.role_id) ? [roleById.get(row.role_id)!] : [],
+          areas: row.area_id && areaById.has(row.area_id) ? [areaById.get(row.area_id)!] : [],
+          equipment: row.equipment_id && equipmentById.has(row.equipment_id) ? [equipmentById.get(row.equipment_id)!] : [],
+          businessProcesses: row.business_process_id && businessProcessById.has(row.business_process_id) ? [businessProcessById.get(row.business_process_id)!] : [],
+          documentTypes: row.document_type_id && documentTypeById.has(row.document_type_id) ? [documentTypeById.get(row.document_type_id)!] : [],
+          tags: [],
+        },
+      };
+    }),
+  };
+}
+
 function countOntologyObjects(
   objects: KnowledgeObject[],
   group: keyof Pick<KnowledgeOntologyGroups, 'departments' | 'roles' | 'documentTypes'>,
@@ -531,6 +699,89 @@ function buildOntologyStats(objects: KnowledgeObject[]): KnowledgeOntologyStats 
     objectsByRole: countOntologyObjects(objects, 'roles'),
     objectsByDocumentType: countOntologyObjects(objects, 'documentTypes'),
     objectsWithoutClassification: objects.filter((object) => ontologyGroupValues(object.ontology).length === 0).length,
+  };
+}
+
+function hasOntologyRequirement(item: RequiredKnowledgeItem): boolean {
+  return ontologyGroupValues(item.ontology).length > 0;
+}
+
+function objectSatisfiesRequirement(object: KnowledgeObject, item: RequiredKnowledgeItem): boolean {
+  if (!hasOntologyRequirement(item)) return false;
+  return (
+    item.ontology.departments.every((entity) => object.ontology.departments.some((objectEntity) => objectEntity.id === entity.id)) &&
+    item.ontology.roles.every((entity) => object.ontology.roles.some((objectEntity) => objectEntity.id === entity.id)) &&
+    item.ontology.areas.every((entity) => object.ontology.areas.some((objectEntity) => objectEntity.id === entity.id)) &&
+    item.ontology.equipment.every((entity) => object.ontology.equipment.some((objectEntity) => objectEntity.id === entity.id)) &&
+    item.ontology.businessProcesses.every((entity) => object.ontology.businessProcesses.some((objectEntity) => objectEntity.id === entity.id)) &&
+    item.ontology.documentTypes.every((entity) => object.ontology.documentTypes.some((objectEntity) => objectEntity.id === entity.id))
+  );
+}
+
+function coveragePercent(existing: number, required: number): number {
+  return required === 0 ? 0 : Math.round((existing / required) * 100);
+}
+
+function buildCoverageBreakdown(
+  results: KnowledgeCoverageResult[],
+  group: keyof Pick<KnowledgeOntologyGroups, 'departments' | 'roles' | 'areas' | 'businessProcesses'>,
+): Array<{ id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }> {
+  const rows = new Map<string, { id: string; name: string; required: number; existing: number; missing: number; coveragePercent: number }>();
+
+  for (const result of results) {
+    for (const entity of result.item.ontology[group]) {
+      const row = rows.get(entity.id) ?? { id: entity.id, name: entity.name, required: 0, existing: 0, missing: 0, coveragePercent: 0 };
+      row.required += 1;
+      if (result.status === 'satisfied') row.existing += 1;
+      if (result.status === 'missing') row.missing += 1;
+      row.coveragePercent = coveragePercent(row.existing, row.required);
+      rows.set(entity.id, row);
+    }
+  }
+
+  return Array.from(rows.values()).sort((a, b) => a.coveragePercent - b.coveragePercent || b.missing - a.missing || a.name.localeCompare(b.name));
+}
+
+function buildCoverageSummary(items: RequiredKnowledgeItem[], objects: KnowledgeObject[]): KnowledgeCoverageSummary {
+  const results = items.map((item) => {
+    const matchedObjects = objects.filter((object) => objectSatisfiesRequirement(object, item));
+    const completedAt = matchedObjects.length
+      ? matchedObjects
+          .map((object) => object.updatedAt)
+          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+      : null;
+
+    return {
+      item,
+      status: matchedObjects.length > 0 ? 'satisfied' : 'missing',
+      matchedObjects,
+      completedAt,
+    } satisfies KnowledgeCoverageResult;
+  });
+
+  const missing = results
+    .filter((result) => result.status === 'missing')
+    .sort((a, b) => a.item.priority - b.item.priority || a.item.title.localeCompare(b.item.title));
+  const satisfied = results
+    .filter((result) => result.status === 'satisfied')
+    .sort((a, b) => a.item.title.localeCompare(b.item.title));
+
+  return {
+    requiredCount: items.length,
+    existingCount: satisfied.length,
+    missingCount: missing.length,
+    coveragePercent: coveragePercent(satisfied.length, items.length),
+    missing,
+    satisfied,
+    byDepartment: buildCoverageBreakdown(results, 'departments'),
+    byRole: buildCoverageBreakdown(results, 'roles'),
+    byArea: buildCoverageBreakdown(results, 'areas'),
+    byBusinessProcess: buildCoverageBreakdown(results, 'businessProcesses'),
+    topMissing: missing.slice(0, 8),
+    recentlyCompleted: satisfied
+      .filter((result) => result.completedAt)
+      .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())
+      .slice(0, 8),
   };
 }
 
@@ -867,6 +1118,8 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
     .map((row) => buildRelationship(row, relationshipTypeById, objectById))
     .filter((relationship): relationship is KnowledgeRelationship => relationship !== null);
   const objectsWithRelationships = attachRelationships(sortedObjects, relationships);
+  const { groups: requiredKnowledgeGroups, items: requiredKnowledgeItems } = await selectRequiredKnowledge();
+  const coverage = buildCoverageSummary(requiredKnowledgeItems, objectsWithRelationships);
 
   return {
     manuals: attachSectionsToManuals(manualRows, sectionRows, evidenceRows),
@@ -876,6 +1129,9 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
     relationshipTypes,
     ontologyOptions,
     ontologyStats: buildOntologyStats(objectsWithRelationships),
+    requiredKnowledgeGroups,
+    requiredKnowledgeItems,
+    coverage,
     versions: objectsWithRelationships
       .flatMap((object) => object.versions)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
