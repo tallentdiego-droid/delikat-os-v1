@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, type LucideIcon } from 'lucide-react';
 import { getExecutionTimelineData, type ExecutionTimelineData, type ExecutionTimelineItem } from '../lib/execution';
+import { getRolesOSData, type RoleOSData, type RoleOSWorkspace } from '../lib/roles';
 import { EmptyState, MetricCard, OSCard } from '../components/os';
 import { ExecutionTimeline } from '../components/execution';
 
 interface DashboardPageProps {
   onOpenKnowledgeBase?: () => void;
   onOpenOperations?: () => void;
+  onOpenRoles?: () => void;
   onOpenTraining?: () => void;
   onOpenChecklists?: () => void;
   onOpenAudits?: () => void;
@@ -44,8 +46,26 @@ function sortByPriority(items: ExecutionTimelineItem[]): ExecutionTimelineItem[]
   return [...items].sort((a, b) => b.priority - a.priority || a.title.localeCompare(b.title));
 }
 
+function roleReadinessLabel(role: RoleOSWorkspace): string {
+  if (role.coverage.missingCount > 0) return 'Missing SOP';
+  if (role.metrics.trainingPaths > 0 && role.metrics.checklistTemplates > 0) return 'Ready';
+  if (role.metrics.trainingPaths > 0 || role.metrics.checklistTemplates > 0) return 'Execution not started';
+  return 'Not started';
+}
+
+function roleReadinessDetail(role: RoleOSWorkspace): string {
+  const parts = [
+    `${role.metrics.trainingPaths} training`,
+    `${role.metrics.checklistTemplates} checklists`,
+    `${role.coverage.missingCount} missing SOPs`,
+  ];
+  return parts.join(' · ');
+}
+
 export function DashboardPage(props: DashboardPageProps): JSX.Element {
   const [timeline, setTimeline] = useState<ExecutionTimelineData | null>(null);
+  const [roles, setRoles] = useState<RoleOSData | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,6 +77,28 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Unable to load the execution timeline.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    getRolesOSData()
+      .then((data) => {
+        if (active) {
+          setRoles(data);
+          setRoleError(null);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setRoles(null);
+          setRoleError('Role readiness is temporarily unavailable. An administrator should check live Supabase access.');
+        }
       });
 
     return () => {
@@ -128,8 +170,18 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
         { label: 'Completed', value: timeline.stats.completed },
         { label: 'Blocked', value: timeline.stats.blocked },
         { label: 'Overdue', value: timeline.stats.overdue },
-      ]
+    ]
     : [];
+
+  const roleSummary = useMemo(() => {
+    if (!roles) return null;
+
+    return {
+      rolesWithTraining: roles.roles.filter((role) => role.metrics.trainingPaths > 0).length,
+      rolesWithChecklistCoverage: roles.roles.filter((role) => role.metrics.checklistTemplates > 0).length,
+      rolesMissingSops: roles.roles.filter((role) => role.coverage.missingCount > 0).length,
+    };
+  }, [roles]);
 
   return (
     <section className="pageStack">
@@ -221,6 +273,59 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
           </OSCard>
         ))}
       </div>
+
+      <section className="detailSection">
+        <div className="sectionHeader">
+          <div>
+            <h3>Role readiness</h3>
+            <p>Job-based workspaces for the team are built from live training, checklists, and SOP coverage.</p>
+          </div>
+          {props.onOpenRoles ? (
+            <button className="iconTextButton" onClick={props.onOpenRoles} type="button">
+              <ArrowRight aria-hidden="true" size={16} />
+              Open Roles
+            </button>
+          ) : null}
+        </div>
+
+        {roleError ? (
+          <div className="notice error">
+            <AlertCircle aria-hidden="true" size={18} />
+            <span>{roleError}</span>
+          </div>
+        ) : roleSummary && roles ? (
+          <>
+            <div className="metricGrid roleSummaryGrid">
+              <MetricCard label="Roles with training" value={roleSummary.rolesWithTraining} helper="Paths linked to the role" />
+              <MetricCard label="Roles with checklist coverage" value={roleSummary.rolesWithChecklistCoverage} helper="Operational work is mapped" />
+              <MetricCard label="Roles missing SOPs" value={roleSummary.rolesMissingSops} helper="Coverage gaps remain" />
+            </div>
+
+            <div className="rolesPreviewGrid">
+              {roles.roles.map((role) => (
+                <OSCard key={role.definition.id} className="rolePreviewCard">
+                  <div className="rolePreviewHeader">
+                    <strong>{role.definition.title}</strong>
+                    <span className={`executionBadge ${role.coverage.missingCount > 0 ? 'danger' : 'success'}`}>{roleReadinessLabel(role)}</span>
+                  </div>
+                  <p>{roleReadinessDetail(role)}</p>
+                  <div className="rolePreviewMeta">
+                    <span>{role.metrics.trainingPaths} training paths</span>
+                    <span>{role.metrics.executionItems} execution items</span>
+                  </div>
+                  {props.onOpenRoles ? (
+                    <button className="tableLink" onClick={props.onOpenRoles} type="button">
+                      Open role workspace
+                    </button>
+                  ) : null}
+                </OSCard>
+              ))}
+            </div>
+          </>
+        ) : (
+          <EmptyState title="Loading role readiness" description="Role workspaces are being assembled from live operational data." />
+        )}
+      </section>
     </section>
   );
 }

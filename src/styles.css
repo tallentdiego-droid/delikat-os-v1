@@ -158,6 +158,109 @@ button {
   color: #657389;
 }
 
+.rolesEngine {
+  gap: 16px;
+}
+
+.rolesLayout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.rolesList {
+  max-height: 74vh;
+  overflow: auto;
+}
+
+.rolesCardGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.roleCard {
+  overflow: hidden;
+}
+
+.roleCard.active {
+  border-color: #8fb3de;
+  box-shadow: 0 0 0 1px rgba(143, 179, 222, 0.16);
+}
+
+.roleCardButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 14px;
+  text-align: left;
+  display: grid;
+  gap: 12px;
+}
+
+.roleCardHeader,
+.rolePreviewHeader,
+.roleDetailHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.roleCardHeader strong,
+.rolePreviewHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.roleCardHeader p,
+.rolePreviewHeader p,
+.roleCardFooter,
+.rolePreviewMeta {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.roleCardMeta,
+.roleCardFooter,
+.rolePreviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.roleDetail {
+  min-width: 0;
+}
+
+.roleDetailHeader h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.roleItemGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rolesPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rolePreviewCard {
+  display: grid;
+  gap: 10px;
+}
+
+.roleSummaryGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

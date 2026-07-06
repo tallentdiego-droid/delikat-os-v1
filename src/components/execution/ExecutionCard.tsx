@@ -30,6 +30,7 @@ export function ExecutionCard({
         <span>{executionTypeLabel(item.executionType)}</span>
         <span>{executionPriorityLabel(item.priority)}</span>
         <span>{item.relatedModuleLabel}</span>
+        {item.roleLabel ? <span>{item.roleLabel}</span> : null}
         <span>{item.itemCount !== null ? `${item.itemCount} items` : item.progressLabel}</span>
       </div>
 

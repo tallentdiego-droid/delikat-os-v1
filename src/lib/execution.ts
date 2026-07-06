@@ -34,6 +34,8 @@ export interface ExecutionTimelineItem {
   sourceKind: ExecutionSourceKind;
   sourceLabel: string;
   relatedModuleLabel: string;
+  roleId: string | null;
+  roleLabel: string | null;
   sourceId: string;
   sourceRoute: ExecutionRoute | null;
   progressLabel: string;
@@ -84,6 +86,8 @@ interface ExecutionSource {
   sourceKind: ExecutionSourceKind;
   sourceLabel: string;
   relatedModuleLabel: string;
+  roleId: string | null;
+  roleLabel: string | null;
   sourceId: string;
   sourceRoute: ExecutionRoute | null;
   progressLabel: string;
@@ -233,6 +237,10 @@ function checklistActionLabel(status: ExecutionStatus): string {
   return 'Start checklist';
 }
 
+function roleLabelFromReference(reference: { id: string; title: string } | null | undefined): string | null {
+  return reference ? reference.title : null;
+}
+
 function auditActionLabel(status: ExecutionStatus): string {
   if (status === 'verified' || status === 'completed') return 'Review audit';
   if (status === 'blocked') return 'Review audit';
@@ -270,6 +278,8 @@ function createItem(source: ExecutionSource): ExecutionTimelineItem {
     sourceKind: source.sourceKind,
     sourceLabel: source.sourceLabel,
     relatedModuleLabel: source.relatedModuleLabel,
+    roleId: source.roleId,
+    roleLabel: source.roleLabel,
     sourceId: source.sourceId,
     sourceRoute: source.sourceRoute,
     progressLabel: source.progressLabel,
@@ -330,6 +340,8 @@ function buildChecklistItems(data: Awaited<ReturnType<typeof getChecklistEngineD
         sourceKind: 'checklist_run',
         sourceLabel: 'Checklist',
         relatedModuleLabel: 'Checklists',
+        roleId: template.role?.id ?? null,
+        roleLabel: roleLabelFromReference(template.role),
         sourceId: todayRun.id,
         sourceRoute: 'checklists',
         progressLabel: `${todayRun.completedCount}/${todayRun.itemCount} checklist items`,
@@ -362,6 +374,8 @@ function buildChecklistItems(data: Awaited<ReturnType<typeof getChecklistEngineD
       sourceKind: 'checklist_run',
       sourceLabel: 'Checklist',
       relatedModuleLabel: 'Checklists',
+      roleId: template.role?.id ?? null,
+      roleLabel: roleLabelFromReference(template.role),
       sourceId: template.id,
       sourceRoute: 'checklists',
       progressLabel: `${template.itemCount} template items`,
@@ -394,6 +408,8 @@ function buildAuditItems(data: Awaited<ReturnType<typeof getAuditEngineData>>, b
         sourceKind: 'audit_run',
         sourceLabel: 'Audit',
         relatedModuleLabel: 'Audits',
+        roleId: template.checklistTemplate?.role?.id ?? null,
+        roleLabel: roleLabelFromReference(template.checklistTemplate?.role ?? null),
         sourceId: todayRun.id,
         sourceRoute: 'audits',
         progressLabel: `${todayRun.completedCount}/${todayRun.itemCount} audit items`,
@@ -428,6 +444,8 @@ function buildAuditItems(data: Awaited<ReturnType<typeof getAuditEngineData>>, b
       sourceKind: 'audit_run',
       sourceLabel: 'Audit',
       relatedModuleLabel: 'Audits',
+      roleId: template.checklistTemplate?.role?.id ?? null,
+      roleLabel: roleLabelFromReference(template.checklistTemplate?.role ?? null),
       sourceId: template.id,
       sourceRoute: 'audits',
       progressLabel: `${template.itemCount} template items`,
@@ -461,6 +479,8 @@ function buildTrainingItems(data: Awaited<ReturnType<typeof getTrainingEngineDat
       sourceKind: 'training_path',
       sourceLabel: 'Training',
       relatedModuleLabel: 'Training',
+      roleId: path.role?.id ?? null,
+      roleLabel: path.role?.name ?? null,
       sourceId: path.id,
       sourceRoute: 'training',
       progressLabel: `${completed}/${path.items.length} training items completed`,
@@ -500,6 +520,8 @@ function buildProcessItems(data: Awaited<ReturnType<typeof getOperationsEngineDa
         sourceKind: 'operation_process',
         sourceLabel: 'Operations',
         relatedModuleLabel: 'Operations',
+        roleId: process.role?.id ?? null,
+        roleLabel: process.role?.title ?? null,
         sourceId: process.id,
         sourceRoute: 'operations',
         progressLabel: `${process.stepCount} process steps`,

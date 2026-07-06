@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Workflow } from 'lucide-react';
+import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Users, Workflow } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OperationsPage } from './pages/OperationsPage';
+import { RolesPage } from './pages/RolesPage';
 import { ChecklistsPage } from './pages/ChecklistsPage';
 import { AuditsPage } from './pages/AuditsPage';
 import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
+type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
+  { id: 'roles' as const, label: 'Roles', icon: Users },
   { id: 'training' as const, label: 'Training', icon: GraduationCap },
   { id: 'checklists' as const, label: 'Checklists', icon: ClipboardList },
   { id: 'audits' as const, label: 'Audits', icon: ShieldAlert },
@@ -26,6 +28,7 @@ function pageTitle(page: Page): string {
   if (page === 'knowledge') return 'Knowledge';
   if (page === 'organization') return 'Organization';
   if (page === 'operations') return 'Operations';
+  if (page === 'roles') return 'Roles';
   if (page === 'training') return 'Training';
   if (page === 'checklists') return 'Checklists';
   if (page === 'audits') return 'Audits';
@@ -101,12 +104,22 @@ export function App(): JSX.Element {
               onOpenChecklists={() => setPage('checklists')}
               onOpenKnowledgeBase={() => setPage('knowledge')}
               onOpenOperations={() => setPage('operations')}
+              onOpenRoles={() => setPage('roles')}
               onOpenTraining={() => setPage('training')}
             />
           )}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
+          {page === 'roles' && (
+            <RolesPage
+              onOpenAudits={() => setPage('audits')}
+              onOpenChecklists={() => setPage('checklists')}
+              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onOpenOperations={() => setPage('operations')}
+              onOpenTraining={() => setPage('training')}
+            />
+          )}
           {page === 'training' && <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'checklists' && <ChecklistsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'audits' && <AuditsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
