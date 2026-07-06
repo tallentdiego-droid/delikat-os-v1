@@ -660,6 +660,52 @@ pre {
   white-space: nowrap;
 }
 
+.departmentSummaryList {
+  display: grid;
+  gap: 10px;
+}
+
+.departmentSummaryCard {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.departmentSummaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.departmentSummaryHeader strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.departmentSummaryHeader span {
+  color: #607086;
+  font-size: 12px;
+}
+
+.departmentSummaryItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.departmentSummaryItems span {
+  border: 1px solid #d8e0ea;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3f4f63;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
 .compactCounts {
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
 }
@@ -694,6 +740,36 @@ pre {
   max-height: 72vh;
   overflow: auto;
   padding: 8px;
+}
+
+.processGroup {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.processGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.processGroupHeader strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.processGroupHeader span {
+  color: #607086;
+  font-size: 12px;
+}
+
+.processGroupList {
+  display: grid;
+  gap: 6px;
 }
 
 .listButton {

@@ -57,6 +57,26 @@ function uniqueValues(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b));
 }
 
+interface ProcessDepartmentGroup {
+  department: string;
+  processes: OperationsProcess[];
+}
+
+function groupProcessesByDepartment(processes: OperationsProcess[]): ProcessDepartmentGroup[] {
+  const grouped = new Map<string, OperationsProcess[]>();
+  for (const process of processes) {
+    const department = process.department?.title ?? 'Unassigned';
+    grouped.set(department, [...(grouped.get(department) ?? []), process]);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([department, items]) => ({
+      department,
+      processes: [...items].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => a.department.localeCompare(b.department));
+}
+
 function processMatches(process: OperationsProcess, query: string, filters: ProcessFilters): boolean {
   const needle = query.trim().toLowerCase();
   const haystack = [
@@ -137,20 +157,32 @@ function ProcessList({
     return <div className="emptyState refined"><h3>No active processes</h3><p>Once operational processes are published in Supabase, they will appear here.</p></div>;
   }
 
+  const groups = groupProcessesByDepartment(processes);
+
   return (
     <div className="listPanel processList">
-      {processes.map((process) => {
-        const isSelected = process.id === selectedId;
-        return (
-          <button className={isSelected ? 'listButton active' : 'listButton'} key={process.id} onClick={() => onSelect(process.id)} type="button">
-            <span>{process.triggerType}</span>
-            <strong>{process.name}</strong>
-            <small>
-              {process.department?.title ?? 'No department'} · {process.stepCount} steps · {process.knowledgeLinkCount} knowledge links
-            </small>
-          </button>
-        );
-      })}
+      {groups.map((group) => (
+        <section className="processGroup" key={group.department}>
+          <div className="processGroupHeader">
+            <strong>{group.department}</strong>
+            <span>{group.processes.length} processes</span>
+          </div>
+          <div className="processGroupList">
+            {group.processes.map((process) => {
+              const isSelected = process.id === selectedId;
+              return (
+                <button className={isSelected ? 'listButton active' : 'listButton'} key={process.id} onClick={() => onSelect(process.id)} type="button">
+                  <span>{process.triggerType}</span>
+                  <strong>{process.name}</strong>
+                  <small>
+                    {process.area?.title ?? 'No area'} · {process.stepCount} steps · {process.knowledgeLinkCount} knowledge links
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -430,6 +462,7 @@ function OperationsDashboard({
   const dependencyHubs = [...data.processes]
     .sort((a, b) => b.dependencyCount - a.dependencyCount || a.name.localeCompare(b.name))
     .slice(0, 5);
+  const departmentGroups = groupProcessesByDepartment(data.processes);
 
   return (
     <section className="pageStack operationsEngine">
@@ -525,10 +558,10 @@ function OperationsDashboard({
         <section className="countPanel">
           <h3>Process quick view</h3>
           <div className="countList">
-            {data.processes.slice(0, 6).map((process) => (
-              <span key={process.id}>
-                <strong>{process.name}</strong>
-                {process.status}
+            {departmentGroups.map((group) => (
+              <span key={group.department}>
+                <strong>{group.department}</strong>
+                {group.processes.length} processes
               </span>
             ))}
           </div>

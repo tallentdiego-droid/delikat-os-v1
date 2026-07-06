@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import {
   getKnowledgeEngineData,
@@ -8,12 +8,14 @@ import {
   type KnowledgeStats,
 } from '../lib/knowledge';
 import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
+import type { OperationsEngineData } from '../lib/operations';
 
 export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [ontologyStats, setOntologyStats] = useState<KnowledgeOntologyStats | null>(null);
   const [coverage, setCoverage] = useState<KnowledgeCoverageSummary | null>(null);
   const [operationsStats, setOperationsStats] = useState<OperationsStats | null>(null);
+  const [operationsEngine, setOperationsEngine] = useState<OperationsEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export function DashboardPage(): JSX.Element {
           setOntologyStats(engineData.ontologyStats);
           setCoverage(engineData.coverage);
           setOperationsStats(operationsData.stats);
+          setOperationsEngine(operationsData);
         }
       })
       .catch((reason: unknown) => {
@@ -36,6 +39,18 @@ export function DashboardPage(): JSX.Element {
       isMounted = false;
     };
   }, []);
+
+  const starterProcessGroups = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const process of operationsEngine?.processes ?? []) {
+      const key = process.department?.title ?? 'Unassigned';
+      groups.set(key, [...(groups.get(key) ?? []), process.name]);
+    }
+
+    return Array.from(groups.entries())
+      .map(([department, processes]) => ({ department, processes }))
+      .sort((a, b) => a.department.localeCompare(b.department));
+  }, [operationsEngine]);
 
   return (
     <section className="pageStack">
@@ -241,6 +256,34 @@ export function DashboardPage(): JSX.Element {
               <strong>Isolated processes</strong>
               {operationsStats?.isolatedProcesses ?? '...'}
             </span>
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboardCoverageGrid">
+        <section className="countPanel">
+          <h3>Starter processes by department</h3>
+          <div className="departmentSummaryList">
+            {starterProcessGroups.length ? (
+              starterProcessGroups.map((group) => (
+                <article className="departmentSummaryCard" key={group.department}>
+                  <div className="departmentSummaryHeader">
+                    <strong>{group.department}</strong>
+                    <span>{group.processes.length} processes</span>
+                  </div>
+                  <div className="departmentSummaryItems">
+                    {group.processes.map((name) => (
+                      <span key={name}>{name}</span>
+                    ))}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <span>
+                <strong>No starter processes</strong>
+                0
+              </span>
+            )}
           </div>
         </section>
       </div>
