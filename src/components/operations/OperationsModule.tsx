@@ -7,6 +7,12 @@ import {
   type OperationsProcess,
   type OperationsReference,
 } from '../../lib/operations';
+import {
+  KnowledgeGapCard,
+  LinkedKnowledgePanel,
+  MetricCard as SharedMetricCard,
+  ProcessCard,
+} from '../os';
 
 type OperationsTab = 'dashboard' | 'catalog' | 'processes';
 type DetailTab = 'overview' | 'steps' | 'dependencies' | 'inputs' | 'outputs' | 'knowledge';
@@ -144,13 +150,7 @@ const emptyFilters: ProcessFilters = {
 };
 
 function MetricCard({ label, value, helper }: { label: string; value: string | number; helper?: string }): JSX.Element {
-  return (
-    <article className="metricCard">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {helper && <p className="quietText">{helper}</p>}
-    </article>
-  );
+  return <SharedMetricCard label={label} value={value} helper={helper} />;
 }
 
 function ReferenceChip({ reference }: { reference: OperationsReference | null }): JSX.Element {
@@ -188,15 +188,7 @@ function ProcessList({
           <div className="processGroupList">
             {group.processes.map((process) => {
               const isSelected = process.id === selectedId;
-              return (
-                <button className={isSelected ? 'listButton active' : 'listButton'} key={process.id} onClick={() => onSelect(process.id)} type="button">
-                  <span>{process.triggerType}</span>
-                  <strong>{process.name}</strong>
-                  <small>
-                    {process.area?.title ?? 'No area'} · {process.stepCount} steps · {process.knowledgeLinkCount} knowledge links
-                  </small>
-                </button>
-              );
+              return <ProcessCard key={process.id} process={process} selected={isSelected} onSelect={onSelect} />;
             })}
           </div>
         </section>
@@ -364,15 +356,13 @@ function CatalogScreen({ data }: { data: OperationsEngineData }): JSX.Element {
         <CatalogBlock count={requiredItems.length} subtitle="Coverage definitions" title="Required knowledge items">
           <div className="requiredItemList">
             {requiredItems.map((item) => (
-              <div className="requiredItemRow" key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{item.groupName ?? 'Unassigned group'}</span>
-                </div>
-                <span className={coverageById.get(item.id) === 'missing' ? 'gapBadge missing' : 'gapBadge satisfied'}>
-                  {coverageById.get(item.id) ?? 'missing'}
-                </span>
-              </div>
+              <KnowledgeGapCard
+                key={item.id}
+                title={item.title}
+                description={item.groupName ?? 'Unassigned group'}
+                detail={item.description ?? undefined}
+                coveragePercent={coverageById.get(item.id) === 'missing' ? 0 : 100}
+              />
             ))}
           </div>
         </CatalogBlock>
@@ -382,25 +372,7 @@ function CatalogScreen({ data }: { data: OperationsEngineData }): JSX.Element {
         <h3>Starter processes</h3>
         <div className="starterProcessCatalog">
           {starterProcesses.map((process) => (
-            <article className="starterProcessCard" key={process.id}>
-              <div className="starterProcessHeader">
-                <strong>{process.name}</strong>
-                <span>{process.stepCount} steps</span>
-              </div>
-              <div className="starterProcessMeta">
-                <span>{process.department?.title ?? 'Unassigned department'}</span>
-                <span>{process.area?.title ?? 'No area'}</span>
-                <span>{process.role?.title ?? 'No role'}</span>
-              </div>
-              <div className="starterProcessGap">
-                <span className={process.knowledgeLinkCount === 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
-                  {process.knowledgeLinkCount === 0 ? 'missing knowledge' : 'covered'}
-                </span>
-                <span className={process.steps.some((step) => !step.requiredKnowledge) ? 'gapBadge missing' : 'gapBadge satisfied'}>
-                  {process.steps.some((step) => !step.requiredKnowledge) ? 'weak step coverage' : 'step coverage set'}
-                </span>
-              </div>
-            </article>
+            <ProcessCard key={process.id} process={process} />
           ))}
         </div>
       </section>
@@ -479,28 +451,31 @@ function ProcessDetail({
             </span>
           </div>
           {(process.knowledgeLinkCount === 0 || process.steps.some((step) => !step.requiredKnowledge)) && (
-            <div className="coverageCallout">
-              <div>
-                <strong>Coverage gap detected</strong>
-                <p>Review the required knowledge catalog in Knowledge to close the missing links. Delikat does not generate SOP content here.</p>
-              </div>
-              <button className="tableLink" onClick={onOpenKnowledgeBase} type="button">
-                Open Knowledge coverage
-              </button>
-            </div>
+            <KnowledgeGapCard
+              action={
+                onOpenKnowledgeBase ? (
+                  <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
+                    Open Knowledge coverage
+                  </button>
+                ) : undefined
+              }
+              coveragePercent={process.knowledgeLinkCount === 0 ? 0 : 100}
+              description="Review the required knowledge catalog in Knowledge to close the missing links. Delikat does not generate SOP content here."
+              title="Coverage gap detected"
+            />
           )}
-          <section className="detailSection">
-            <h4>Knowledge links</h4>
-            {process.knowledgeLinks.length === 0 ? (
-              <div className="emptyInline">This process does not yet link to approved knowledge objects.</div>
-            ) : (
-              <div className="referenceGrid">
-                {process.knowledgeLinks.map((reference) => (
-                  <KnowledgeLinkCard key={reference.id} reference={reference} />
-                ))}
-              </div>
-            )}
-          </section>
+          <LinkedKnowledgePanel
+            emptyLabel="This process does not yet link to approved knowledge objects."
+            items={process.knowledgeLinks.map((reference) => ({
+              id: reference.id,
+              title: reference.title,
+              subtitle: reference.subtitle,
+              preview: reference.preview,
+              status: reference.status,
+              notes: reference.code ?? reference.id,
+            }))}
+            title="Knowledge links"
+          />
         </div>
       )}
 

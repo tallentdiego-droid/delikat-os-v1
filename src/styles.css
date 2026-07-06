@@ -184,6 +184,12 @@ button {
   background: #ffffff;
 }
 
+.osCard {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .metricCard {
   padding: 18px;
 }
@@ -373,6 +379,188 @@ pre {
 .emptyState,
 .placeholderPanel {
   padding: 26px;
+}
+
+.emptyStatePanel {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 24px;
+}
+
+.emptyStatePanel h3,
+.emptyStatePanel p {
+  margin: 0;
+}
+
+.statusBadge,
+.coverageBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #3f4f63;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 5px 9px;
+}
+
+.statusBadge.success,
+.coverageBadge.success {
+  background: #f0fdf4;
+  border-color: #a7e3b5;
+  color: #127a31;
+}
+
+.statusBadge.warning,
+.coverageBadge.warning {
+  background: #fff9ed;
+  border-color: #f4d47a;
+  color: #8a6510;
+}
+
+.statusBadge.danger,
+.coverageBadge.danger {
+  background: #fff5f5;
+  border-color: #f5b5b5;
+  color: #c0372d;
+}
+
+.statusBadge.neutral,
+.coverageBadge.neutral {
+  background: #f8fafc;
+}
+
+.linkedKnowledgePanel {
+  display: grid;
+  gap: 10px;
+}
+
+.linkedKnowledgeCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.linkedKnowledgeHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.linkedKnowledgeHeader strong {
+  color: #172033;
+  display: block;
+  font-size: 14px;
+}
+
+.linkedKnowledgeHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.knowledgeGapCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.knowledgeGapHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledgeGapHeader strong {
+  color: #172033;
+  display: block;
+}
+
+.knowledgeGapHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.processCard {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+}
+
+.processCard.active {
+  border-color: #bfd0e2;
+  background: #f6f9fc;
+}
+
+.processCardButton {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+}
+
+.processCardHeader,
+.processCardMeta,
+.processCardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.processCardHeader {
+  justify-content: space-between;
+}
+
+.processCardHeader strong {
+  color: #172033;
+  display: block;
+}
+
+.processCardHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.processCardMeta span,
+.processCardFooter span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.processCardFooter {
+  justify-content: space-between;
+}
+
+.trainingPathButton {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+}
+
+.dashboardSummaryGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.dashboardCardStack {
+  display: grid;
+  gap: 10px;
 }
 
 .placeholderPanel {
@@ -1701,6 +1889,7 @@ tbody tr:hover,
   .operationsToolbar,
   .trainingToolbar,
   .metricGrid,
+  .dashboardSummaryGrid,
   .dashboardOntology,
   .countGrid,
   .ontologyFilterGrid,

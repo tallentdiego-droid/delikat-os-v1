@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, BookOpenText, GraduationCap, Search, ShieldAlert } from 'lucide-react';
 import { getTrainingEngineData, type TrainingEngineData, type TrainingPath, type TrainingPathItem } from '../../lib/training';
+import {
+  CoverageBadge,
+  EmptyState,
+  KnowledgeGapCard,
+  MetricCard as SharedMetricCard,
+  TrainingPathCard as SharedTrainingPathCard,
+} from '../os';
 
 interface TrainingModuleProps {
   onOpenKnowledgeBase?: () => void;
@@ -80,43 +87,7 @@ function itemReferences(item: TrainingPathItem): string[] {
 }
 
 function MetricCard({ label, value, helper }: { label: string; value: string | number; helper?: string }): JSX.Element {
-  return (
-    <article className="metricCard">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {helper && <p className="quietText">{helper}</p>}
-    </article>
-  );
-}
-
-function TrainingPathCard({
-  path,
-  selected,
-  onSelect,
-}: {
-  path: TrainingPath;
-  selected: boolean;
-  onSelect: (id: string) => void;
-}): JSX.Element {
-  return (
-    <button className={selected ? 'trainingPathCard active' : 'trainingPathCard'} type="button" onClick={() => onSelect(path.id)}>
-      <div className="trainingPathCardHeader">
-        <strong>{path.title}</strong>
-        <span>{path.coveragePercent}% covered</span>
-      </div>
-      <p>{path.description ?? 'No description provided.'}</p>
-      <div className="trainingPathCardMeta">
-        <span>{valueOrDefault(path.department?.name)}</span>
-        <span>{valueOrDefault(path.area?.name)}</span>
-        <span>{path.items.length} items</span>
-      </div>
-      <div className="trainingPathCardMeta">
-        <span>{path.missingItemCount} gaps</span>
-        <span>{path.linkedKnowledgeCount} knowledge links</span>
-        <span>{path.linkedProcessCount} process links</span>
-      </div>
-    </button>
-  );
+  return <SharedMetricCard label={label} value={value} helper={helper} />;
 }
 
 function TrainingPathItemCard({
@@ -133,9 +104,7 @@ function TrainingPathItemCard({
           <strong>{item.requiredKnowledgeItem.title}</strong>
           <p>{item.requiredKnowledgeItem.description ?? 'Required knowledge item from the coverage engine.'}</p>
         </div>
-        <span className={item.coverageStatus === 'satisfied' ? 'gapBadge satisfied' : 'gapBadge missing'}>
-          {item.coverageStatus}
-        </span>
+        <CoverageBadge coveragePercent={item.coverageStatus === 'satisfied' ? 100 : 0} label={item.coverageStatus} />
       </div>
       <div className="trainingItemMeta">
         <span>#{item.sortOrder}</span>
@@ -188,9 +157,7 @@ function TrainingPathDetail({
             <h3>{path.title}</h3>
             <p>{path.description ?? 'Starter training path built from existing Delikat knowledge and operations data.'}</p>
           </div>
-          <span className={path.missingItemCount > 0 ? 'gapBadge missing' : 'gapBadge satisfied'}>
-            {path.missingItemCount > 0 ? `${path.missingItemCount} gaps` : 'fully covered'}
-          </span>
+          <CoverageBadge coveragePercent={path.coveragePercent} label={path.missingItemCount > 0 ? `${path.missingItemCount} gaps` : 'fully covered'} />
         </div>
         <div className="summaryGrid">
           <MetricCard label="Department" value={valueOrDefault(path.department?.name)} helper={path.department?.code ?? undefined} />
@@ -233,17 +200,21 @@ function TrainingPathDetail({
         {missingItems.length > 0 ? (
           <div className="trainingGapList">
             {missingItems.map((item) => (
-              <article className="trainingGapCard" key={item.id}>
-                <div className="trainingGapHeader">
-                  <strong>{item.requiredKnowledgeItem.title}</strong>
-                  <span className="gapBadge missing">missing</span>
-                </div>
-                <p>{item.gapSummary ?? 'No approved knowledge object is linked yet.'}</p>
-              </article>
+              <KnowledgeGapCard
+                key={item.id}
+                title={item.requiredKnowledgeItem.title}
+                description="Required knowledge item is not yet satisfied by approved knowledge."
+                detail={item.gapSummary ?? 'No approved knowledge object is linked yet.'}
+                coveragePercent={0}
+              />
             ))}
           </div>
         ) : (
-          <div className="emptyInline">No coverage gaps are currently detected for this starter path.</div>
+          <EmptyState
+            icon={ShieldAlert}
+            title="No coverage gaps"
+            description="No coverage gaps are currently detected for this starter path."
+          />
         )}
       </section>
 
@@ -346,10 +317,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
             <p>Read-only training paths generated from live knowledge and operations data.</p>
           </div>
         </div>
-        <div className="notice error">
-          <AlertCircle aria-hidden="true" size={18} />
-          <span>{error}</span>
-        </div>
+        <EmptyState icon={AlertCircle} title="Training data could not load" description={error} />
       </section>
     );
   }
@@ -363,13 +331,11 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
             <p>Read-only training paths generated from live knowledge and operations data.</p>
           </div>
         </div>
-        <div className="loadingPanel">
-          <div className="loadingPulse" />
-          <div>
-            <strong>Loading training foundation</strong>
-            <p>Pulling starter paths, required knowledge items, and coverage gaps from Supabase.</p>
-          </div>
-        </div>
+        <EmptyState
+          icon={GraduationCap}
+          title="Loading training foundation"
+          description="Pulling starter paths, required knowledge items, and coverage gaps from Supabase."
+        />
       </section>
     );
   }
@@ -411,11 +377,11 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
             </select>
           </label>
         </div>
-        <div className="emptyState refined">
-          <GraduationCap aria-hidden="true" size={18} />
-          <h3>No matching training paths</h3>
-          <p>Try a broader search or reset the filters to see the seeded onboarding paths.</p>
-        </div>
+        <EmptyState
+          icon={GraduationCap}
+          title="No matching training paths"
+          description="Try a broader search or reset the filters to see the seeded onboarding paths."
+        />
       </section>
     );
   }
@@ -474,7 +440,7 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
               </div>
               <div className="trainingPathList">
                 {group.paths.map((path) => (
-                  <TrainingPathCard key={path.id} path={path} selected={path.id === selectedPath?.id} onSelect={setSelectedPathId} />
+                  <SharedTrainingPathCard key={path.id} path={path} selected={path.id === selectedPath?.id} onSelect={setSelectedPathId} />
                 ))}
               </div>
             </section>
@@ -485,11 +451,11 @@ export function TrainingModule({ onOpenKnowledgeBase }: TrainingModuleProps = {}
           {selectedPath ? (
             <TrainingPathDetail path={selectedPath} onOpenKnowledgeBase={onOpenKnowledgeBase} />
           ) : (
-            <div className="emptyState refined">
-              <ShieldAlert aria-hidden="true" size={18} />
-              <h3>No training path selected</h3>
-              <p>Choose a seeded path to inspect linked knowledge, process steps, and coverage gaps.</p>
-            </div>
+            <EmptyState
+              icon={ShieldAlert}
+              title="No training path selected"
+              description="Choose a seeded path to inspect linked knowledge, process steps, and coverage gaps."
+            />
           )}
         </div>
       </div>

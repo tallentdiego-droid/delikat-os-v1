@@ -10,6 +10,7 @@ import {
 import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
 import type { OperationsEngineData } from '../lib/operations';
 import { getTrainingEngineData, type TrainingEngineData } from '../lib/training';
+import { KnowledgeGapCard, MetricCard } from '../components/os';
 
 export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
@@ -71,19 +72,32 @@ export function DashboardPage(): JSX.Element {
         </div>
       )}
 
-      <div className="metricGrid">
-        <div className="metricCard">
-          <span>Source Manuals</span>
-          <strong>{stats?.manuals ?? '...'}</strong>
-        </div>
-        <div className="metricCard">
-          <span>Source Sections</span>
-          <strong>{stats?.sourceSections ?? '...'}</strong>
-        </div>
-        <div className="metricCard">
-          <span>Approved Knowledge</span>
-          <strong>{stats?.canonicalKnowledge ?? '...'}</strong>
-        </div>
+      <div className="metricGrid dashboardSummaryGrid">
+        <MetricCard
+          helper={`${stats?.manuals ?? '...'} manuals, ${stats?.sourceSections ?? '...'} source sections`}
+          label="Knowledge foundation"
+          value={stats?.canonicalKnowledge ?? '...'}
+        />
+        <MetricCard
+          helper={`${operationsStats?.criticalProcesses ?? '...'} critical processes`}
+          label="Operations readiness"
+          value={operationsStats?.totalProcesses ?? '...'}
+        />
+        <MetricCard
+          helper={`${trainingEngine?.stats.pathsWithGaps ?? '...'} paths with gaps`}
+          label="Training paths"
+          value={trainingEngine?.stats.totalPaths ?? '...'}
+        />
+        <MetricCard
+          helper={`${coverage?.requiredCount ?? '...'} required items`}
+          label="Coverage gaps"
+          value={coverage?.missingCount ?? '...'}
+        />
+        <MetricCard
+          helper="Missing SOP / knowledge count"
+          label="Missing knowledge"
+          value={coverage?.missingCount ?? '...'}
+        />
       </div>
 
       <div className="coverageSummary dashboardCoverage">
@@ -94,18 +108,9 @@ export function DashboardPage(): JSX.Element {
             {coverage ? `${coverage.existingCount} of ${coverage.requiredCount} required items satisfied` : 'Loading required knowledge coverage'}
           </p>
         </div>
-        <div className="metricCard">
-          <span>Required items</span>
-          <strong>{coverage?.requiredCount ?? '...'}</strong>
-        </div>
-        <div className="metricCard">
-          <span>Missing items</span>
-          <strong>{coverage?.missingCount ?? '...'}</strong>
-        </div>
-        <div className="metricCard">
-          <span>Recently completed</span>
-          <strong>{coverage?.recentlyCompleted.length ?? '...'}</strong>
-        </div>
+        <MetricCard label="Required items" value={coverage?.requiredCount ?? '...'} />
+        <MetricCard label="Missing items" value={coverage?.missingCount ?? '...'} />
+        <MetricCard label="Recently completed" value={coverage?.recentlyCompleted.length ?? '...'} />
       </div>
 
       <div className="dashboardCoverageGrid">
@@ -186,37 +191,36 @@ export function DashboardPage(): JSX.Element {
       <div className="dashboardCoverageGrid">
         <section className="countPanel">
           <h3>Top missing knowledge</h3>
-          <div className="countList">
+          <div className="dashboardCardStack">
             {coverage?.topMissing.length ? (
               coverage.topMissing.slice(0, 6).map((result) => (
-                <span key={result.item.id}>
-                  <strong>{result.item.title}</strong>
-                  P{result.item.priority}
-                </span>
+                <KnowledgeGapCard
+                  key={result.item.id}
+                  title={result.item.title}
+                  description={result.item.groupName ?? 'Required knowledge'}
+                  detail={result.item.description ?? undefined}
+                  coveragePercent={0}
+                />
               ))
             ) : (
-              <span>
-                <strong>No missing knowledge</strong>
-                0
-              </span>
+              <MetricCard label="No missing knowledge" value="0" />
             )}
           </div>
         </section>
         <section className="countPanel">
           <h3>Recently completed knowledge</h3>
-          <div className="countList">
+          <div className="dashboardCardStack">
             {coverage?.recentlyCompleted.length ? (
               coverage.recentlyCompleted.slice(0, 6).map((result) => (
-                <span key={result.item.id}>
-                  <strong>{result.item.title}</strong>
-                  {result.matchedObjects.length}
-                </span>
+                <MetricCard
+                  key={result.item.id}
+                  label={result.item.title}
+                  value={result.matchedObjects.length}
+                  helper={result.completedAt ? `Updated ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(result.completedAt))}` : undefined}
+                />
               ))
             ) : (
-              <span>
-                <strong>No completed requirements</strong>
-                0
-              </span>
+              <MetricCard label="No completed requirements" value="0" />
             )}
           </div>
         </section>
