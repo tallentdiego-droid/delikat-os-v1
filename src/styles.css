@@ -1507,6 +1507,173 @@ tbody tr:hover,
   color: #64748b;
 }
 
+.trainingEngine {
+  max-width: 1520px;
+}
+
+.trainingToolbar {
+  grid-template-columns: minmax(0, 1fr) 170px 170px;
+}
+
+.trainingLayout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.trainingList {
+  max-height: 76vh;
+}
+
+.trainingRoleGroup {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.trainingRoleHeader,
+.trainingPathCardHeader,
+.trainingItemHeader,
+.trainingGapHeader,
+.trainingDetailHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trainingRoleHeader strong,
+.trainingPathCard strong,
+.trainingItemCard strong,
+.trainingGapCard strong,
+.trainingDetailHeader h3 {
+  color: #172033;
+}
+
+.trainingRoleHeader span,
+.trainingPathCardHeader span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.trainingPathList {
+  display: grid;
+  gap: 8px;
+}
+
+.trainingPathCard {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  padding: 12px;
+  text-align: left;
+}
+
+.trainingPathCard:hover,
+.trainingPathCard.active {
+  border-color: #bfd0e2;
+  background: #f6f9fc;
+}
+
+.trainingPathCard p,
+.trainingDetailHeader p,
+.trainingDetailBanner p,
+.trainingItemCard p,
+.trainingGapCard p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.trainingPathCardMeta,
+.trainingItemMeta,
+.trainingItemLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trainingPathCardMeta span,
+.trainingItemMeta span,
+.trainingItemLinks span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.trainingDetail {
+  min-width: 0;
+}
+
+.trainingDetailPanel {
+  min-width: 0;
+}
+
+.trainingDetailBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px 14px;
+}
+
+.trainingItemList,
+.trainingGapList {
+  display: grid;
+  gap: 10px;
+}
+
+.trainingItemCard,
+.trainingGapCard {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.trainingProgressGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trainingItemCard > p {
+  color: #344154;
+}
+
+.trainingItemLinks {
+  gap: 8px;
+}
+
+.trainingItemLinks span {
+  border-radius: 8px;
+}
+
+.trainingGapCard {
+  border-style: dashed;
+}
+
+.trainingGapCard p {
+  color: #8a3d3d;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1532,6 +1699,7 @@ tbody tr:hover,
   .toolbar,
   .knowledgeToolbar,
   .operationsToolbar,
+  .trainingToolbar,
   .metricGrid,
   .dashboardOntology,
   .countGrid,
@@ -1546,11 +1714,13 @@ tbody tr:hover,
   .splitPanel,
   .objectLayout,
   .operationsLayout,
+  .trainingLayout,
   .operationsSidebar,
   .manualBrowser,
   .graphLayout,
   .relationshipColumns,
-  .relationshipMatrix {
+  .relationshipMatrix,
+  .trainingProgressGrid {
     grid-template-columns: 1fr;
   }
 

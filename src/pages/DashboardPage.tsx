@@ -9,6 +9,7 @@ import {
 } from '../lib/knowledge';
 import { getOperationsEngineData, type OperationsStats } from '../lib/operations';
 import type { OperationsEngineData } from '../lib/operations';
+import { getTrainingEngineData, type TrainingEngineData } from '../lib/training';
 
 export function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
@@ -16,19 +17,21 @@ export function DashboardPage(): JSX.Element {
   const [coverage, setCoverage] = useState<KnowledgeCoverageSummary | null>(null);
   const [operationsStats, setOperationsStats] = useState<OperationsStats | null>(null);
   const [operationsEngine, setOperationsEngine] = useState<OperationsEngineData | null>(null);
+  const [trainingEngine, setTrainingEngine] = useState<TrainingEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData()])
-      .then(([nextStats, engineData, operationsData]) => {
+    Promise.all([getKnowledgeStats(), getKnowledgeEngineData(), getOperationsEngineData(), getTrainingEngineData()])
+      .then(([nextStats, engineData, operationsData, trainingData]) => {
         if (isMounted) {
           setStats(nextStats);
           setOntologyStats(engineData.ontologyStats);
           setCoverage(engineData.coverage);
           setOperationsStats(operationsData.stats);
           setOperationsEngine(operationsData);
+          setTrainingEngine(trainingData);
         }
       })
       .catch((reason: unknown) => {
@@ -284,6 +287,30 @@ export function DashboardPage(): JSX.Element {
                 0
               </span>
             )}
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboardCoverageGrid">
+        <section className="countPanel">
+          <h3>Training foundation</h3>
+          <div className="countList">
+            <span>
+              <strong>Total training paths</strong>
+              {trainingEngine?.stats.totalPaths ?? '...'}
+            </span>
+            <span>
+              <strong>Training items</strong>
+              {trainingEngine?.stats.totalItems ?? '...'}
+            </span>
+            <span>
+              <strong>Paths with gaps</strong>
+              {trainingEngine?.stats.pathsWithGaps ?? '...'}
+            </span>
+            <span>
+              <strong>Missing coverage</strong>
+              {trainingEngine?.stats.itemsMissingCoverage ?? '...'}
+            </span>
           </div>
         </section>
       </div>

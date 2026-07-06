@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { Brain, Building2, Database, LayoutDashboard, Search, Settings, Workflow } from 'lucide-react';
+import { Brain, Building2, Database, GraduationCap, LayoutDashboard, Search, Settings, Workflow } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OperationsPage } from './pages/OperationsPage';
+import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'command' | 'settings';
+type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'training' | 'command' | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
   { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
   { id: 'organization' as const, label: 'Organization', icon: Building2 },
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
+  { id: 'training' as const, label: 'Training', icon: GraduationCap },
   { id: 'command' as const, label: 'AI Command Center', icon: Brain },
   { id: 'settings' as const, label: 'Settings', icon: Settings },
 ];
@@ -20,6 +22,7 @@ function pageTitle(page: Page): string {
   if (page === 'knowledge') return 'Knowledge';
   if (page === 'organization') return 'Organization';
   if (page === 'operations') return 'Operations';
+  if (page === 'training') return 'Training';
   if (page === 'command') return 'AI Command Center';
   if (page === 'settings') return 'Settings';
   return 'Home';
@@ -90,6 +93,7 @@ export function App(): JSX.Element {
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
+          {page === 'training' && <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
           {page === 'command' && <CommandCenterPage />}
           {page === 'settings' && <PlaceholderPage label="Settings" />}
         </main>
