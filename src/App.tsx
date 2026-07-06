@@ -12,13 +12,13 @@ type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'training' | 
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
-  { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
-  { id: 'organization' as const, label: 'Organization', icon: Building2 },
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
   { id: 'training' as const, label: 'Training', icon: GraduationCap },
   { id: 'checklists' as const, label: 'Checklists', icon: ClipboardList },
   { id: 'audits' as const, label: 'Audits', icon: ShieldAlert },
   { id: 'command' as const, label: 'AI Command Center', icon: Brain },
+  { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
+  { id: 'organization' as const, label: 'Organization', icon: Building2 },
   { id: 'settings' as const, label: 'Settings', icon: Settings },
 ];
 

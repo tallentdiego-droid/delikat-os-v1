@@ -558,6 +558,100 @@ pre {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.dashboardFocusGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 12px;
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.roleCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.roleCardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.roleCardHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.roleCardHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.roleCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleCardMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.roleCardColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.roleCardColumns h4 {
+  margin: 0 0 4px;
+  color: #172033;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.roleCardColumns p {
+  margin: 0;
+  color: #55657d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nextStepsPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.nextStepRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  color: #2c394a;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+.nextStepRow svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .dashboardCardStack {
   display: grid;
   gap: 10px;
@@ -2171,6 +2265,8 @@ tbody tr:hover,
   .trainingToolbar,
   .metricGrid,
   .dashboardSummaryGrid,
+  .dashboardFocusGrid,
+  .roleGrid,
   .checklistLayout,
   .auditLayout,
   .checklistSummaryGrid,
