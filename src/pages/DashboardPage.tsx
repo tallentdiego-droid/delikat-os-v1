@@ -19,6 +19,13 @@ interface QuickAction {
   onClick?: () => void;
 }
 
+interface ManagerPrompt {
+  title: string;
+  detail: string;
+  actionLabel: string;
+  onClick?: () => void;
+}
+
 function routeAction(
   item: ExecutionTimelineItem,
   callbacks: DashboardPageProps,
@@ -83,6 +90,36 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
     [],
   );
 
+  const managerPrompts = useMemo<ManagerPrompt[]>(
+    () => [
+      {
+        title: "Start today's opening checklist",
+        detail: 'Kick off the opening flow from Checklists.',
+        actionLabel: 'Open Checklists',
+        onClick: props.onOpenChecklists,
+      },
+      {
+        title: 'Start cash closing',
+        detail: 'Jump to the closing checklist for the register.',
+        actionLabel: 'Open Checklists',
+        onClick: props.onOpenChecklists,
+      },
+      {
+        title: 'Start opening readiness audit',
+        detail: 'Open the audit flow for the morning readiness check.',
+        actionLabel: 'Open Audits',
+        onClick: props.onOpenAudits,
+      },
+      {
+        title: 'Review training readiness',
+        detail: 'Check who still needs training coverage.',
+        actionLabel: 'Open Training',
+        onClick: props.onOpenTraining,
+      },
+    ],
+    [props.onOpenAudits, props.onOpenChecklists, props.onOpenTraining],
+  );
+
   const todayStatus = timeline
     ? [
         { label: 'Now', value: timeline.stats.now },
@@ -116,6 +153,28 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
         ))}
       </div>
 
+      {timeline && timeline.stats.now === 0 ? (
+        <section className="countPanel">
+          <h3>Start the shift</h3>
+          <div className="executionPromptGrid">
+            {managerPrompts.map((prompt) => (
+              <OSCard key={prompt.title} className="executionPromptCard">
+                <div>
+                  <strong>{prompt.title}</strong>
+                  <p>{prompt.detail}</p>
+                </div>
+                {prompt.onClick ? (
+                  <button className="iconTextButton" onClick={prompt.onClick} type="button">
+                    <ArrowRight aria-hidden="true" size={16} />
+                    {prompt.actionLabel}
+                  </button>
+                ) : null}
+              </OSCard>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {highestPriorityItem && (
         <OSCard className="executionCallout">
           <div className="executionCalloutHeader">
@@ -132,6 +191,7 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
           </p>
           <div className="executionCalloutMeta">
             <span>{highestPriorityItem.progressLabel}</span>
+            <span>{highestPriorityItem.relatedModuleLabel}</span>
             <span>{highestPriorityItem.executionDate ?? 'No execution date'}</span>
             <span>{highestPriorityItem.overdue ? 'Overdue' : highestPriorityItem.blockedReason ?? 'Ready'}</span>
           </div>

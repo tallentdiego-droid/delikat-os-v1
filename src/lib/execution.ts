@@ -25,6 +25,7 @@ export interface ExecutionTimelineItem {
   executionType: ExecutionType;
   status: ExecutionStatus;
   priority: number;
+  itemCount: number | null;
   executionDate: string | null;
   scheduledAt: string | null;
   startedAt: string | null;
@@ -32,10 +33,12 @@ export interface ExecutionTimelineItem {
   groupId: ExecutionGroupId;
   sourceKind: ExecutionSourceKind;
   sourceLabel: string;
+  relatedModuleLabel: string;
   sourceId: string;
   sourceRoute: ExecutionRoute | null;
   progressLabel: string;
   nextAction: string;
+  actionLabel: string;
   blockedReason: string | null;
   overdue: boolean;
   isFuture: boolean;
@@ -73,16 +76,19 @@ interface ExecutionSource {
   description: string | null;
   status: ExecutionStatus;
   priority: number;
+  itemCount: number | null;
   executionDate: string | null;
   scheduledAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
   sourceKind: ExecutionSourceKind;
   sourceLabel: string;
+  relatedModuleLabel: string;
   sourceId: string;
   sourceRoute: ExecutionRoute | null;
   progressLabel: string;
   nextAction: string;
+  actionLabel: string;
   blockedReason: string | null;
 }
 
@@ -221,6 +227,30 @@ function blockedReasonForProcess(process: OperationsProcess): string | null {
   return null;
 }
 
+function checklistActionLabel(status: ExecutionStatus): string {
+  if (status === 'completed') return 'Review checklist';
+  if (status === 'in_progress') return 'Continue checklist';
+  return 'Start checklist';
+}
+
+function auditActionLabel(status: ExecutionStatus): string {
+  if (status === 'verified' || status === 'completed') return 'Review audit';
+  if (status === 'blocked') return 'Review audit';
+  if (status === 'in_progress') return 'Continue audit';
+  return 'Start audit';
+}
+
+function trainingActionLabel(status: ExecutionStatus): string {
+  if (status === 'completed') return 'Review training';
+  if (status === 'in_progress' || status === 'waiting') return 'Continue training';
+  return 'Open training';
+}
+
+function processActionLabel(status: ExecutionStatus): string {
+  if (status === 'blocked') return 'Review knowledge';
+  return 'Open process';
+}
+
 function createItem(source: ExecutionSource): ExecutionTimelineItem {
   const groupId = groupFromStatus(source.status, source.executionDate, source.scheduledAt, source.startedAt, source.completedAt);
 
@@ -231,6 +261,7 @@ function createItem(source: ExecutionSource): ExecutionTimelineItem {
     executionType: source.executionType,
     status: source.status,
     priority: priorityFromNumber(source.priority),
+    itemCount: source.itemCount,
     executionDate: source.executionDate,
     scheduledAt: source.scheduledAt,
     startedAt: source.startedAt,
@@ -238,10 +269,12 @@ function createItem(source: ExecutionSource): ExecutionTimelineItem {
     groupId,
     sourceKind: source.sourceKind,
     sourceLabel: source.sourceLabel,
+    relatedModuleLabel: source.relatedModuleLabel,
     sourceId: source.sourceId,
     sourceRoute: source.sourceRoute,
     progressLabel: source.progressLabel,
     nextAction: source.nextAction,
+    actionLabel: source.actionLabel,
     blockedReason: source.blockedReason,
     overdue: overdueFromDates(source.status, source.executionDate, source.completedAt),
     isFuture: groupId === 'next' || groupId === 'later_today',
@@ -289,12 +322,14 @@ function buildChecklistItems(data: Awaited<ReturnType<typeof getChecklistEngineD
         description: template.description,
         status: checklistStatus(todayRun),
         priority: priorityFromNumber(template.process?.priority),
+        itemCount: todayRun.itemCount,
         executionDate: todayRun.businessDate,
         scheduledAt: todayRun.startedAt ?? todayRun.createdAt,
         startedAt: todayRun.startedAt,
         completedAt: todayRun.completedAt,
         sourceKind: 'checklist_run',
-        sourceLabel: 'Checklist Run',
+        sourceLabel: 'Checklist',
+        relatedModuleLabel: 'Checklists',
         sourceId: todayRun.id,
         sourceRoute: 'checklists',
         progressLabel: `${todayRun.completedCount}/${todayRun.itemCount} checklist items`,
@@ -304,6 +339,7 @@ function buildChecklistItems(data: Awaited<ReturnType<typeof getChecklistEngineD
             : todayRun.status === 'in_progress'
               ? 'Continue checklist execution'
               : 'Open checklist execution',
+        actionLabel: checklistActionLabel(checklistStatus(todayRun)),
         blockedReason: blockedReasonForChecklist(template),
       });
       continue;
@@ -318,16 +354,19 @@ function buildChecklistItems(data: Awaited<ReturnType<typeof getChecklistEngineD
       description: template.description,
       status,
       priority: priorityFromNumber(template.process?.priority),
+      itemCount: template.itemCount,
       executionDate,
       scheduledAt: executionDate ? `${executionDate}T08:00:00` : null,
       startedAt: null,
       completedAt: null,
       sourceKind: 'checklist_run',
-      sourceLabel: 'Checklist Template',
+      sourceLabel: 'Checklist',
+      relatedModuleLabel: 'Checklists',
       sourceId: template.id,
       sourceRoute: 'checklists',
       progressLabel: `${template.itemCount} template items`,
       nextAction: status === 'blocked' ? 'Review missing knowledge' : 'Start checklist execution',
+      actionLabel: checklistActionLabel(status),
       blockedReason: blockedReasonForChecklist(template),
     });
   }
@@ -347,12 +386,14 @@ function buildAuditItems(data: Awaited<ReturnType<typeof getAuditEngineData>>, b
         description: template.description,
         status: auditStatus(todayRun),
         priority: priorityFromNumber(template.checklistTemplate?.process?.priority ?? (template.processId ? 4 : 3)),
+        itemCount: todayRun.itemCount,
         executionDate: todayRun.businessDate,
         scheduledAt: todayRun.startedAt ?? todayRun.createdAt,
         startedAt: todayRun.startedAt,
         completedAt: todayRun.completedAt,
         sourceKind: 'audit_run',
-        sourceLabel: 'Audit Run',
+        sourceLabel: 'Audit',
+        relatedModuleLabel: 'Audits',
         sourceId: todayRun.id,
         sourceRoute: 'audits',
         progressLabel: `${todayRun.completedCount}/${todayRun.itemCount} audit items`,
@@ -361,9 +402,10 @@ function buildAuditItems(data: Awaited<ReturnType<typeof getAuditEngineData>>, b
             ? 'Review audit score'
             : todayRun.status === 'failed'
               ? 'Review failed audit'
-              : todayRun.status === 'in_progress'
-                ? 'Continue audit execution'
-                : 'Open audit execution',
+            : todayRun.status === 'in_progress'
+              ? 'Continue audit execution'
+              : 'Open audit execution',
+        actionLabel: auditActionLabel(auditStatus(todayRun)),
         blockedReason: blockedReasonForAudit(template),
       });
       continue;
@@ -378,16 +420,19 @@ function buildAuditItems(data: Awaited<ReturnType<typeof getAuditEngineData>>, b
       description: template.description,
       status,
       priority: priorityFromNumber(template.checklistTemplate?.process?.priority ?? (template.processId ? 4 : 3)),
+      itemCount: template.itemCount,
       executionDate,
       scheduledAt: executionDate ? `${executionDate}T14:00:00` : null,
       startedAt: null,
       completedAt: null,
       sourceKind: 'audit_run',
-      sourceLabel: 'Audit Template',
+      sourceLabel: 'Audit',
+      relatedModuleLabel: 'Audits',
       sourceId: template.id,
       sourceRoute: 'audits',
       progressLabel: `${template.itemCount} template items`,
       nextAction: status === 'blocked' ? 'Review missing knowledge' : 'Start audit execution',
+      actionLabel: auditActionLabel(status),
       blockedReason: blockedReasonForAudit(template),
     });
   }
@@ -408,12 +453,14 @@ function buildTrainingItems(data: Awaited<ReturnType<typeof getTrainingEngineDat
       description: path.description,
       status,
       priority: priorityFromNumber(path.role?.code ? 3 : 2),
+      itemCount: path.items.length,
       executionDate: dueAt ? toDateKey(dueAt) : null,
       scheduledAt: dueAt ?? assignedAt,
       startedAt: completed > 0 ? assignedAt : null,
       completedAt: completed > 0 && completed >= path.items.length ? dueAt ?? assignedAt : null,
       sourceKind: 'training_path',
-      sourceLabel: 'Training Path',
+      sourceLabel: 'Training',
+      relatedModuleLabel: 'Training',
       sourceId: path.id,
       sourceRoute: 'training',
       progressLabel: `${completed}/${path.items.length} training items completed`,
@@ -425,6 +472,7 @@ function buildTrainingItems(data: Awaited<ReturnType<typeof getTrainingEngineDat
             : completed > 0
               ? 'Continue training'
               : 'Open training path',
+      actionLabel: trainingActionLabel(status),
       blockedReason: blockedReasonForTraining(path),
     };
   });
@@ -444,16 +492,19 @@ function buildProcessItems(data: Awaited<ReturnType<typeof getOperationsEngineDa
         description: process.description,
         status,
         priority: priorityFromNumber(process.priority),
+        itemCount: process.stepCount,
         executionDate,
         scheduledAt: executionDate ? `${executionDate}T07:00:00` : null,
         startedAt: null,
         completedAt: null,
         sourceKind: 'operation_process',
-        sourceLabel: 'Operational Process',
+        sourceLabel: 'Operations',
+        relatedModuleLabel: 'Operations',
         sourceId: process.id,
         sourceRoute: 'operations',
         progressLabel: `${process.stepCount} process steps`,
         nextAction: status === 'blocked' ? 'Open knowledge coverage' : 'Open process detail',
+        actionLabel: processActionLabel(status),
         blockedReason: blockedReasonForProcess(process),
       };
     });

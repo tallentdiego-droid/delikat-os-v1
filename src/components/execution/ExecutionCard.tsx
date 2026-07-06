@@ -2,7 +2,7 @@ import { ArrowRight, Clock3 } from 'lucide-react';
 import { OSCard } from '../os';
 import { ExecutionPriorityBadge } from './ExecutionPriorityBadge';
 import { ExecutionStatusBadge } from './ExecutionStatusBadge';
-import { executionPriorityLabel, executionRouteLabel, executionTypeLabel, type ExecutionTimelineItem } from '../../lib/execution';
+import { executionPriorityLabel, executionTypeLabel, type ExecutionTimelineItem } from '../../lib/execution';
 
 export function ExecutionCard({
   item,
@@ -29,8 +29,8 @@ export function ExecutionCard({
       <div className="executionCardMeta">
         <span>{executionTypeLabel(item.executionType)}</span>
         <span>{executionPriorityLabel(item.priority)}</span>
-        <span>{executionRouteLabel(item.sourceRoute)}</span>
-        <span>{item.progressLabel}</span>
+        <span>{item.relatedModuleLabel}</span>
+        <span>{item.itemCount !== null ? `${item.itemCount} items` : item.progressLabel}</span>
       </div>
 
       <div className="executionCardTiming">
@@ -38,16 +38,17 @@ export function ExecutionCard({
           <Clock3 aria-hidden="true" size={14} />
           {item.executionDate ?? 'No execution date'}
         </span>
-        <span>{item.startedAt ? `Started ${item.startedAt}` : item.scheduledAt ? `Scheduled ${item.scheduledAt}` : 'No scheduled time'}</span>
-        <span>{item.completedAt ? `Completed ${item.completedAt}` : item.overdue ? 'Overdue' : item.nextAction}</span>
+        <span>{item.startedAt ? `Started ${item.startedAt}` : item.scheduledAt ? `Scheduled ${item.scheduledAt}` : 'Not started'}</span>
+        <span>{item.completedAt ? `Completed ${item.completedAt}` : item.overdue ? 'Overdue' : item.status === 'blocked' ? 'Blocked' : 'In progress'}</span>
       </div>
 
       {item.blockedReason && <p className="executionCardBlocked">{item.blockedReason}</p>}
+      <p className="quietText executionCardNextAction">{item.nextAction}</p>
 
       {onAction ? (
         <button className="iconTextButton executionCardAction" onClick={onAction} type="button">
           <ArrowRight aria-hidden="true" size={16} />
-          {actionLabel ?? item.nextAction}
+          {actionLabel ?? item.actionLabel}
         </button>
       ) : null}
     </OSCard>

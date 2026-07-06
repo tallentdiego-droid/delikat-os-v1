@@ -722,6 +722,30 @@ pre {
   gap: 12px;
 }
 
+.executionPromptGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.executionPromptCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.executionPromptCard strong {
+  display: block;
+  color: #172033;
+}
+
+.executionPromptCard p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .executionQuickCard {
   display: grid;
   gap: 8px;
