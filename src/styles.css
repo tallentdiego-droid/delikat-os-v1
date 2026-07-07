@@ -167,6 +167,119 @@ button {
   line-height: 1.55;
 }
 
+.homeLanding {
+  gap: 18px;
+}
+
+.homeHeroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  gap: 14px;
+}
+
+.homeHeroCard,
+.homeSummaryCard {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.homeHeroHeader h3,
+.homeSummaryHeader h3 {
+  margin: 6px 0 0;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.homeHeroHeader p,
+.homeSummaryHeader p,
+.homeHeroNote {
+  margin: 6px 0 0;
+  color: #5f6f83;
+  line-height: 1.55;
+}
+
+.homeSearchForm {
+  display: grid;
+  gap: 12px;
+}
+
+.homeSearchField {
+  background: #ffffff;
+  border-color: #cdd8e4;
+  border-radius: 12px;
+  padding: 0 16px;
+}
+
+.homeSearchField input {
+  padding: 16px 0;
+  font-size: 15px;
+}
+
+.homeHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.iconTextButton.primary {
+  background: #152334;
+  border-color: #152334;
+  color: #ffffff;
+}
+
+.iconTextButton.secondary {
+  background: #f8fbff;
+}
+
+.homeSummaryHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.homeTodayList {
+  display: grid;
+  gap: 10px;
+}
+
+.homeTodayListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #5f6f83;
+  font-size: 13px;
+}
+
+.homeTodayItems {
+  display: grid;
+  gap: 10px;
+}
+
+.homeTodayItem {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.homeTodayItemHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.homeTodayItemHeader strong {
+  color: #172033;
+}
+
+.homeTodayItemHeader span {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .workspace {
   min-width: 0;
 }
@@ -1478,6 +1591,23 @@ pre {
   line-height: 1.55;
 }
 
+.workspaceSearchHeader {
+  align-items: flex-start;
+}
+
+.workspaceSearchActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.workspaceSearchMeta {
+  color: #637188;
+  font-size: 13px;
+}
+
 .workspaceFolderList,
 .workspaceMiniList,
 .workspaceCardGrid,
@@ -1492,6 +1622,10 @@ pre {
   border: 1px solid #dce3ec;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.workspaceMiniCard {
+  overflow: hidden;
 }
 
 .workspaceFolderCard.active {
@@ -1564,6 +1698,13 @@ pre {
   top: 16px;
   z-index: 2;
   background: #f5f7fa;
+  padding: 0 14px;
+  border-radius: 12px;
+}
+
+.workspaceSearch input {
+  padding: 16px 0;
+  font-size: 15px;
 }
 
 .workspacePreview {
@@ -1571,20 +1712,9 @@ pre {
   gap: 14px;
 }
 
-.workspacePreviewSummary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
 .workspaceSearchSection {
   display: grid;
   gap: 14px;
-}
-
-.workspaceSearchMeta {
-  color: #637188;
-  font-size: 13px;
 }
 
 .workspaceFilterGrid {
@@ -1663,7 +1793,8 @@ pre {
   display: grid;
   gap: 14px;
   padding: 18px;
-  max-width: 100%;
+  max-width: 940px;
+  margin-inline: auto;
 }
 
 .workspacePreviewActions {
@@ -1671,6 +1802,61 @@ pre {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.workspaceSkeletonPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceSkeletonLine,
+.workspaceSkeletonBlock,
+.workspaceSkeletonBar,
+.workspaceSkeletonChip {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #edf2f7 0%, #e4ebf3 50%, #edf2f7 100%);
+}
+
+.workspaceSkeletonLine {
+  height: 14px;
+  width: 100%;
+}
+
+.workspaceSkeletonLine.short {
+  width: 58%;
+}
+
+.workspaceSkeletonBlock {
+  height: 84px;
+  border-radius: 12px;
+}
+
+.workspaceSkeletonBlock.tall {
+  height: 200px;
+}
+
+.workspaceSkeletonBar {
+  height: 52px;
+  border-radius: 12px;
+}
+
+.workspaceSkeletonBar.large {
+  height: 88px;
+}
+
+.workspaceSkeletonChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceSkeletonChip {
+  width: 88px;
+  height: 28px;
+}
+
+.workspaceSkeletonChip:last-child {
+  width: 118px;
 }
 
 .workspaceActionError {
@@ -1695,6 +1881,13 @@ pre {
   align-items: start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.workspaceDocumentHeader,
+.workspaceDocumentBody,
+.workspaceDocumentPanel {
+  max-width: 900px;
+  margin-inline: auto;
 }
 
 .workspaceDocumentHeader h3 {

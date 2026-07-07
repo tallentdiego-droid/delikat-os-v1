@@ -121,6 +121,8 @@ function HubPage({
 export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('home');
   const [studioDraftSeed, setStudioDraftSeed] = useState(0);
+  const [studioSearchSeed, setStudioSearchSeed] = useState('');
+  const [studioSearchRequestId, setStudioSearchRequestId] = useState(0);
 
   const adminCards = useMemo(
     () => [
@@ -188,16 +190,21 @@ export function App(): JSX.Element {
 
         <main className="mainPanel">
           {page === 'home' && (
-            <DashboardPage
-              onCreateSOP={() => {
-                setPage('studio');
-                setStudioDraftSeed((current) => current + 1);
-              }}
-              onOpenDailyOperations={() => setPage('dailyOperations')}
-              onOpenStudio={() => setPage('studio')}
-              onOpenKnowledgeBase={() => setPage('studio')}
-              onOpenOperations={() => setPage('operations')}
-            />
+          <DashboardPage
+            onCreateSOP={() => {
+              setPage('studio');
+              setStudioDraftSeed((current) => current + 1);
+            }}
+            onOpenDailyOperations={() => setPage('dailyOperations')}
+            onOpenStudio={() => setPage('studio')}
+            onOpenKnowledgeBase={() => setPage('studio')}
+            onOpenOperations={() => setPage('operations')}
+            onSearchStudio={(query) => {
+              setStudioSearchSeed(query);
+              setStudioSearchRequestId((current) => current + 1);
+              setPage('studio');
+            }}
+          />
           )}
           {page === 'dailyOperations' && (
             <HubPage label="Daily Operations" detail="Your working hub for shift execution, checklists, audits, and manager tools." cards={dailyOpsCards} />
@@ -218,6 +225,8 @@ export function App(): JSX.Element {
               onOpenChecklists={() => setPage('checklists')}
               onOpenTraining={() => setPage('training')}
               openNewSOPRequestId={studioDraftSeed}
+              initialSearchQuery={studioSearchSeed}
+              initialSearchRequestId={studioSearchRequestId}
             />
           ) : null}
           {page === 'knowledge' && <KnowledgeBasePage />}

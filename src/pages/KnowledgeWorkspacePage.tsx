@@ -5,6 +5,8 @@ interface KnowledgeWorkspacePageProps {
   onOpenChecklists?: () => void;
   onOpenAudits?: () => void;
   openNewSOPRequestId?: number;
+  initialSearchQuery?: string;
+  initialSearchRequestId?: number;
 }
 
 export function KnowledgeWorkspacePage({
@@ -12,12 +14,16 @@ export function KnowledgeWorkspacePage({
   onOpenChecklists,
   onOpenAudits,
   openNewSOPRequestId,
+  initialSearchQuery,
+  initialSearchRequestId,
 }: KnowledgeWorkspacePageProps): JSX.Element {
   return (
     <KnowledgeWorkspace
       onOpenAudits={onOpenAudits}
       onOpenChecklists={onOpenChecklists}
       onOpenTraining={onOpenTraining}
+      initialSearchQuery={initialSearchQuery}
+      initialSearchRequestId={initialSearchRequestId}
       openNewSOPRequestId={openNewSOPRequestId}
     />
   );
