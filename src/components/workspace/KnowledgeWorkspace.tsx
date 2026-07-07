@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Layers3 } from 'lucide-react';
+import { AlertCircle, BookOpen, Layers3, Plus, X } from 'lucide-react';
 import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { FavoriteSOPs } from './FavoriteSOPs';
 import { RecentSOPs } from './RecentSOPs';
@@ -7,12 +7,14 @@ import { SOPLibrary } from './SOPLibrary';
 import { SOPPreview } from './SOPPreview';
 import { EmptyState, MetricCard, OSCard } from '../os';
 import {
+  createKnowledgeDraft,
   getKnowledgeEngineData,
   type KnowledgeEngineData,
   type KnowledgeObject,
   type KnowledgeOntologyEntity,
   type ManualFilter,
   type KnowledgeManual,
+  type CreateKnowledgeDraftInput,
 } from '../../lib/knowledge';
 import { getTrainingEngineData, type TrainingEngineData } from '../../lib/training';
 import { getChecklistEngineData, type ChecklistEngineData } from '../../lib/checklists';
@@ -132,6 +134,22 @@ function sourceSectionsForObject(manual: KnowledgeManual | null, object: Knowled
   return manual.sections.filter((section) => section.knowledgeIds.includes(object.id));
 }
 
+interface NewSOPDraftState {
+  title: string;
+  summary: string;
+  body: string;
+  notes: string;
+  departmentId: string;
+  roleId: string;
+  tagIds: string[];
+}
+
+function buildWorkspaceDraftObject(
+  created: Awaited<ReturnType<typeof createKnowledgeDraft>>,
+): KnowledgeObject {
+  return created.knowledge;
+}
+
 interface KnowledgeWorkspaceProps {
   onOpenTraining?: () => void;
   onOpenChecklists?: () => void;
@@ -152,6 +170,19 @@ export function KnowledgeWorkspace({
   const [statusFilter, setStatusFilter] = useState('all');
   const [needsImprovementOnly, setNeedsImprovementOnly] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [localObjects, setLocalObjects] = useState<KnowledgeObject[]>([]);
+  const [newSOPOpen, setNewSOPOpen] = useState(false);
+  const [newSOPSaving, setNewSOPSaving] = useState(false);
+  const [newSOPError, setNewSOPError] = useState<string | null>(null);
+  const [newSOPDraft, setNewSOPDraft] = useState<NewSOPDraftState>({
+    title: '',
+    summary: '',
+    body: '',
+    notes: '',
+    departmentId: 'all',
+    roleId: 'all',
+    tagIds: [],
+  });
 
   const refreshData = useCallback(async (): Promise<void> => {
     try {
@@ -181,9 +212,14 @@ export function KnowledgeWorkspace({
     };
   }, [refreshData]);
 
+  const workspaceObjects = useMemo(() => {
+    if (!data) return localObjects;
+    return [...data.knowledge.objects, ...localObjects];
+  }, [data, localObjects]);
+
   const filteredObjects = useMemo(() => {
     if (!data) return [];
-    const filtered = data.knowledge.objects.filter((object) => {
+    const filtered = workspaceObjects.filter((object) => {
       const manualMatches = manualCode === 'all' || object.manualCode === manualCode;
       const departmentMatches =
         departmentFilter === 'all' || object.ontology.departments.some((department) => department.id === departmentFilter);
@@ -198,7 +234,7 @@ export function KnowledgeWorkspace({
       if (query.trim() && scoreDiff !== 0) return scoreDiff;
       return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
     });
-  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, statusFilter]);
+  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, statusFilter, workspaceObjects]);
 
   useEffect(() => {
     if (!data) return;
@@ -212,8 +248,8 @@ export function KnowledgeWorkspace({
   }, [data, filteredObjects, selectedObjectId]);
 
   const selectedObject = useMemo(
-    () => data?.knowledge.objects.find((object) => object.id === selectedObjectId) ?? null,
-    [data, selectedObjectId],
+    () => workspaceObjects.find((object) => object.id === selectedObjectId) ?? null,
+    [selectedObjectId, workspaceObjects],
   );
 
   const selectedManual = useMemo(() => (data && selectedObject ? chooseManual(data.knowledge.manuals, selectedObject) : null), [data, selectedObject]);
@@ -224,41 +260,41 @@ export function KnowledgeWorkspace({
 
   const folders = useMemo<SOPFolderTreeItem[]>(() => {
     if (!data) return [];
-    const allCount = data.knowledge.objects.length;
+    const allCount = workspaceObjects.length;
     return [
       { id: 'all', title: 'All SOPs', subtitle: 'Entire approved library', count: allCount, selected: manualCode === 'all' },
       ...data.knowledge.manuals.map((manual) => ({
         id: (manual.manualCode ?? 'all') as ManualFilter,
         title: folderLabel(manual),
         subtitle: `${manual.sections.length} source sections · ${fileLabel(manual.sourceUri)}`,
-        count: data.knowledge.objects.filter((object) => object.manualCode === manual.manualCode).length,
+        count: workspaceObjects.filter((object) => object.manualCode === manual.manualCode).length,
         selected: manual.manualCode !== null && manualCode === manual.manualCode,
       })),
     ];
-  }, [data, manualCode]);
+  }, [data, manualCode, workspaceObjects]);
 
   const favorites = useMemo(() => {
     if (!data) return [];
-    return [...data.knowledge.objects].sort((a, b) => objectRating(b) - objectRating(a) || a.title.localeCompare(b.title)).slice(0, 5);
-  }, [data]);
+    return [...workspaceObjects].sort((a, b) => objectRating(b) - objectRating(a) || a.title.localeCompare(b.title)).slice(0, 5);
+  }, [workspaceObjects]);
 
   const recentSops = useMemo(() => {
     if (!data) return [];
-    return [...data.knowledge.objects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title)).slice(0, 5);
-  }, [data]);
+    return [...workspaceObjects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title)).slice(0, 5);
+  }, [workspaceObjects]);
 
   const drafts = useMemo(() => {
     if (!data) return [];
-    return data.knowledge.objects
+    return workspaceObjects
       .filter((object) => object.status !== 'active' || object.approvedVersion.status !== 'approved')
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, 5);
-  }, [data]);
+  }, [workspaceObjects]);
 
   const recentlyEdited = useMemo(() => {
     if (!data) return [];
-    return [...data.knowledge.objects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
-  }, [data]);
+    return [...workspaceObjects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
+  }, [workspaceObjects]);
 
   const previewTrainingPaths = useMemo(() => {
     if (!data || !selectedObject) return [];
@@ -283,21 +319,106 @@ export function KnowledgeWorkspace({
     () => data?.knowledge.ontologyOptions.roles ?? [],
     [data],
   );
+  const tagOptions = useMemo<KnowledgeOntologyEntity[]>(
+    () => data?.knowledge.ontologyOptions.tags ?? [],
+    [data],
+  );
   const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
   const resultSummary = useMemo(() => {
-    const total = data?.knowledge.objects.length ?? 0;
+    const total = workspaceObjects.length;
     if (!data) return 'Loading live results from Supabase.';
     if (query.trim() || departmentFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all' || manualCode !== 'all' || needsImprovementOnly) {
       return `${filteredObjects.length} SOP${filteredObjects.length === 1 ? '' : 's'} matched your search and filters.`;
     }
-    return `${total} approved SOP${total === 1 ? '' : 's'} available in the workspace.`;
-  }, [data, departmentFilter, filteredObjects.length, manualCode, needsImprovementOnly, query, roleFilter, statusFilter]);
+    return `${total} SOP${total === 1 ? '' : 's'} available in the workspace.`;
+  }, [data, departmentFilter, filteredObjects.length, manualCode, needsImprovementOnly, query, roleFilter, statusFilter, workspaceObjects.length]);
 
   function openObject(id: string): void {
     if (!data) return;
-    const object = data.knowledge.objects.find((entry) => entry.id === id) ?? null;
+    const object = workspaceObjects.find((entry) => entry.id === id) ?? null;
     if (object?.manualCode) setManualCode(object.manualCode);
     setSelectedObjectId(id);
+  }
+
+  function updateLocalObject(object: KnowledgeObject): void {
+    if (object.sourceType !== 'user_created') return;
+    setLocalObjects((current) => {
+      const next = current.map((entry) => (entry.id === object.id ? object : entry));
+      if (!next.some((entry) => entry.id === object.id)) next.unshift(object);
+      return next;
+    });
+  }
+
+  function resetNewSOPDraft(): void {
+    setNewSOPDraft({
+      title: '',
+      summary: '',
+      body: '',
+      notes: '',
+      departmentId: 'all',
+      roleId: 'all',
+      tagIds: [],
+    });
+    setNewSOPError(null);
+  }
+
+  function openNewSOPModal(): void {
+    setNewSOPError(null);
+    setNewSOPOpen(true);
+  }
+
+  function closeNewSOPModal(): void {
+    if (newSOPSaving) return;
+    setNewSOPOpen(false);
+    setNewSOPError(null);
+    resetNewSOPDraft();
+  }
+
+  async function saveNewSOPDraft(): Promise<void> {
+    const title = newSOPDraft.title.trim();
+    const summary = newSOPDraft.summary.trim();
+    const body = newSOPDraft.body.trim();
+    const notes = newSOPDraft.notes.trim();
+
+    if (!title || !body) {
+      setNewSOPError('A title and body are required to save a new draft.');
+      return;
+    }
+
+    setNewSOPSaving(true);
+    setNewSOPError(null);
+
+    try {
+      const input: CreateKnowledgeDraftInput = {
+        title,
+        summary,
+        body,
+        notes,
+        ontology: {
+          departmentId: newSOPDraft.departmentId === 'all' ? null : newSOPDraft.departmentId,
+          roleId: newSOPDraft.roleId === 'all' ? null : newSOPDraft.roleId,
+          tagIds: newSOPDraft.tagIds,
+        },
+      };
+
+      const created = await createKnowledgeDraft(input);
+      const newObject = buildWorkspaceDraftObject(created);
+
+      setLocalObjects((current) => [newObject, ...current.filter((object) => object.id !== newObject.id)]);
+      setSelectedObjectId(newObject.id);
+      setManualCode('all');
+      setQuery('');
+      setDepartmentFilter('all');
+      setRoleFilter('all');
+      setStatusFilter('all');
+      setNeedsImprovementOnly(false);
+      setNewSOPOpen(false);
+      resetNewSOPDraft();
+    } catch (reason) {
+      setNewSOPError(reason instanceof Error ? reason.message : 'New SOP draft could not be created.');
+    } finally {
+      setNewSOPSaving(false);
+    }
   }
 
   return (
@@ -307,10 +428,16 @@ export function KnowledgeWorkspace({
           <h2>Knowledge Workspace</h2>
           <p>A read-only SOP workspace for browsing the approved knowledge library like modern knowledge software.</p>
         </div>
-        <div className="engineStats">
-          <span>{data?.knowledge.manuals.length ?? '...'} folders</span>
-          <span>{data?.knowledge.objects.length ?? '...'} SOPs</span>
-          <span>{data?.knowledge.relationships.length ?? '...'} links</span>
+        <div className="workspaceHeaderActions">
+          <div className="engineStats">
+            <span>{data?.knowledge.manuals.length ?? '...'} folders</span>
+            <span>{data ? workspaceObjects.length : '...'} SOPs</span>
+            <span>{data?.knowledge.relationships.length ?? '...'} links</span>
+          </div>
+          <button className="iconTextButton" onClick={openNewSOPModal} type="button" disabled={!data}>
+            <Plus aria-hidden="true" size={16} />
+            New SOP
+          </button>
         </div>
       </div>
 
@@ -320,6 +447,128 @@ export function KnowledgeWorkspace({
           <span>{error}</span>
         </div>
       )}
+
+      {newSOPOpen ? (
+        <div className="modalBackdrop" role="presentation" onClick={closeNewSOPModal}>
+          <div className="modalPanel workspaceNewSOPModal" role="dialog" aria-modal="true" aria-label="Create new SOP" onClick={(event) => event.stopPropagation()}>
+            <div className="workspaceSectionHeader">
+              <div>
+                <h3>New SOP</h3>
+                <p>Create a user-owned SOP draft. Imported manuals stay immutable.</p>
+              </div>
+              <button className="iconTextButton" onClick={closeNewSOPModal} type="button" disabled={newSOPSaving}>
+                <X aria-hidden="true" size={16} />
+                Close
+              </button>
+            </div>
+
+            {newSOPError ? (
+              <div className="notice error actionNotice">
+                <AlertCircle aria-hidden="true" size={18} />
+                <span>{newSOPError}</span>
+              </div>
+            ) : null}
+
+            <div className="workspaceDraftEditor">
+              <label>
+                <span>Title</span>
+                <input
+                  onChange={(event) => setNewSOPDraft((current) => ({ ...current, title: event.target.value }))}
+                  value={newSOPDraft.title}
+                  placeholder="Enter a clear SOP title"
+                />
+              </label>
+              <label>
+                <span>Summary</span>
+                <textarea
+                  onChange={(event) => setNewSOPDraft((current) => ({ ...current, summary: event.target.value }))}
+                  value={newSOPDraft.summary}
+                  rows={3}
+                  placeholder="Short summary of the SOP"
+                />
+              </label>
+              <label>
+                <span>Purpose / body</span>
+                <textarea
+                  onChange={(event) => setNewSOPDraft((current) => ({ ...current, body: event.target.value }))}
+                  value={newSOPDraft.body}
+                  rows={8}
+                  placeholder="Draft the SOP body"
+                />
+              </label>
+              <label>
+                <span>Notes</span>
+                <textarea
+                  onChange={(event) => setNewSOPDraft((current) => ({ ...current, notes: event.target.value }))}
+                  value={newSOPDraft.notes}
+                  rows={3}
+                  placeholder="Optional draft notes"
+                />
+              </label>
+              <div className="workspaceDraftSplit">
+                <label>
+                  <span>Department</span>
+                  <select
+                    onChange={(event) => setNewSOPDraft((current) => ({ ...current, departmentId: event.target.value }))}
+                    value={newSOPDraft.departmentId}
+                  >
+                    <option value="all">No department</option>
+                    {departmentOptions.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Role</span>
+                  <select
+                    onChange={(event) => setNewSOPDraft((current) => ({ ...current, roleId: event.target.value }))}
+                    value={newSOPDraft.roleId}
+                  >
+                    <option value="all">No role</option>
+                    {roleOptions.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label>
+                <span>Tags</span>
+                <select
+                  multiple
+                  onChange={(event) =>
+                    setNewSOPDraft((current) => ({
+                      ...current,
+                      tagIds: Array.from(event.target.selectedOptions).map((option) => option.value),
+                    }))
+                  }
+                  value={newSOPDraft.tagIds}
+                >
+                  {tagOptions.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+                <small className="workspaceDraftHint">Hold Command or Control to select multiple tags.</small>
+              </label>
+            </div>
+
+            <div className="workspacePreviewActions">
+              <button className="iconTextButton" onClick={saveNewSOPDraft} type="button" disabled={newSOPSaving}>
+                <Plus aria-hidden="true" size={16} />
+                Save draft
+              </button>
+              <button className="iconTextButton" onClick={closeNewSOPModal} type="button" disabled={newSOPSaving}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {!data ? (
         <EmptyState icon={BookOpen} title="Loading Knowledge Workspace" description="Pulling live SOP folders, favorites, recent items, and previews from Supabase." />
@@ -374,10 +623,11 @@ export function KnowledgeWorkspace({
                 sourceSections={sourceSections}
                 trainingPaths={previewTrainingPaths}
                 onOpenAudits={onOpenAudits}
-                onOpenChecklists={onOpenChecklists}
-                onOpenTraining={onOpenTraining}
-                onRefresh={refreshData}
-              />
+              onOpenChecklists={onOpenChecklists}
+              onOpenTraining={onOpenTraining}
+              onLocalObjectChange={updateLocalObject}
+              onRefresh={refreshData}
+            />
             ) : (
               <OSCard className="workspacePreviewPanel">
                 <EmptyState icon={Layers3} title="Select a SOP" description="Choose a folder or a SOP to preview its approved knowledge, evidence, and related work." />

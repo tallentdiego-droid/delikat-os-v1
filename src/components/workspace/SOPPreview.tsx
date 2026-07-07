@@ -12,6 +12,7 @@ import {
 import {
   archiveKnowledgeVersion,
   publishKnowledgeVersion,
+  knowledgeOriginLabel,
   restoreKnowledgeVersion,
   saveKnowledgeDraft,
   previewText,
@@ -38,6 +39,7 @@ interface SOPPreviewProps {
   onOpenChecklists?: () => void;
   onOpenAudits?: () => void;
   onRefresh?: () => Promise<void> | void;
+  onLocalObjectChange?: (object: KnowledgeObject) => void;
 }
 
 interface DraftState {
@@ -233,6 +235,62 @@ function buildDraftSteps(sourceSections: KnowledgeManual['sections']): DraftStep
   }));
 }
 
+function nextVersionNumber(object: KnowledgeObject): number {
+  return object.versions.reduce((max, version) => Math.max(max, version.versionNumber), 0) + 1;
+}
+
+function snapshotFromDraft(
+  object: KnowledgeObject,
+  draft: DraftState,
+  versionId: string,
+  action: 'draft' | 'publish' | 'archive' | 'restore',
+): KnowledgeObject['versions'][number] {
+  const timestamp = new Date().toISOString();
+  return {
+    id: versionId,
+    knowledgeId: object.id,
+    versionNumber: nextVersionNumber(object),
+    title: draft.title || object.title,
+    summary: draft.summary || object.summary,
+    notes: draft.notes || null,
+    body: draft.body,
+    status: action === 'publish' ? 'approved' : action === 'archive' ? 'deprecated' : 'draft',
+    approvedAt: action === 'publish' ? timestamp : null,
+    publishedAt: action === 'publish' ? timestamp : null,
+    archivedAt: action === 'archive' ? timestamp : null,
+    authoredBy: null,
+    authorLabel: 'User-created SOP',
+    restoredFromVersionId: draft.sourceVersionId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+function applyLocalDraftMutation(
+  object: KnowledgeObject,
+  draft: DraftState,
+  versionId: string,
+  action: 'draft' | 'publish' | 'archive' | 'restore',
+): KnowledgeObject {
+  const version = snapshotFromDraft(object, draft, versionId, action);
+  const versions = [version, ...object.versions.filter((entry) => entry.id !== version.id)].sort(
+    (a, b) => b.versionNumber - a.versionNumber,
+  );
+
+  return {
+    ...object,
+    title: draft.title || object.title,
+    summary: draft.summary || object.summary,
+    status: action === 'archive' ? 'archived' : action === 'publish' ? 'active' : 'draft',
+    currentApprovedVersionId: action === 'publish' ? version.id : object.currentApprovedVersionId,
+    approvedVersion: version,
+    versions,
+    updatedAt: version.updatedAt,
+    preview: previewText(version.body),
+    sourceType: 'user_created',
+  };
+}
+
 function createCustomDraftStep(): DraftStep {
   return {
     id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `draft-step-${Date.now()}`,
@@ -258,8 +316,8 @@ function sourceLabelForVersion(version: KnowledgeObject['versions'][number], obj
   return version.title ?? object.title;
 }
 
-function versionHistoryGroup(version: KnowledgeObject['versions'][number], currentApprovedVersionId: string): 'current' | 'draft' | 'published' | 'archived' {
-  if (version.id === currentApprovedVersionId) return 'current';
+function versionHistoryGroup(version: KnowledgeObject['versions'][number], currentVersionId: string | null): 'current' | 'draft' | 'published' | 'archived' {
+  if (currentVersionId && version.id === currentVersionId) return 'current';
   if (version.status === 'approved') return 'published';
   if (version.status === 'draft' || version.status === 'in_review') return 'draft';
   return 'archived';
@@ -411,6 +469,7 @@ export function SOPPreview({
   onOpenChecklists,
   onOpenAudits,
   onRefresh,
+  onLocalObjectChange,
 }: SOPPreviewProps): JSX.Element {
   const coverageSummary = useMemo(() => (object ? coverageForObject(object, coverage) : null), [coverage, object]);
   const evidenceRef = useRef<HTMLElement | null>(null);
@@ -435,6 +494,7 @@ export function SOPPreview({
     if (!object) return null;
     return [...object.versions].find((version) => version.status === 'draft' || version.status === 'in_review') ?? activeVersion;
   }, [activeVersion, object]);
+  const currentVersionId = object?.currentApprovedVersionId ?? activeVersion?.id ?? null;
 
   useEffect(() => {
     if (!object) {
@@ -453,6 +513,7 @@ export function SOPPreview({
     setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
     setDraftSteps(buildDraftSteps(sourceSections));
     setAiSuggestion(null);
+    setEditMode(object.sourceType === 'user_created');
   }, [object?.id]);
 
   function openSection(section: 'evidence' | 'training' | 'checklists' | 'audits' | 'related'): void {
@@ -567,6 +628,9 @@ export function SOPPreview({
             }
           : current,
       );
+      if (object.sourceType === 'user_created' && onLocalObjectChange) {
+        onLocalObjectChange(applyLocalDraftMutation(object, draft, result.versionId, action));
+      }
       setAiSuggestion(null);
       await refreshWorkspace();
     } catch (reason) {
@@ -593,6 +657,9 @@ export function SOPPreview({
       setEditMode(false);
       setFeedback('SOP archived.');
       setDraft((current) => (current ? { ...current, status: 'archived', sourceVersionId: result.versionId } : current));
+      if (object.sourceType === 'user_created' && onLocalObjectChange) {
+        onLocalObjectChange(applyLocalDraftMutation(object, draft ?? buildDraftFromVersion(activeVersion ?? object.approvedVersion, object), result.versionId, 'archive'));
+      }
       setAiSuggestion(null);
       await refreshWorkspace();
     } catch (reason) {
@@ -631,6 +698,9 @@ export function SOPPreview({
       setEditMode(true);
       setAiSuggestion(null);
       setFeedback('Previous version restored into a new draft.');
+      if (object.sourceType === 'user_created' && onLocalObjectChange) {
+        onLocalObjectChange(applyLocalDraftMutation(object, buildDraftFromVersion(version, object), result.versionId, 'restore'));
+      }
       await refreshWorkspace();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Knowledge restore failed.');
@@ -659,6 +729,7 @@ export function SOPPreview({
   const notes = editMode ? draft?.notes ?? '' : activeVersion?.notes ?? '';
   const category = editMode ? draft?.category ?? object.category : object.category;
   const tags = editMode ? draft?.tags ?? object.ontology.tags.map((tag) => tag.name).join(', ') : object.ontology.tags.map((tag) => tag.name).join(', ');
+  const originLabel = knowledgeOriginLabel(object);
   const linkedTraining = linkedTrainingItems(trainingPaths, onOpenTraining);
   const linkedChecklists = linkedChecklistItems(checklistTemplates, onOpenChecklists);
   const linkedAudits = linkedAuditItems(auditTemplates, onOpenAudits);
@@ -737,14 +808,15 @@ export function SOPPreview({
         coverageLabel={coverageSummary?.label ?? undefined}
         coveragePercent={coverageSummary?.coveragePercent}
         metadata={[
+          { label: 'Origin', value: originLabel },
           { label: 'Source manual', value: manual?.title ?? object.manualTitle ?? 'Unassigned' },
           { label: 'Manual code', value: manual?.manualCode ?? object.manualCode ?? 'Unassigned' },
           { label: 'Updated', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(object.updatedAt)) },
           { label: 'Version', value: `v${currentVersion.versionNumber}` },
           { label: 'Version status', value: versionLabel(currentVersion.status) },
         ]}
-        sourceDetail={object.sourceFileUri}
-        sourceLabel="Approved SOP"
+        sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : object.sourceFileUri}
+        sourceLabel={originLabel}
         status={object.status}
         summary={summary || previewText(body, 220)}
         title={title}
@@ -762,7 +834,8 @@ export function SOPPreview({
         <div className="workspaceDraftBanner">
           Editing is backed by version snapshots. Title, summary, body, and notes are saved. Category, tags, and structured steps stay local until ontology and step versioning exist. Source evidence remains immutable.
           Current local context: {category}
-          {tags ? ` · ${tags}` : ''}.
+          {tags ? ` · ${tags}` : ''}. Origin: {originLabel}.
+          {object.sourceType === 'user_created' ? ' This SOP began as a user-created draft and has no imported evidence yet.' : null}
         </div>
         {editMode && draft ? (
           <div className="workspaceAIArea">
@@ -1043,26 +1116,26 @@ export function SOPPreview({
             {
               key: 'current',
               title: 'Current version',
-              description: 'This is the active approved SOP version.',
-              items: history.filter((version) => version.id === object.currentApprovedVersionId),
+              description: 'This is the version currently open in the workspace.',
+              items: history.filter((version) => version.id === currentVersionId),
             },
             {
               key: 'draft',
               title: 'Draft versions',
               description: 'Working copies that have not been published yet.',
-              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'draft'),
+              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'draft'),
             },
             {
               key: 'published',
               title: 'Published versions',
               description: 'Previously approved versions that are no longer current.',
-              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'published'),
+              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'published'),
             },
             {
               key: 'archived',
               title: 'Archived versions',
               description: 'Versions that were archived for reference.',
-              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'archived'),
+              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'archived'),
             },
           ]
             .filter((group) => group.items.length > 0)
@@ -1077,7 +1150,7 @@ export function SOPPreview({
                 </div>
                 <div className="workspaceHistoryList">
                   {group.items.map((version) => {
-                    const isCurrent = version.id === object.currentApprovedVersionId;
+                    const isCurrent = version.id === currentVersionId;
                     const displayTitle = sourceLabelForVersion(version, object);
                     return (
                       <SOPCard
@@ -1088,8 +1161,14 @@ export function SOPPreview({
                           { label: 'Date', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt)) },
                           { label: 'Author', value: versionAuthorLabel(version) },
                         ]}
-                        sourceDetail={isCurrent ? 'Current published version' : versionLabel(version.status)}
-                        sourceLabel={isCurrent ? 'Published' : 'Version'}
+                        sourceDetail={
+                          isCurrent
+                            ? version.status === 'approved'
+                              ? 'Current approved version'
+                              : 'Current draft version'
+                            : versionLabel(version.status)
+                        }
+                        sourceLabel={isCurrent ? 'Current version' : 'Version'}
                         status={version.status}
                         summary={previewText(version.summary ?? version.body, 180)}
                         title={displayTitle}

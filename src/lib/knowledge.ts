@@ -2,6 +2,7 @@ import { supabase, supabaseConfigError } from './supabase';
 
 export type ManualCode = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8' | 'M9';
 export type ManualFilter = ManualCode | 'all';
+export type KnowledgeSourceType = 'imported' | 'user_created';
 export type RelationshipKind =
   | 'supports'
   | 'depends_on'
@@ -83,11 +84,12 @@ export interface KnowledgeObject {
   summary: string | null;
   status: string;
   category: string;
+  sourceType: KnowledgeSourceType;
   manualCode: ManualCode | null;
   manualTitle: string;
   sourceFileUri: string;
   sourceSectionHeading: string;
-  currentApprovedVersionId: string;
+  currentApprovedVersionId: string | null;
   approvedVersion: KnowledgeVersion;
   versions: KnowledgeVersion[];
   evidence: KnowledgeEvidence[];
@@ -253,6 +255,25 @@ export interface KnowledgeVersionMutationResult {
   currentApprovedVersionId: string | null;
 }
 
+export interface KnowledgeDraftOntologySelection {
+  departmentId?: string | null;
+  roleId?: string | null;
+  tagIds?: string[];
+}
+
+export interface CreateKnowledgeDraftInput {
+  title: string;
+  summary: string;
+  body: string;
+  notes?: string;
+  ontology?: KnowledgeDraftOntologySelection;
+}
+
+export interface CreateKnowledgeDraftResult {
+  knowledge: KnowledgeObject;
+  versionId: string;
+}
+
 export interface KnowledgeSearchParams {
   query?: string;
   manualCode?: ManualFilter;
@@ -267,6 +288,7 @@ interface CanonicalKnowledgeRow {
   summary: string | null;
   status: string;
   current_approved_version_id: string | null;
+  source_type: string | null;
   updated_at: string;
 }
 
@@ -425,6 +447,11 @@ function emptyOntologyGroups(): KnowledgeOntologyGroups {
     documentTypes: [],
     tags: [],
   };
+}
+
+export function knowledgeOriginLabel(object: Pick<KnowledgeObject, 'sourceType' | 'versions'>): string {
+  if (object.sourceType === 'user_created') return 'User-created SOP';
+  return object.versions.length > 1 ? 'Edited imported SOP' : 'Imported SOP';
 }
 
 function ontologyGroupValues(groups: KnowledgeOntologyGroups): KnowledgeOntologyEntity[] {
@@ -990,7 +1017,7 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
 
   const { data: knowledgeRows, error: knowledgeError } = await client
     .from('os_canonical_knowledge')
-    .select('id,slug,title,summary,status,current_approved_version_id,updated_at')
+    .select('id,slug,title,summary,status,current_approved_version_id,source_type,updated_at')
     .eq('status', 'active')
     .not('current_approved_version_id', 'is', null)
     .order('title', { ascending: true })
@@ -1128,11 +1155,12 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
       summary: approvedVersion.summary ?? knowledge.summary,
       status: knowledge.status,
       category,
+      sourceType: knowledge.source_type === 'user_created' ? 'user_created' : 'imported',
       manualCode: primaryEvidence.manualCode,
       manualTitle: primaryEvidence.sourceManualTitle,
       sourceFileUri: primaryEvidence.sourceFileUri,
       sourceSectionHeading: primaryEvidence.sourceSectionHeading,
-      currentApprovedVersionId: approvedVersion.id,
+      currentApprovedVersionId: knowledge.current_approved_version_id,
       approvedVersion,
       versions: (allVersionsByKnowledge.get(knowledge.id) ?? [approvedVersion]).sort(
         (a, b) => b.versionNumber - a.versionNumber,
@@ -1280,4 +1308,38 @@ export async function archiveKnowledgeVersion(input: Omit<KnowledgeVersionMutati
 
 export async function restoreKnowledgeVersion(input: Omit<KnowledgeVersionMutationInput, 'action'>): Promise<KnowledgeVersionMutationResult> {
   return postKnowledgeVersionMutation({ ...input, action: 'restore' });
+}
+
+function buildLocalKnowledgeObject(response: CreateKnowledgeDraftResult): KnowledgeObject {
+  return response.knowledge;
+}
+
+async function postKnowledgeDraftMutation(
+  payload: CreateKnowledgeDraftInput,
+): Promise<CreateKnowledgeDraftResult> {
+  const response = await fetch('/api/knowledge/drafts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as Partial<CreateKnowledgeDraftResult & { error?: string }>;
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Knowledge draft creation failed.');
+  }
+
+  if (!data.knowledge || !data.versionId) {
+    throw new Error('Knowledge draft creation failed.');
+  }
+
+  return {
+    knowledge: buildLocalKnowledgeObject({ knowledge: data.knowledge, versionId: data.versionId }),
+    versionId: data.versionId,
+  };
+}
+
+export async function createKnowledgeDraft(input: CreateKnowledgeDraftInput): Promise<CreateKnowledgeDraftResult> {
+  return postKnowledgeDraftMutation(input);
 }

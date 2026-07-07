@@ -1,7 +1,7 @@
 import { Search, BookOpen } from 'lucide-react';
 import { SOPCard, EmptyState } from '../os';
 import type { KnowledgeManual, KnowledgeObject, KnowledgeOntologyEntity, ManualFilter } from '../../lib/knowledge';
-import { previewText } from '../../lib/knowledge';
+import { knowledgeOriginLabel, previewText } from '../../lib/knowledge';
 
 function labelFromEntity(entity: KnowledgeOntologyEntity | null | undefined): string {
   return entity ? entity.name : 'Not set';
@@ -185,6 +185,7 @@ export function SOPLibrary({
               const process = object.ontology.businessProcesses[0] ?? null;
               const evidenceLabel = `${object.evidence.length} evidence link${object.evidence.length === 1 ? '' : 's'}`;
               const isSelected = selectedObjectId === object.id;
+              const originLabel = knowledgeOriginLabel(object);
               return (
                 <SOPCard
                   action={
@@ -207,8 +208,8 @@ export function SOPLibrary({
                   ]}
                   onClick={() => onSelectObject(object.id)}
                   selected={isSelected}
-                  sourceDetail={`${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                  sourceLabel="Approved SOP"
+                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                  sourceLabel={originLabel}
                   status={needsImprovementLabel(object) === 'Ready' ? object.status : 'pending'}
                   summary={object.summary ?? previewText(object.approvedVersion.body, 180)}
                   title={object.title}
@@ -244,8 +245,8 @@ export function SOPLibrary({
                 key={object.id}
                 title={object.title}
                 summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                sourceLabel="Updated SOP"
-                sourceDetail={`${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                sourceLabel={knowledgeOriginLabel(object)}
+                sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
@@ -275,8 +276,8 @@ export function SOPLibrary({
                 key={object.id}
                 title={object.title}
                 summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                sourceLabel="Draft SOP"
-                sourceDetail={`${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                sourceLabel={knowledgeOriginLabel(object)}
+                sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">

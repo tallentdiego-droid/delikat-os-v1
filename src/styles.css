@@ -2038,6 +2038,18 @@ pre {
   padding: 6px 10px;
 }
 
+.workspaceHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.workspaceNewSOPModal {
+  width: min(860px, 100%);
+}
+
 .loadingPanel {
   display: flex;
   align-items: center;
