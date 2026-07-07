@@ -3,16 +3,18 @@ import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboa
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
+import { ManagerPage } from './pages/ManagerPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { RolesPage } from './pages/RolesPage';
 import { ChecklistsPage } from './pages/ChecklistsPage';
 import { AuditsPage } from './pages/AuditsPage';
 import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'home' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
+type Page = 'home' | 'manager' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
+  { id: 'manager' as const, label: 'Manager OS', icon: ClipboardList },
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
   { id: 'roles' as const, label: 'Roles', icon: Users },
   { id: 'training' as const, label: 'Training', icon: GraduationCap },
@@ -25,6 +27,7 @@ const navigation = [
 ];
 
 function pageTitle(page: Page): string {
+  if (page === 'manager') return 'Manager OS';
   if (page === 'knowledge') return 'Knowledge';
   if (page === 'organization') return 'Organization';
   if (page === 'operations') return 'Operations';
@@ -100,6 +103,17 @@ export function App(): JSX.Element {
         <main className="mainPanel">
           {page === 'home' && (
             <DashboardPage
+              onOpenAudits={() => setPage('audits')}
+              onOpenChecklists={() => setPage('checklists')}
+              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onOpenOperations={() => setPage('operations')}
+              onOpenManager={() => setPage('manager')}
+              onOpenRoles={() => setPage('roles')}
+              onOpenTraining={() => setPage('training')}
+            />
+          )}
+          {page === 'manager' && (
+            <ManagerPage
               onOpenAudits={() => setPage('audits')}
               onOpenChecklists={() => setPage('checklists')}
               onOpenKnowledgeBase={() => setPage('knowledge')}

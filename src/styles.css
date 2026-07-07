@@ -261,6 +261,77 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.managerEngine {
+  gap: 16px;
+}
+
+.managerSummaryGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.managerActionGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.managerActionCard,
+.managerRoleCard {
+  display: grid;
+  gap: 10px;
+}
+
+.managerActionHeader,
+.managerRoleHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.managerActionHeader strong,
+.managerRoleHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.managerActionCard p,
+.managerRoleHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.managerRunGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.managerRoleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.managerRoleMeta,
+.managerRoleFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.executionSummaryStack,
+.managerStack {
+  display: grid;
+  gap: 12px;
+}
+
+.managerRoleSummaryGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2998,6 +3069,13 @@ tbody tr:hover,
   .operationsFilters,
   .catalogGrid,
   .starterProcessCatalog,
+  .rolesLayout,
+  .roleItemGrid,
+  .rolesPreviewGrid,
+  .managerSummaryGrid,
+  .managerActionGrid,
+  .managerRunGrid,
+  .managerRoleGrid,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,

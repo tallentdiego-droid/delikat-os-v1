@@ -8,6 +8,7 @@ import { ExecutionTimeline } from '../components/execution';
 interface DashboardPageProps {
   onOpenKnowledgeBase?: () => void;
   onOpenOperations?: () => void;
+  onOpenManager?: () => void;
   onOpenRoles?: () => void;
   onOpenTraining?: () => void;
   onOpenChecklists?: () => void;
@@ -190,6 +191,12 @@ export function DashboardPage(props: DashboardPageProps): JSX.Element {
           <h2>Execution Command Center</h2>
           <p>One timeline for checklist, audit, training, and future operational work.</p>
         </div>
+        {props.onOpenManager ? (
+          <button className="iconTextButton" onClick={props.onOpenManager} type="button">
+            <ArrowRight aria-hidden="true" size={16} />
+            Open Manager OS
+          </button>
+        ) : null}
       </div>
 
       {error && (
