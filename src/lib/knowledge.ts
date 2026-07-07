@@ -61,9 +61,17 @@ export interface KnowledgeVersion {
   id: string;
   knowledgeId: string;
   versionNumber: number;
+  title: string | null;
+  summary: string | null;
+  notes: string | null;
   body: string;
   status: string;
   approvedAt: string | null;
+  publishedAt: string | null;
+  archivedAt: string | null;
+  authoredBy: string | null;
+  authorLabel: string | null;
+  restoredFromVersionId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -226,6 +234,25 @@ export interface CreateKnowledgeRelationshipInput {
   strength?: number;
 }
 
+export type KnowledgeVersionAction = 'draft' | 'publish' | 'archive' | 'restore';
+
+export interface KnowledgeVersionMutationInput {
+  knowledgeId: string;
+  action: KnowledgeVersionAction;
+  title: string;
+  summary: string;
+  body: string;
+  notes?: string;
+  sourceVersionId?: string | null;
+}
+
+export interface KnowledgeVersionMutationResult {
+  versionId: string;
+  knowledgeId: string;
+  status: string;
+  currentApprovedVersionId: string | null;
+}
+
 export interface KnowledgeSearchParams {
   query?: string;
   manualCode?: ManualFilter;
@@ -247,9 +274,17 @@ interface KnowledgeVersionRow {
   id: string;
   knowledge_id: string;
   version_number: number;
+  title: string | null;
+  summary: string | null;
+  notes: string | null;
   body: string;
   status: string;
+  authored_by: string | null;
+  author_label: string | null;
   approved_at: string | null;
+  published_at: string | null;
+  archived_at: string | null;
+  restored_from_version_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -441,7 +476,7 @@ async function selectVersionsByKnowledgeIds(knowledgeIds: string[]): Promise<Kno
 
   const { data, error } = await client
     .from('os_knowledge_versions')
-    .select('id,knowledge_id,version_number,body,status,approved_at,created_at,updated_at')
+    .select('id,knowledge_id,version_number,title,summary,notes,body,status,authored_by,author_label,approved_at,published_at,archived_at,restored_from_version_id,created_at,updated_at')
     .in('knowledge_id', uniqueIds);
 
   if (error) throw error;
@@ -969,7 +1004,7 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
   const currentVersionRows = await selectByIds<KnowledgeVersionRow>(
     'os_knowledge_versions',
     currentVersionIds,
-    'id,knowledge_id,version_number,body,status,approved_at,created_at,updated_at',
+    'id,knowledge_id,version_number,title,summary,notes,body,status,authored_by,author_label,approved_at,published_at,archived_at,restored_from_version_id,created_at,updated_at',
   );
 
   const currentVersions = new Map(
@@ -1039,9 +1074,17 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
       id: row.id,
       knowledgeId: row.knowledge_id,
       versionNumber: row.version_number,
+      title: row.title,
+      summary: row.summary,
+      notes: row.notes,
       body: row.body,
       status: row.status,
       approvedAt: row.approved_at,
+      publishedAt: row.published_at,
+      archivedAt: row.archived_at,
+      authoredBy: row.authored_by,
+      authorLabel: row.author_label,
+      restoredFromVersionId: row.restored_from_version_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -1060,9 +1103,17 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
       id: approvedVersionRow.id,
       knowledgeId: approvedVersionRow.knowledge_id,
       versionNumber: approvedVersionRow.version_number,
+      title: approvedVersionRow.title,
+      summary: approvedVersionRow.summary,
+      notes: approvedVersionRow.notes,
       body: approvedVersionRow.body,
       status: approvedVersionRow.status,
       approvedAt: approvedVersionRow.approved_at,
+      publishedAt: approvedVersionRow.published_at,
+      archivedAt: approvedVersionRow.archived_at,
+      authoredBy: approvedVersionRow.authored_by,
+      authorLabel: approvedVersionRow.author_label,
+      restoredFromVersionId: approvedVersionRow.restored_from_version_id,
       createdAt: approvedVersionRow.created_at,
       updatedAt: approvedVersionRow.updated_at,
     };
@@ -1073,8 +1124,8 @@ export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
     return [{
       id: knowledge.id,
       slug: knowledge.slug,
-      title: knowledge.title,
-      summary: knowledge.summary,
+      title: approvedVersion.title ?? knowledge.title,
+      summary: approvedVersion.summary ?? knowledge.summary,
       status: knowledge.status,
       category,
       manualCode: primaryEvidence.manualCode,
@@ -1189,4 +1240,44 @@ export async function createKnowledgeRelationship({
   });
 
   if (error) throw error;
+}
+
+async function postKnowledgeVersionMutation(
+  payload: KnowledgeVersionMutationInput,
+): Promise<KnowledgeVersionMutationResult> {
+  const response = await fetch('/api/knowledge/versions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as Partial<KnowledgeVersionMutationResult & { error?: string }>;
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Knowledge version update failed.');
+  }
+
+  return {
+    versionId: data.versionId ?? '',
+    knowledgeId: data.knowledgeId ?? payload.knowledgeId,
+    status: data.status ?? payload.action,
+    currentApprovedVersionId: data.currentApprovedVersionId ?? null,
+  };
+}
+
+export async function saveKnowledgeDraft(input: Omit<KnowledgeVersionMutationInput, 'action'>): Promise<KnowledgeVersionMutationResult> {
+  return postKnowledgeVersionMutation({ ...input, action: 'draft' });
+}
+
+export async function publishKnowledgeVersion(input: Omit<KnowledgeVersionMutationInput, 'action'>): Promise<KnowledgeVersionMutationResult> {
+  return postKnowledgeVersionMutation({ ...input, action: 'publish' });
+}
+
+export async function archiveKnowledgeVersion(input: Omit<KnowledgeVersionMutationInput, 'action'>): Promise<KnowledgeVersionMutationResult> {
+  return postKnowledgeVersionMutation({ ...input, action: 'archive' });
+}
+
+export async function restoreKnowledgeVersion(input: Omit<KnowledgeVersionMutationInput, 'action'>): Promise<KnowledgeVersionMutationResult> {
+  return postKnowledgeVersionMutation({ ...input, action: 'restore' });
 }

@@ -1,17 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Edit3, ShieldAlert, Save, X } from 'lucide-react';
-import { KnowledgeGapCard, LinkedKnowledgePanel, SOPCard, SOPRelatedKnowledge, SOPStepList, SOPEvidencePanel, StatusBadge } from '../os';
-import type {
-  KnowledgeCoverageSummary,
-  KnowledgeEvidence,
-  KnowledgeManual,
-  KnowledgeObject,
-  KnowledgeRelatedObject,
+import { ArrowRight, Archive, Edit3, History, RotateCcw, Save, X } from 'lucide-react';
+import {
+  KnowledgeGapCard,
+  LinkedKnowledgePanel,
+  SOPCard,
+  SOPRelatedKnowledge,
+  SOPStepList,
+  SOPEvidencePanel,
+  StatusBadge,
+} from '../os';
+import {
+  archiveKnowledgeVersion,
+  publishKnowledgeVersion,
+  restoreKnowledgeVersion,
+  saveKnowledgeDraft,
+  previewText,
+  type KnowledgeCoverageSummary,
+  type KnowledgeEvidence,
+  type KnowledgeManual,
+  type KnowledgeObject,
+  type KnowledgeRelatedObject,
 } from '../../lib/knowledge';
 import type { TrainingPath } from '../../lib/training';
 import type { ChecklistTemplate } from '../../lib/checklists';
 import type { AuditTemplate } from '../../lib/audits';
-import { previewText } from '../../lib/knowledge';
 
 interface SOPPreviewProps {
   object: KnowledgeObject | null;
@@ -25,14 +37,17 @@ interface SOPPreviewProps {
   onOpenTraining?: () => void;
   onOpenChecklists?: () => void;
   onOpenAudits?: () => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 interface DraftState {
   title: string;
   summary: string;
   body: string;
+  notes: string;
   category: string;
   tags: string;
+  sourceVersionId: string | null;
 }
 
 function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageSummary | null): {
@@ -50,7 +65,9 @@ function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageS
     };
   }
 
-  const matches = [...coverage.missing, ...coverage.satisfied].filter((result) => result.matchedObjects.some((matched) => matched.id === object.id));
+  const matches = [...coverage.missing, ...coverage.satisfied].filter((result) =>
+    result.matchedObjects.some((matched) => matched.id === object.id),
+  );
   if (matches.length === 0) {
     return {
       coveragePercent: 0,
@@ -73,6 +90,19 @@ function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageS
         : 'All mapped training requirements are covered by approved SOPs.',
     missingCount,
   };
+}
+
+function versionLabel(status: string): string {
+  if (status === 'approved') return 'Published';
+  if (status === 'deprecated') return 'Archived';
+  if (status === 'in_review') return 'In review';
+  return 'Draft';
+}
+
+function versionAuthorLabel(version: KnowledgeObject['versions'][number]): string {
+  if (version.authorLabel) return version.authorLabel;
+  if (version.authoredBy) return 'Recorded author';
+  return 'System';
 }
 
 function linkedTrainingItems(
@@ -150,6 +180,24 @@ function evidenceToItems(evidence: KnowledgeEvidence[]): Array<{
   }));
 }
 
+type KnowledgeVersionSnapshot = KnowledgeObject['versions'][number] | KnowledgeObject['approvedVersion'];
+
+function buildDraftFromVersion(version: KnowledgeVersionSnapshot, object: KnowledgeObject): DraftState {
+  return {
+    title: version.title ?? object.title,
+    summary: version.summary ?? object.summary ?? '',
+    body: version.body,
+    notes: version.notes ?? '',
+    category: object.category,
+    tags: object.ontology.tags.map((tag) => tag.name).join(', '),
+    sourceVersionId: version.id,
+  };
+}
+
+function sourceLabelForVersion(version: KnowledgeObject['versions'][number], object: KnowledgeObject): string {
+  return version.title ?? object.title;
+}
+
 export function SOPPreview({
   object,
   manual,
@@ -162,6 +210,7 @@ export function SOPPreview({
   onOpenTraining,
   onOpenChecklists,
   onOpenAudits,
+  onRefresh,
 }: SOPPreviewProps): JSX.Element {
   const coverageSummary = useMemo(() => (object ? coverageForObject(object, coverage) : null), [coverage, object]);
   const evidenceRef = useRef<HTMLElement | null>(null);
@@ -170,27 +219,35 @@ export function SOPPreview({
   const auditRef = useRef<HTMLElement | null>(null);
   const relatedRef = useRef<HTMLElement | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [draftSaved, setDraftSaved] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const activeVersion = useMemo(() => {
+    if (!object) return null;
+    return object.versions.find((version) => version.id === object.currentApprovedVersionId) ?? object.approvedVersion;
+  }, [object]);
+
+  const latestEditableVersion = useMemo(() => {
+    if (!object) return null;
+    return [...object.versions].find((version) => version.status === 'draft' || version.status === 'in_review') ?? activeVersion;
+  }, [activeVersion, object]);
 
   useEffect(() => {
     if (!object) {
       setEditMode(false);
-      setDraftSaved(false);
       setDraft(null);
+      setFeedback(null);
+      setError(null);
       return;
     }
 
     setEditMode(false);
-    setDraftSaved(false);
-    setDraft({
-      title: object.title,
-      summary: object.summary ?? '',
-      body: object.approvedVersion.body,
-      category: object.category,
-      tags: object.ontology.tags.map((tag) => tag.name).join(', '),
-    });
-  }, [object?.id]);
+    setFeedback(null);
+    setError(null);
+    setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
+  }, [latestEditableVersion, object]);
 
   function openSection(section: 'evidence' | 'training' | 'checklists' | 'audits' | 'related'): void {
     const target = {
@@ -206,25 +263,122 @@ export function SOPPreview({
   function beginEdit(): void {
     if (!draft) return;
     setEditMode(true);
-    setDraftSaved(false);
+    setFeedback(null);
+    setError(null);
   }
 
   function cancelEdit(): void {
     if (!object) return;
-    setDraft({
-      title: object.title,
-      summary: object.summary ?? '',
-      body: object.approvedVersion.body,
-      category: object.category,
-      tags: object.ontology.tags.map((tag) => tag.name).join(', '),
-    });
+    setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
     setEditMode(false);
-    setDraftSaved(false);
+    setFeedback('Draft changes were discarded.');
+    setError(null);
   }
 
-  function saveDraft(): void {
-    setEditMode(false);
-    setDraftSaved(true);
+  async function refreshWorkspace(): Promise<void> {
+    if (onRefresh) await onRefresh();
+  }
+
+  async function persistVersion(action: 'draft' | 'publish'): Promise<void> {
+    if (!object || !draft) return;
+    setIsSaving(true);
+    setError(null);
+    setFeedback(null);
+
+    try {
+      const result =
+        action === 'draft'
+          ? await saveKnowledgeDraft({
+              knowledgeId: object.id,
+              title: draft.title,
+              summary: draft.summary,
+              body: draft.body,
+              notes: draft.notes,
+              sourceVersionId: draft.sourceVersionId,
+            })
+          : await publishKnowledgeVersion({
+              knowledgeId: object.id,
+              title: draft.title,
+              summary: draft.summary,
+              body: draft.body,
+              notes: draft.notes,
+              sourceVersionId: draft.sourceVersionId,
+            });
+
+      setEditMode(false);
+      setFeedback(action === 'draft' ? 'Draft saved as a new version.' : 'Version published and promoted to current approval.');
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              sourceVersionId: result.versionId,
+            }
+          : current,
+      );
+      await refreshWorkspace();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Knowledge version update failed.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function archiveCurrent(): Promise<void> {
+    if (!object) return;
+    setIsSaving(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      await archiveKnowledgeVersion({
+        knowledgeId: object.id,
+        title: draft?.title ?? activeVersion?.title ?? object.title,
+        summary: draft?.summary ?? activeVersion?.summary ?? object.summary ?? '',
+        body: draft?.body ?? activeVersion?.body ?? object.approvedVersion.body,
+        notes: draft?.notes ?? activeVersion?.notes ?? '',
+        sourceVersionId: draft?.sourceVersionId ?? activeVersion?.id ?? object.currentApprovedVersionId,
+      });
+      setEditMode(false);
+      setFeedback('SOP archived.');
+      await refreshWorkspace();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Knowledge archive failed.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function restoreVersion(version: KnowledgeObject['versions'][number]): Promise<void> {
+    if (!object) return;
+    setIsSaving(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const result = await restoreKnowledgeVersion({
+        knowledgeId: object.id,
+        title: version.title ?? object.title,
+        summary: version.summary ?? object.summary ?? '',
+        body: version.body,
+        notes: version.notes ?? '',
+        sourceVersionId: version.id,
+      });
+
+      setDraft({
+        title: version.title ?? object.title,
+        summary: version.summary ?? object.summary ?? '',
+        body: version.body,
+        notes: version.notes ?? '',
+        category: object.category,
+        tags: object.ontology.tags.map((tag) => tag.name).join(', '),
+        sourceVersionId: result.versionId,
+      });
+      setEditMode(true);
+      setFeedback('Previous version restored into a new draft.');
+      await refreshWorkspace();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Knowledge restore failed.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   if (!object) {
@@ -241,6 +395,18 @@ export function SOPPreview({
     );
   }
 
+  const title = editMode ? draft?.title ?? object.title : activeVersion?.title ?? object.title;
+  const summary = editMode ? draft?.summary ?? object.summary ?? '' : activeVersion?.summary ?? object.summary ?? '';
+  const body = editMode ? draft?.body ?? activeVersion?.body ?? object.approvedVersion.body : activeVersion?.body ?? object.approvedVersion.body;
+  const notes = editMode ? draft?.notes ?? '' : activeVersion?.notes ?? '';
+  const category = editMode ? draft?.category ?? object.category : object.category;
+  const tags = editMode ? draft?.tags ?? object.ontology.tags.map((tag) => tag.name).join(', ') : object.ontology.tags.map((tag) => tag.name).join(', ');
+  const linkedTraining = linkedTrainingItems(trainingPaths, onOpenTraining);
+  const linkedChecklists = linkedChecklistItems(checklistTemplates, onOpenChecklists);
+  const linkedAudits = linkedAuditItems(auditTemplates, onOpenAudits);
+  const currentVersion = activeVersion ?? object.approvedVersion;
+  const history = [...object.versions].sort((a, b) => b.versionNumber - a.versionNumber);
+
   const steps = sourceSections.map((section, index) => ({
     id: section.id,
     sequence: index + 1,
@@ -255,31 +421,36 @@ export function SOPPreview({
     ],
   }));
 
-  const linkedTraining = linkedTrainingItems(trainingPaths, onOpenTraining);
-  const linkedChecklists = linkedChecklistItems(checklistTemplates, onOpenChecklists);
-  const linkedAudits = linkedAuditItems(auditTemplates, onOpenAudits);
-
   return (
     <section className="workspacePreviewPanel">
       <div className="workspaceSectionHeader">
         <div>
           <h3>SOP preview</h3>
-          <p>Read-only by default, with a local draft editor ready for the next sprint.</p>
+          <p>Read-only source evidence stays intact while editable versions are captured as safe snapshots.</p>
         </div>
         <div className="workspacePreviewActions">
-          {draftSaved ? <StatusBadge status="draft" label="Draft not saved yet" /> : null}
+          {feedback ? <StatusBadge status="draft" label={feedback} /> : null}
+          {error ? <span className="workspaceActionError">{error}</span> : null}
           {!editMode ? (
-            <button className="iconTextButton" onClick={beginEdit} type="button">
+            <button className="iconTextButton" onClick={beginEdit} type="button" disabled={isSaving}>
               <Edit3 aria-hidden="true" size={16} />
               Edit SOP
             </button>
           ) : (
             <>
-              <button className="iconTextButton" onClick={saveDraft} type="button">
+              <button className="iconTextButton" onClick={() => void persistVersion('draft')} type="button" disabled={isSaving}>
                 <Save aria-hidden="true" size={16} />
                 Save draft
               </button>
-              <button className="iconTextButton" onClick={cancelEdit} type="button">
+              <button className="iconTextButton" onClick={() => void persistVersion('publish')} type="button" disabled={isSaving}>
+                <ArrowRight aria-hidden="true" size={16} />
+                Publish
+              </button>
+              <button className="iconTextButton" onClick={() => void archiveCurrent()} type="button" disabled={isSaving}>
+                <Archive aria-hidden="true" size={16} />
+                Archive
+              </button>
+              <button className="iconTextButton" onClick={cancelEdit} type="button" disabled={isSaving}>
                 <X aria-hidden="true" size={16} />
                 Cancel
               </button>
@@ -311,31 +482,30 @@ export function SOPPreview({
           { label: 'Source manual', value: manual?.title ?? object.manualTitle ?? 'Unassigned' },
           { label: 'Manual code', value: manual?.manualCode ?? object.manualCode ?? 'Unassigned' },
           { label: 'Updated', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(object.updatedAt)) },
-          { label: 'Version', value: `v${object.approvedVersion.versionNumber}` },
-          { label: 'Version status', value: object.approvedVersion.status },
+          { label: 'Version', value: `v${currentVersion.versionNumber}` },
+          { label: 'Version status', value: versionLabel(currentVersion.status) },
         ]}
         sourceDetail={object.sourceFileUri}
         sourceLabel="Approved SOP"
         status={object.status}
-        summary={draft?.summary || object.summary || previewText(object.approvedVersion.body, 220)}
-        title={draft?.title || object.title}
+        summary={summary || previewText(body, 220)}
+        title={title}
       >
         <div className="workspacePreviewIntro">
           <div>
             <span>Purpose</span>
-            <p>{draft?.summary || object.summary || previewText(object.approvedVersion.body, 240)}</p>
+            <p>{summary || previewText(body, 240)}</p>
           </div>
           <div>
             <span>Summary</span>
-            <p>{previewText(draft?.body ?? object.approvedVersion.body, 300)}</p>
+            <p>{previewText(body, 300)}</p>
           </div>
         </div>
-        {draftSaved ? <div className="workspaceDraftBanner">Draft not saved yet. This editor stays local until a draft version workflow exists.</div> : null}
-      </SOPCard>
-
-      {editMode && draft && (
-        <section className="detailSection">
-          <h4>Edit draft</h4>
+        <div className="workspaceDraftBanner">
+          Editing is backed by version snapshots. Title, summary, body, and notes are saved; category and tags remain local until ontology editing exists. Current local context: {category}
+          {tags ? ` · ${tags}` : ''}.
+        </div>
+        {editMode && draft ? (
           <div className="workspaceDraftEditor">
             <label>
               <span>Title</span>
@@ -349,6 +519,10 @@ export function SOPPreview({
               <span>Content</span>
               <textarea onChange={(event) => setDraft({ ...draft, body: event.target.value })} value={draft.body} rows={10} />
             </label>
+            <label>
+              <span>Notes</span>
+              <textarea onChange={(event) => setDraft({ ...draft, notes: event.target.value })} value={draft.notes} rows={3} />
+            </label>
             <div className="workspaceDraftSplit">
               <label>
                 <span>Category</span>
@@ -359,9 +533,15 @@ export function SOPPreview({
                 <input onChange={(event) => setDraft({ ...draft, tags: event.target.value })} value={draft.tags} />
               </label>
             </div>
+            {notes ? (
+              <div className="workspaceDraftNotes">
+                <span>Current notes</span>
+                <p>{notes}</p>
+              </div>
+            ) : null}
           </div>
-        </section>
-      )}
+        ) : null}
+      </SOPCard>
 
       {coverageSummary && coverageSummary.missingCount > 0 ? (
         <KnowledgeGapCard
@@ -398,25 +578,67 @@ export function SOPPreview({
 
       <section className="detailSection" ref={trainingRef}>
         <h4>Training</h4>
-        <LinkedKnowledgePanel
-          emptyLabel="No related training paths are visible yet."
-          items={linkedTraining}
-          title="Training"
-        />
+        <LinkedKnowledgePanel emptyLabel="No related training paths are visible yet." items={linkedTraining} title="Training" />
       </section>
 
       <section className="detailSection" ref={checklistRef}>
         <h4>Checklist</h4>
-        <LinkedKnowledgePanel
-          emptyLabel="No related checklists are visible yet."
-          items={linkedChecklists}
-          title="Checklist"
-        />
+        <LinkedKnowledgePanel emptyLabel="No related checklists are visible yet." items={linkedChecklists} title="Checklist" />
       </section>
 
       <section className="detailSection" ref={auditRef}>
         <h4>Audit</h4>
         <LinkedKnowledgePanel emptyLabel="No related audits are visible yet." items={linkedAudits} title="Audit" />
+      </section>
+
+      <section className="detailSection">
+        <div className="workspaceHistoryHeader">
+          <div>
+            <h4>
+              <History aria-hidden="true" size={16} />
+              History
+            </h4>
+            <p>Version, date, author, and status are preserved for every change.</p>
+          </div>
+          <div className="quietText">{currentVersion.title ?? object.title}</div>
+        </div>
+        <div className="workspaceHistoryList">
+          {history.map((version) => {
+            const isCurrent = version.id === object.currentApprovedVersionId;
+            const displayTitle = sourceLabelForVersion(version, object);
+            return (
+              <SOPCard
+                key={version.id}
+                className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
+                metadata={[
+                  { label: 'Version', value: `v${version.versionNumber}` },
+                  { label: 'Date', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt)) },
+                  { label: 'Author', value: versionAuthorLabel(version) },
+                ]}
+                sourceDetail={isCurrent ? 'Current published version' : versionLabel(version.status)}
+                sourceLabel={isCurrent ? 'Published' : 'Version'}
+                status={version.status}
+                summary={previewText(version.summary ?? version.body, 180)}
+                title={displayTitle}
+                action={
+                  isCurrent ? (
+                    <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
+                      Edit current
+                    </button>
+                  ) : (
+                    <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
+                      <RotateCcw aria-hidden="true" size={14} />
+                      Restore previous version
+                    </button>
+                  )
+                }
+              >
+                {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
+                <p className="sopVersionBody">{previewText(version.body, 260)}</p>
+              </SOPCard>
+            );
+          })}
+        </div>
       </section>
     </section>
   );

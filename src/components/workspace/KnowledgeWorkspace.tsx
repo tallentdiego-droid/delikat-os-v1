@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BookOpen, Layers3 } from 'lucide-react';
 import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { FavoriteSOPs } from './FavoriteSOPs';
@@ -92,24 +92,33 @@ export function KnowledgeWorkspace({
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
+  const refreshData = useCallback(async (): Promise<void> => {
+    try {
+      const [knowledge, training, checklists, audits] = await Promise.all([
+        getKnowledgeEngineData(),
+        getTrainingEngineData(),
+        getChecklistEngineData(),
+        getAuditEngineData(),
+      ]);
+      setData({ knowledge, training, checklists, audits });
+      setError(null);
+      setSelectedObjectId((current) => current ?? knowledge.objects[0]?.id ?? null);
+    } catch (reason) {
+      setError(friendlyError(reason));
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
 
-    Promise.all([getKnowledgeEngineData(), getTrainingEngineData(), getChecklistEngineData(), getAuditEngineData()])
-      .then(([knowledge, training, checklists, audits]) => {
-        if (!active) return;
-        setData({ knowledge, training, checklists, audits });
-        setError(null);
-        setSelectedObjectId((current) => current ?? knowledge.objects[0]?.id ?? null);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(friendlyError(reason));
-      });
+    void refreshData().catch((reason: unknown) => {
+      if (active) setError(friendlyError(reason));
+    });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshData]);
 
   const filteredObjects = useMemo(() => {
     if (!data) return [];
@@ -261,6 +270,7 @@ export function KnowledgeWorkspace({
                 onOpenAudits={onOpenAudits}
                 onOpenChecklists={onOpenChecklists}
                 onOpenTraining={onOpenTraining}
+                onRefresh={refreshData}
               />
             ) : (
               <OSCard className="workspacePreviewPanel">

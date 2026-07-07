@@ -1504,6 +1504,13 @@ pre {
   justify-content: flex-end;
 }
 
+.workspaceActionError {
+  align-self: center;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .workspaceDraftBanner {
   border: 1px solid #d9e2ef;
   border-radius: 8px;
@@ -1550,6 +1557,77 @@ pre {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.workspaceDraftNotes {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.workspaceDraftNotes span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceDraftNotes p {
+  margin: 0;
+  color: #172033;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.workspaceHistoryHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspaceHistoryHeader h4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.workspaceHistoryHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspaceHistoryList {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceHistoryCard {
+  padding: 14px;
+}
+
+.workspaceHistoryCard.current {
+  border-color: #8fb3de;
+}
+
+.sopDraftNotes {
+  margin: 0 0 8px;
+  color: #4b5f77;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.sopVersionBody {
+  margin: 0;
+  color: #172033;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .workspacePreviewIntro {
@@ -3310,6 +3388,7 @@ tbody tr:hover,
   .workspacePreviewSummary,
   .workspacePreviewActions,
   .workspaceDraftSplit,
+  .workspaceHistoryHeader,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,
