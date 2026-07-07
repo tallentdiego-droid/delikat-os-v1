@@ -115,6 +115,12 @@ button {
   gap: 16px;
 }
 
+.studioSectionTabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .hubGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1813,6 +1819,117 @@ pre {
 
 .workspacePreviewDocument {
   min-width: 0;
+}
+
+.importCenterSection {
+  display: grid;
+  gap: 16px;
+}
+
+.importPlanGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.importPlanCard,
+.importFieldCard,
+.importValidationCard {
+  display: grid;
+  gap: 12px;
+}
+
+.importPlanHeader {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+}
+
+.importPlanHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.importPlanHeader p,
+.importPlanActions .quietText,
+.importFieldCard p,
+.importFieldCard small,
+.importValidationCard p {
+  margin: 0;
+  color: #5f6f83;
+  line-height: 1.55;
+}
+
+.importPlanActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.importWarning {
+  border: 1px solid #f4d47a;
+  border-radius: 8px;
+  background: #fff9ed;
+  color: #8a6510;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 12px 14px;
+}
+
+.importFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.importFieldHeader,
+.importValidationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.importFieldHeader strong,
+.importValidationHeader strong {
+  color: #172033;
+}
+
+.importFieldHeader span,
+.importValidationHeader span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #44566d;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.importValidationList {
+  display: grid;
+  gap: 10px;
+}
+
+.importValidationCard.info {
+  border-color: #bcd4ef;
+}
+
+.importValidationCard.warning {
+  border-color: #f4d47a;
+}
+
+.importValidationCard.error {
+  border-color: #f0b0a6;
+}
+
+.workspacePreviewDocument .workspaceDocumentHeader h3 {
+  font-size: 30px;
+}
+
+.workspacePreviewDocument .workspaceDocumentHeader p {
+  max-width: 78ch;
 }
 
 .workspaceCollapsiblePanel {

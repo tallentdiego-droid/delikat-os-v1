@@ -3,6 +3,7 @@ import { AlertCircle, Layers3, Plus, X } from 'lucide-react';
 import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { SOPLibrary } from './SOPLibrary';
 import { SOPPreview } from './SOPPreview';
+import { ImportCenter } from './ImportCenter';
 import { EmptyState, OSCard, SOPCard } from '../os';
 import {
   createKnowledgeDraft,
@@ -160,6 +161,7 @@ export function KnowledgeWorkspace({
   const [data, setData] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [studioSection, setStudioSection] = useState<'library' | 'import'>('library');
   const [folderFilter, setFolderFilter] = useState<'all' | 'imported' | 'drafts' | 'user_created' | 'recent'>('all');
   const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | 'imported' | 'user_created'>('all');
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
@@ -185,6 +187,7 @@ export function KnowledgeWorkspace({
 
   useEffect(() => {
     if (typeof openNewSOPRequestId === 'number' && openNewSOPRequestId > 0) {
+      setStudioSection('library');
       openNewSOPModal();
     }
   }, [openNewSOPRequestId]);
@@ -192,6 +195,7 @@ export function KnowledgeWorkspace({
   useEffect(() => {
     if (typeof initialSearchRequestId !== 'number') return;
     const nextQuery = initialSearchQuery?.trim() ?? '';
+    setStudioSection('library');
     setQuery(nextQuery);
     setManualCode('all');
     setSourceTypeFilter('all');
@@ -418,6 +422,7 @@ export function KnowledgeWorkspace({
   }
 
   function openNewSOPModal(): void {
+    setStudioSection('library');
     setNewSOPDraft({
       title: '',
       summary: '',
@@ -493,6 +498,14 @@ export function KnowledgeWorkspace({
           <p>Browse manuals, search SOPs, edit drafts, and keep imported evidence visible.</p>
         </div>
         <div className="workspaceHeaderActions">
+          <div className="studioSectionTabs" role="tablist" aria-label="Studio sections">
+            <button className={studioSection === 'library' ? 'iconTextButton primary' : 'iconTextButton'} onClick={() => setStudioSection('library')} type="button">
+              SOP Library
+            </button>
+            <button className={studioSection === 'import' ? 'iconTextButton primary' : 'iconTextButton'} onClick={() => setStudioSection('import')} type="button">
+              Import Center
+            </button>
+          </div>
           <button className="iconTextButton" onClick={openNewSOPModal} type="button" disabled={!data}>
             <Plus aria-hidden="true" size={16} />
             New SOP
@@ -629,7 +642,9 @@ export function KnowledgeWorkspace({
         </div>
       ) : null}
 
-      {!data ? (
+      {studioSection === 'import' ? (
+        <ImportCenter />
+      ) : !data ? (
         <div className="knowledgeWorkspaceLayout">
           <aside className="knowledgeWorkspaceSidebar">
             <OSCard className="workspaceSkeletonPanel">
