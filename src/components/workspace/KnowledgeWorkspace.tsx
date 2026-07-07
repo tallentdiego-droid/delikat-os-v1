@@ -10,6 +10,7 @@ import {
   getKnowledgeEngineData,
   type KnowledgeEngineData,
   type KnowledgeObject,
+  type KnowledgeOntologyEntity,
   type ManualFilter,
   type KnowledgeManual,
 } from '../../lib/knowledge';
@@ -33,21 +34,77 @@ function fileLabel(sourceUri: string): string {
   return sourceUri.split('/').pop() || sourceUri || 'Source file';
 }
 
-function matchesQuery(object: KnowledgeObject, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function hasNeedsImprovement(object: KnowledgeObject): boolean {
+  return object.status !== 'active' || object.approvedVersion.status !== 'approved' || object.evidence.length === 0 || object.ontology.roles.length === 0 || object.ontology.departments.length === 0;
+}
+
+function objectSearchText(object: KnowledgeObject): string {
   return [
     object.title,
     object.summary ?? '',
+    object.approvedVersion.body,
+    object.approvedVersion.notes ?? '',
     object.category,
-    object.manualCode ?? '',
     object.manualTitle,
     object.sourceFileUri,
     object.sourceSectionHeading,
-    object.approvedVersion.body,
-    ...object.evidence.map((item) => item.sourceSectionHeading),
-    ...object.related.map((item) => item.object.title),
-  ].some((value) => value.toLowerCase().includes(needle));
+    object.preview,
+    ...object.evidence.map((item) => `${item.sourceManualTitle} ${item.sourceSectionHeading} ${item.sourceSectionBody}`),
+    ...object.related.map((item) => `${item.object.title} ${item.relationship.typeName} ${item.object.manualTitle}`),
+    ...object.ontology.departments.map((item) => `${item.name} ${item.code}`),
+    ...object.ontology.roles.map((item) => `${item.name} ${item.code}`),
+    ...object.ontology.areas.map((item) => `${item.name} ${item.code}`),
+    ...object.ontology.businessProcesses.map((item) => `${item.name} ${item.code}`),
+    ...object.ontology.tags.map((item) => `${item.name} ${item.code}`),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function searchScore(object: KnowledgeObject, query: string): number {
+  const needle = normalize(query);
+  if (!needle) return 0;
+
+  const haystack = objectSearchText(object).toLowerCase();
+  if (!haystack.includes(needle)) return -1;
+
+  let score = 0;
+  const exactTitle = normalize(object.title) === needle;
+  const titleMatch = normalize(object.title).includes(needle);
+  const summaryMatch = normalize(object.summary ?? '').includes(needle);
+  const bodyMatch = normalize(object.approvedVersion.body).includes(needle);
+  const sourceMatch = normalize(`${object.manualTitle} ${object.sourceFileUri} ${object.sourceSectionHeading}`).includes(needle);
+  const tagMatch = object.ontology.tags.some((tag) => normalize(`${tag.name} ${tag.code}`).includes(needle));
+  const roleMatch = object.ontology.roles.some((role) => normalize(`${role.name} ${role.code}`).includes(needle));
+  const departmentMatch = object.ontology.departments.some((department) => normalize(`${department.name} ${department.code}`).includes(needle));
+  const areaMatch = object.ontology.areas.some((area) => normalize(`${area.name} ${area.code}`).includes(needle));
+  const processMatch = object.ontology.businessProcesses.some((process) => normalize(`${process.name} ${process.code}`).includes(needle));
+  const relatedMatch = object.related.some((related) => normalize(`${related.object.title} ${related.relationship.typeName} ${related.object.manualTitle}`).includes(needle));
+
+  if (exactTitle) score += 100;
+  if (titleMatch) score += 80;
+  if (summaryMatch) score += 45;
+  if (bodyMatch) score += 35;
+  if (tagMatch) score += 30;
+  if (sourceMatch) score += 28;
+  if (roleMatch) score += 24;
+  if (departmentMatch) score += 24;
+  if (areaMatch) score += 20;
+  if (processMatch) score += 20;
+  if (relatedMatch) score += 16;
+  if (object.evidence.length > 0) score += 8;
+  if (object.status === 'active') score += 6;
+  return score;
+}
+
+function matchesQuery(object: KnowledgeObject, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return objectSearchText(object).toLowerCase().includes(needle);
 }
 
 function folderLabel(manual: KnowledgeManual): string {
@@ -90,6 +147,10 @@ export function KnowledgeWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [needsImprovementOnly, setNeedsImprovementOnly] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   const refreshData = useCallback(async (): Promise<void> => {
@@ -122,10 +183,22 @@ export function KnowledgeWorkspace({
 
   const filteredObjects = useMemo(() => {
     if (!data) return [];
-    return data.knowledge.objects
-      .filter((object) => manualCode === 'all' || object.manualCode === manualCode)
-      .filter((object) => matchesQuery(object, query));
-  }, [data, manualCode, query]);
+    const filtered = data.knowledge.objects.filter((object) => {
+      const manualMatches = manualCode === 'all' || object.manualCode === manualCode;
+      const departmentMatches =
+        departmentFilter === 'all' || object.ontology.departments.some((department) => department.id === departmentFilter);
+      const roleMatches = roleFilter === 'all' || object.ontology.roles.some((role) => role.id === roleFilter);
+      const statusMatches = statusFilter === 'all' || object.status === statusFilter || object.approvedVersion.status === statusFilter;
+      const needsImprovementMatches = !needsImprovementOnly || hasNeedsImprovement(object);
+      return manualMatches && departmentMatches && roleMatches && statusMatches && needsImprovementMatches && matchesQuery(object, query);
+    });
+
+    return [...filtered].sort((a, b) => {
+      const scoreDiff = searchScore(b, query) - searchScore(a, query);
+      if (query.trim() && scoreDiff !== 0) return scoreDiff;
+      return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
+    });
+  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, statusFilter]);
 
   useEffect(() => {
     if (!data) return;
@@ -202,6 +275,24 @@ export function KnowledgeWorkspace({
     return data.audits.templates.filter((template) => template.items.some((item) => item.matchedKnowledge.some((matched) => matched.id === selectedObject.id)));
   }, [data, selectedObject]);
 
+  const departmentOptions = useMemo<KnowledgeOntologyEntity[]>(
+    () => data?.knowledge.ontologyOptions.departments ?? [],
+    [data],
+  );
+  const roleOptions = useMemo<KnowledgeOntologyEntity[]>(
+    () => data?.knowledge.ontologyOptions.roles ?? [],
+    [data],
+  );
+  const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
+  const resultSummary = useMemo(() => {
+    const total = data?.knowledge.objects.length ?? 0;
+    if (!data) return 'Loading live results from Supabase.';
+    if (query.trim() || departmentFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all' || manualCode !== 'all' || needsImprovementOnly) {
+      return `${filteredObjects.length} SOP${filteredObjects.length === 1 ? '' : 's'} matched your search and filters.`;
+    }
+    return `${total} approved SOP${total === 1 ? '' : 's'} available in the workspace.`;
+  }, [data, departmentFilter, filteredObjects.length, manualCode, needsImprovementOnly, query, roleFilter, statusFilter]);
+
   function openObject(id: string): void {
     if (!data) return;
     const object = data.knowledge.objects.find((entry) => entry.id === id) ?? null;
@@ -242,8 +333,23 @@ export function KnowledgeWorkspace({
 
           <SOPLibrary
             folderLabel={manualCode === 'all' ? 'all folders' : manualCode}
+            departmentFilter={departmentFilter}
+            departmentOptions={departmentOptions}
             drafts={drafts}
             objects={filteredObjects}
+            manualFilter={manualCode}
+            manualOptions={manualOptions}
+            needsImprovementOnly={needsImprovementOnly}
+            onDepartmentFilterChange={setDepartmentFilter}
+            onManualFilterChange={setManualCode}
+            onNeedsImprovementChange={setNeedsImprovementOnly}
+            onRoleFilterChange={setRoleFilter}
+            onStatusFilterChange={setStatusFilter}
+            roleFilter={roleFilter}
+            roleOptions={roleOptions}
+            resultSummary={resultSummary}
+            selectedObjectId={selectedObjectId}
+            statusFilter={statusFilter}
             onQueryChange={setQuery}
             onSelectObject={openObject}
             query={query}

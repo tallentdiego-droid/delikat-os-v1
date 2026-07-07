@@ -20,6 +20,8 @@ export function SOPCard({
   action,
   children,
   className = '',
+  onClick,
+  selected = false,
 }: {
   title: string;
   summary?: string | null;
@@ -32,9 +34,11 @@ export function SOPCard({
   action?: ReactNode;
   children?: ReactNode;
   className?: string;
+  onClick?: () => void;
+  selected?: boolean;
 }): JSX.Element {
   return (
-    <OSCard className={className ? `sopCard ${className}` : 'sopCard'}>
+    <OSCard className={className ? `sopCard ${className}` : 'sopCard'} onClick={onClick} selected={selected}>
       <div className="sopCardHeader">
         <div>
           <strong>{title}</strong>

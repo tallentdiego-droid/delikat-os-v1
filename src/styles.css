@@ -364,6 +364,16 @@ button {
   background: #ffffff;
 }
 
+.osCard[role='button'] {
+  cursor: pointer;
+}
+
+.osCard.selected,
+.workspaceResultCard.selected {
+  border-color: #8fb3de;
+  box-shadow: 0 0 0 1px rgba(143, 179, 222, 0.16);
+}
+
 .metricCard {
   padding: 18px;
 }
@@ -1489,6 +1499,88 @@ pre {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.workspaceSearchSection {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceSearchMeta {
+  color: #637188;
+  font-size: 13px;
+}
+
+.workspaceFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspaceFilter {
+  align-items: center;
+}
+
+.workspaceFilter select {
+  min-width: 0;
+}
+
+.workspaceFilterSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #34506d;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+
+.workspaceFilterSummary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceResultCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.workspaceResultCard .sopCardSource {
+  border-left-color: #b9c7d8;
+}
+
+.workspaceResultBody {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceResultBody p {
+  margin: 0;
+  color: #344154;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.workspaceResultHints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceResultHints span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #4c5d73;
+  font-size: 12px;
+  padding: 4px 8px;
 }
 
 .workspacePreviewPanel {
@@ -3657,6 +3749,7 @@ tbody tr:hover,
   .workspaceDraftSplit,
   .workspaceAIActions,
   .workspaceAISuggestionActions,
+  .workspaceFilterGrid,
   .workspaceStructuredStepsHeader,
   .workspaceStructuredStepHeader,
   .workspaceStructuredStepFields,
