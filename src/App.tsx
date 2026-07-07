@@ -125,7 +125,13 @@ export function App(): JSX.Element {
               onOpenTraining={() => setPage('training')}
             />
           )}
-          {page === 'knowledgeWorkspace' && <KnowledgeWorkspacePage />}
+          {page === 'knowledgeWorkspace' && (
+            <KnowledgeWorkspacePage
+              onOpenAudits={() => setPage('audits')}
+              onOpenChecklists={() => setPage('checklists')}
+              onOpenTraining={() => setPage('training')}
+            />
+          )}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}

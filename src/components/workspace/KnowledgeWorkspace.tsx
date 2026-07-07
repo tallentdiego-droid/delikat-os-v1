@@ -75,7 +75,17 @@ function sourceSectionsForObject(manual: KnowledgeManual | null, object: Knowled
   return manual.sections.filter((section) => section.knowledgeIds.includes(object.id));
 }
 
-export function KnowledgeWorkspace(): JSX.Element {
+interface KnowledgeWorkspaceProps {
+  onOpenTraining?: () => void;
+  onOpenChecklists?: () => void;
+  onOpenAudits?: () => void;
+}
+
+export function KnowledgeWorkspace({
+  onOpenTraining,
+  onOpenChecklists,
+  onOpenAudits,
+}: KnowledgeWorkspaceProps): JSX.Element {
   const [data, setData] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -248,6 +258,9 @@ export function KnowledgeWorkspace(): JSX.Element {
                 relatedSOPs={selectedObject.related}
                 sourceSections={sourceSections}
                 trainingPaths={previewTrainingPaths}
+                onOpenAudits={onOpenAudits}
+                onOpenChecklists={onOpenChecklists}
+                onOpenTraining={onOpenTraining}
               />
             ) : (
               <OSCard className="workspacePreviewPanel">
