@@ -106,6 +106,10 @@ export function SOPPreview({
   object,
   manual,
   sourceSections,
+  relatedSOPs,
+  trainingPaths,
+  checklistTemplates,
+  auditTemplates,
   onRefresh,
   onLocalObjectChange,
 }: SOPPreviewProps): JSX.Element {
@@ -409,43 +413,6 @@ export function SOPPreview({
           }))} title="Steps" />
         </section>
 
-        {notes ? (
-          <section className="workspaceDocumentPanel">
-            <div className="workspaceSectionHeader">
-              <div>
-                <h4>Notes</h4>
-                <p>Working notes for the current version.</p>
-              </div>
-            </div>
-            {editMode && draft ? (
-              <label className="workspaceDraftEditor">
-                <span>Notes</span>
-                <textarea onChange={(event) => setDraft({ ...draft, notes: event.target.value })} value={draft.notes} rows={3} />
-              </label>
-            ) : (
-              <div className="workspaceNotesBody">{notes}</div>
-            )}
-          </section>
-        ) : null}
-
-        <section className="workspaceDocumentPanel">
-          <div className="workspaceSectionHeader">
-            <div>
-              <h4>Tags</h4>
-              <p>Organizational context linked to this SOP.</p>
-            </div>
-          </div>
-          <div className="workspaceTagList">
-            {tags
-              .split(',')
-              .map((tag) => tag.trim())
-              .filter(Boolean)
-              .map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
-          </div>
-        </section>
-
         <section className="workspaceDocumentPanel" ref={evidenceRef}>
           <div className="workspaceSectionHeader">
             <div>
@@ -457,68 +424,198 @@ export function SOPPreview({
           <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
         </section>
 
-        <section className="workspaceDocumentPanel">
-          <div className="workspaceHistoryHeader">
-            <div>
-              <h4>
-                <History aria-hidden="true" size={16} />
-                History
-              </h4>
-              <p>Version, date, author, and status are preserved for every change.</p>
-            </div>
-            <div className="quietText">{currentVersion?.title ?? object.title}</div>
-          </div>
-
-          <div className="workspaceHistoryGroups">
-            {versionGroups.map((group) => (
-              <div className="workspaceHistoryGroup" key={group.key}>
-                <div className="workspaceHistoryGroupHeader">
+        <details className="workspaceCollapsiblePanel">
+          <summary>More details</summary>
+          <div className="workspaceCollapsibleBody">
+            {notes ? (
+              <section className="workspaceDocumentPanel">
+                <div className="workspaceSectionHeader">
                   <div>
-                    <strong>{group.title}</strong>
-                    <p>{group.description}</p>
+                    <h4>Notes</h4>
+                    <p>Working notes for the current version.</p>
                   </div>
-                  <span>{group.items.length}</span>
                 </div>
-                <div className="workspaceHistoryList">
-                  {group.items.map((version) => {
-                    const isCurrent = version.id === currentVersionId;
-                    return (
-                      <SOPCard
-                        key={version.id}
-                        className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
-                        sourceDetail={isCurrent ? (version.status === 'approved' ? 'Current approved version' : 'Current draft version') : versionLabel(version.status)}
-                        sourceLabel={isCurrent ? 'Current version' : 'Version'}
-                        status={version.status}
-                        summary={previewText(version.summary ?? version.body, 180)}
-                        title={version.title ?? object.title}
-                        action={
-                          isCurrent ? (
-                            <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
-                              Edit Version
-                            </button>
-                          ) : (
-                            <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
-                              <RotateCcw aria-hidden="true" size={14} />
-                              Restore Version
-                            </button>
-                          )
-                        }
-                      >
-                        <div className="workspaceHistoryMeta">
-                          <span>v{version.versionNumber}</span>
-                          <span>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt))}</span>
-                          <span>{versionAuthorLabel(version)}</span>
-                        </div>
-                        {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
-                        <p className="sopVersionBody">{previewText(version.body, 260)}</p>
-                      </SOPCard>
-                    );
-                  })}
+                {editMode && draft ? (
+                  <label className="workspaceDraftEditor">
+                    <span>Notes</span>
+                    <textarea onChange={(event) => setDraft({ ...draft, notes: event.target.value })} value={draft.notes} rows={3} />
+                  </label>
+                ) : (
+                  <div className="workspaceNotesBody">{notes}</div>
+                )}
+              </section>
+            ) : null}
+
+            <section className="workspaceDocumentPanel">
+              <div className="workspaceSectionHeader">
+                <div>
+                  <h4>Tags</h4>
+                  <p>Organizational context linked to this SOP.</p>
                 </div>
               </div>
-            ))}
+              <div className="workspaceTagList">
+                {tags
+                  .split(',')
+                  .map((tag) => tag.trim())
+                  .filter(Boolean)
+                  .map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+              </div>
+            </section>
           </div>
-        </section>
+        </details>
+
+        <details className="workspaceCollapsiblePanel">
+          <summary>Related work</summary>
+          <div className="workspaceCollapsibleBody">
+            <section className="workspaceDocumentPanel">
+              <div className="workspaceSectionHeader">
+                <div>
+                  <h4>Related SOPs</h4>
+                  <p>Other SOPs linked to this one.</p>
+                </div>
+              </div>
+              <div className="workspaceRelatedGrid">
+                {relatedSOPs.length > 0 ? (
+                  relatedSOPs.map((related) => (
+                    <SOPCard
+                      key={related.relationship.id}
+                      title={related.object.title}
+                      summary={related.relationship.notes ?? related.object.manualTitle}
+                      sourceLabel={related.direction === 'incoming' ? 'Linked SOP' : 'Related SOP'}
+                      sourceDetail={related.object.manualCode ?? related.object.manualTitle}
+                      status={related.object.status}
+                    />
+                  ))
+                ) : (
+                  <div className="workspaceEmpty">No related SOPs yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="workspaceDocumentPanel">
+              <div className="workspaceSectionHeader">
+                <div>
+                  <h4>Training, checklists, and audits</h4>
+                  <p>Linked work that uses this SOP.</p>
+                </div>
+              </div>
+              <div className="workspaceRelatedGrid">
+                {trainingPaths.length > 0 ? (
+                  trainingPaths.map((path) => (
+                    <SOPCard
+                      key={path.id}
+                      title={path.title}
+                      summary={`${path.items.length} items · ${path.coveragePercent}% covered`}
+                      sourceLabel="Training"
+                      sourceDetail={path.role?.name ?? path.department?.name ?? 'Training path'}
+                      status={path.status}
+                    />
+                  ))
+                ) : (
+                  <div className="workspaceEmpty">No training links yet.</div>
+                )}
+                {checklistTemplates.length > 0 ? (
+                  checklistTemplates.map((template) => (
+                    <SOPCard
+                      key={template.id}
+                      title={template.title}
+                      summary={`${template.itemCount} items · ${template.coveragePercent}% covered`}
+                      sourceLabel="Checklist"
+                      sourceDetail={template.role?.title ?? template.process?.name ?? 'Checklist template'}
+                      status={template.status}
+                    />
+                  ))
+                ) : (
+                  <div className="workspaceEmpty">No checklist links yet.</div>
+                )}
+                {auditTemplates.length > 0 ? (
+                  auditTemplates.map((template) => (
+                    <SOPCard
+                      key={template.id}
+                      title={template.title}
+                      summary={`${template.itemCount} items · ${template.coveragePercent}% covered`}
+                      sourceLabel="Audit"
+                      sourceDetail={template.checklistTemplate?.role?.title ?? template.auditType}
+                      status={template.status}
+                    />
+                  ))
+                ) : (
+                  <div className="workspaceEmpty">No audit links yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </details>
+
+        <details className="workspaceCollapsiblePanel">
+          <summary>Version history</summary>
+          <div className="workspaceCollapsibleBody">
+            <section className="workspaceDocumentPanel">
+              <div className="workspaceHistoryHeader">
+                <div>
+                  <h4>
+                    <History aria-hidden="true" size={16} />
+                    History
+                  </h4>
+                  <p>Version, date, author, and status are preserved for every change.</p>
+                </div>
+                <div className="quietText">{currentVersion?.title ?? object.title}</div>
+              </div>
+
+              <div className="workspaceHistoryGroups">
+                {versionGroups.map((group) => (
+                  <div className="workspaceHistoryGroup" key={group.key}>
+                    <div className="workspaceHistoryGroupHeader">
+                      <div>
+                        <strong>{group.title}</strong>
+                        <p>{group.description}</p>
+                      </div>
+                      <span>{group.items.length}</span>
+                    </div>
+                    <div className="workspaceHistoryList">
+                      {group.items.map((version) => {
+                        const isCurrent = version.id === currentVersionId;
+                        return (
+                          <SOPCard
+                            key={version.id}
+                            className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
+                            sourceDetail={isCurrent ? (version.status === 'approved' ? 'Current approved version' : 'Current draft version') : versionLabel(version.status)}
+                            sourceLabel={isCurrent ? 'Current version' : 'Version'}
+                            status={version.status}
+                            summary={previewText(version.summary ?? version.body, 180)}
+                            title={version.title ?? object.title}
+                            action={
+                              isCurrent ? (
+                                <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
+                                  Edit Version
+                                </button>
+                              ) : (
+                                <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
+                                  <RotateCcw aria-hidden="true" size={14} />
+                                  Restore Version
+                                </button>
+                              )
+                            }
+                          >
+                            <div className="workspaceHistoryMeta">
+                              <span>v{version.versionNumber}</span>
+                              <span>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt))}</span>
+                              <span>{versionAuthorLabel(version)}</span>
+                            </div>
+                            {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
+                            <p className="sopVersionBody">{previewText(version.body, 260)}</p>
+                          </SOPCard>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </details>
 
         {editMode && draft ? (
           <section className="workspaceDocumentPanel">

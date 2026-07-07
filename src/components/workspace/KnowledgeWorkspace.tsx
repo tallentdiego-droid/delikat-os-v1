@@ -161,6 +161,7 @@ export function KnowledgeWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [folderFilter, setFolderFilter] = useState<'all' | 'imported' | 'drafts' | 'user_created' | 'recent'>('all');
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | 'imported' | 'user_created'>('all');
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -193,6 +194,7 @@ export function KnowledgeWorkspace({
     const nextQuery = initialSearchQuery?.trim() ?? '';
     setQuery(nextQuery);
     setManualCode('all');
+    setSourceTypeFilter('all');
     setDepartmentFilter('all');
     setRoleFilter('all');
     setStatusFilter('all');
@@ -260,13 +262,13 @@ export function KnowledgeWorkspace({
         (folderFilter === 'drafts' && (object.status !== 'active' || object.approvedVersion.status !== 'approved')) ||
         (folderFilter === 'user_created' && object.sourceType === 'user_created') ||
         (folderFilter === 'recent' && recentlyEditedIds.has(object.id));
+      const sourceTypeMatches =
+        sourceTypeFilter === 'all' ||
+        (sourceTypeFilter === 'imported' && object.sourceType === 'imported') ||
+        (sourceTypeFilter === 'user_created' && object.sourceType === 'user_created');
       const manualMatches = manualCode === 'all' || object.manualCode === manualCode;
-      const departmentMatches =
-        departmentFilter === 'all' || object.ontology.departments.some((department) => department.id === departmentFilter);
-      const roleMatches = roleFilter === 'all' || object.ontology.roles.some((role) => role.id === roleFilter);
       const statusMatches = statusFilter === 'all' || object.status === statusFilter || object.approvedVersion.status === statusFilter;
-      const needsImprovementMatches = !needsImprovementOnly || hasNeedsImprovement(object);
-      return folderMatches && manualMatches && departmentMatches && roleMatches && statusMatches && needsImprovementMatches && matchesQuery(object, query);
+      return folderMatches && sourceTypeMatches && manualMatches && statusMatches && matchesQuery(object, query);
     });
 
     return [...filtered].sort((a, b) => {
@@ -281,7 +283,7 @@ export function KnowledgeWorkspace({
       if (query.trim() && scoreDiff !== 0) return scoreDiff;
       return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
     });
-  }, [data, departmentFilter, folderFilter, manualCode, needsImprovementOnly, query, recentlyEditedIds, roleFilter, sortMode, statusFilter, workspaceObjects]);
+  }, [data, folderFilter, manualCode, query, recentlyEditedIds, sortMode, sourceTypeFilter, statusFilter, workspaceObjects]);
 
   useEffect(() => {
     if (!data) return;
@@ -293,6 +295,14 @@ export function KnowledgeWorkspace({
     const visible = filteredObjects.find((object) => object.id === selectedObjectId) ?? filteredObjects[0];
     if (visible && visible.id !== selectedObjectId) setSelectedObjectId(visible.id);
   }, [data, filteredObjects, selectedObjectId]);
+
+  useEffect(() => {
+    if (!data || query.trim().length === 0) return;
+    const firstMatch = filteredObjects[0];
+    if (firstMatch && firstMatch.id !== selectedObjectId) {
+      setSelectedObjectId(firstMatch.id);
+    }
+  }, [data, filteredObjects, query, selectedObjectId]);
 
   const selectedObject = useMemo(
     () => workspaceObjects.find((object) => object.id === selectedObjectId) ?? null,
@@ -356,6 +366,10 @@ export function KnowledgeWorkspace({
     return data.audits.templates.filter((template) => template.items.some((item) => item.matchedKnowledge.some((matched) => matched.id === selectedObject.id)));
   }, [data, selectedObject]);
 
+  const tagOptions = useMemo<KnowledgeOntologyEntity[]>(
+    () => data?.knowledge.ontologyOptions.tags ?? [],
+    [data],
+  );
   const departmentOptions = useMemo<KnowledgeOntologyEntity[]>(
     () => data?.knowledge.ontologyOptions.departments ?? [],
     [data],
@@ -364,19 +378,15 @@ export function KnowledgeWorkspace({
     () => data?.knowledge.ontologyOptions.roles ?? [],
     [data],
   );
-  const tagOptions = useMemo<KnowledgeOntologyEntity[]>(
-    () => data?.knowledge.ontologyOptions.tags ?? [],
-    [data],
-  );
   const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
   const resultSummary = useMemo(() => {
     const total = workspaceObjects.length;
     if (!data) return 'Loading live results from Supabase.';
-    if (query.trim() || departmentFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all' || manualCode !== 'all' || needsImprovementOnly) {
+    if (query.trim() || sourceTypeFilter !== 'all' || statusFilter !== 'all' || manualCode !== 'all') {
       return `${filteredObjects.length} SOP${filteredObjects.length === 1 ? '' : 's'} matched your search and filters.`;
     }
     return `${total} SOP${total === 1 ? '' : 's'} available in the workspace.`;
-  }, [data, departmentFilter, filteredObjects.length, manualCode, needsImprovementOnly, query, roleFilter, statusFilter, workspaceObjects.length]);
+  }, [data, filteredObjects.length, manualCode, query, sourceTypeFilter, statusFilter, workspaceObjects.length]);
 
   function openObject(id: string): void {
     if (!data) return;
@@ -743,26 +753,20 @@ export function KnowledgeWorkspace({
 
           <SOPLibrary
             folderLabel={manualCode === 'all' ? 'all folders' : manualCode}
-            departmentFilter={departmentFilter}
-            departmentOptions={departmentOptions}
             objects={filteredObjects}
-              folderFilter={folderFilter}
-              manualFilter={manualCode}
-              manualOptions={manualOptions}
-              needsImprovementOnly={needsImprovementOnly}
-              onDepartmentFilterChange={setDepartmentFilter}
-              onManualFilterChange={setManualCode}
-              onNeedsImprovementChange={setNeedsImprovementOnly}
-              onSortModeChange={setSortMode}
-              onOpenNewSOP={openNewSOPModal}
-              onRoleFilterChange={setRoleFilter}
-              onStatusFilterChange={setStatusFilter}
-              sortMode={sortMode}
-              roleFilter={roleFilter}
-              roleOptions={roleOptions}
-              resultSummary={resultSummary}
+            folderFilter={folderFilter}
+            manualFilter={manualCode}
+            manualOptions={manualOptions}
+            onManualFilterChange={setManualCode}
+            onOpenNewSOP={openNewSOPModal}
+            onStatusFilterChange={setStatusFilter}
+            onSortModeChange={setSortMode}
             selectedObjectId={selectedObjectId}
+            sortMode={sortMode}
             statusFilter={statusFilter}
+            sourceTypeFilter={sourceTypeFilter}
+            onSourceTypeFilterChange={setSourceTypeFilter}
+            resultSummary={resultSummary}
             onQueryChange={setQuery}
             onSelectObject={openObject}
             query={query}

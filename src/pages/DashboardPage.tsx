@@ -22,24 +22,34 @@ export function DashboardPage({
 }: DashboardPageProps): JSX.Element {
   const [knowledge, setKnowledge] = useState<KnowledgeEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     let active = true;
+    const slowTimer = window.setTimeout(() => {
+      if (active) setIsSlowLoading(true);
+    }, 3500);
 
     getKnowledgeEngineData()
       .then((data) => {
         if (!active) return;
         setKnowledge(data);
         setError(null);
+        setIsLoading(false);
+        setIsSlowLoading(false);
       })
       .catch((reason: unknown) => {
         if (!active) return;
         setError(reason instanceof Error ? reason.message : 'Home could not reach live Supabase data.');
+        setIsLoading(false);
+        setIsSlowLoading(false);
       });
 
     return () => {
       active = false;
+      window.clearTimeout(slowTimer);
     };
   }, []);
 
@@ -50,7 +60,7 @@ export function DashboardPage({
 
   const recentSOPs = useMemo(() => {
     if (!knowledge) return [];
-    return [...knowledge.objects].sort(draftSort).slice(0, 6);
+    return knowledge.objects.filter((object) => object.status === 'active' && object.approvedVersion.status === 'approved').sort(draftSort).slice(0, 4);
   }, [knowledge]);
 
   const lastDraft = recentDrafts[0] ?? null;
@@ -116,66 +126,111 @@ export function DashboardPage({
         </form>
       </OSCard>
 
-      <section className="detailSection">
-        <div className="sectionHeader">
-          <div>
-            <h3>Recent SOPs and drafts</h3>
-            <p>Recent work from the live Supabase library.</p>
+      <div className="homeFeedGrid">
+        <section className="detailSection">
+          <div className="sectionHeader">
+            <div>
+              <h3>Recent SOPs</h3>
+              <p>Approved SOPs from the live Supabase library.</p>
+            </div>
+            {onOpenStudio ? (
+              <button className="iconTextButton" onClick={onOpenStudio} type="button">
+                <BookOpen aria-hidden="true" size={16} />
+                Open Studio
+              </button>
+            ) : null}
           </div>
-          {onOpenStudio ? (
-            <button className="iconTextButton" onClick={onOpenStudio} type="button">
-              <BookOpen aria-hidden="true" size={16} />
-              Open Studio
-            </button>
-          ) : null}
-        </div>
-        {knowledge === null ? (
-          <EmptyState icon={Workflow} title="Loading recent SOPs" description="We’re pulling recent drafts and edited SOPs from Supabase." />
-        ) : recentSOPs.length > 0 ? (
-          <div className="homeDraftGrid">
-            {recentSOPs.map((object) => (
-              <SOPCard
-                key={object.id}
-                title={object.title}
-                summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                sourceLabel={knowledgeOriginLabel(object)}
-                sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                status={object.status}
-                statusLabel={object.sourceType === 'user_created' ? 'Draft' : object.approvedVersion.status === 'approved' ? 'Edited' : 'Draft'}
-                action={
-                  <button
-                    className="tableLink"
-                    onClick={() => {
-                      if (object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved') {
-                        onContinueLastDraft?.(object.id);
-                        return;
-                      }
-                      onOpenStudio?.();
-                    }}
-                    type="button"
-                  >
-                    Open in Studio
+          {isLoading && !knowledge ? (
+            <EmptyState
+              icon={Workflow}
+              title={isSlowLoading ? 'Still loading recent SOPs' : 'Loading recent SOPs'}
+              description={
+                isSlowLoading
+                  ? 'Supabase is taking a moment to respond. Studio is still available if you want to keep working.'
+                  : 'We’re pulling recent SOPs from Supabase.'
+              }
+            />
+          ) : recentSOPs.length > 0 ? (
+            <div className="homeDraftGrid">
+              {recentSOPs.map((object) => (
+                <SOPCard
+                  key={object.id}
+                  title={object.title}
+                  summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
+                  sourceLabel={knowledgeOriginLabel(object)}
+                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                  status={object.status}
+                  statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'}
+                  action={
+                    <button className="tableLink" onClick={() => onOpenStudio?.()} type="button">
+                      Open in Studio
+                    </button>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Workflow} title="No recent SOPs yet" description="Once SOPs are available in the live library, they’ll appear here." />
+          )}
+        </section>
+
+        <section className="detailSection">
+          <div className="sectionHeader">
+            <div>
+              <h3>Recent drafts</h3>
+              <p>Draft SOPs saved in Studio.</p>
+            </div>
+          </div>
+          {isLoading && !knowledge ? (
+            <EmptyState
+              icon={Workflow}
+              title={isSlowLoading ? 'Still loading recent drafts' : 'Loading recent drafts'}
+              description={
+                isSlowLoading
+                  ? 'Supabase is taking longer than usual. The workspace remains available.'
+                  : 'We’re checking for recent drafts in Supabase.'
+              }
+            />
+          ) : recentDrafts.length > 0 ? (
+            <div className="homeDraftGrid">
+              {recentDrafts.map((object) => (
+                <SOPCard
+                  key={object.id}
+                  title={object.title}
+                  summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
+                  sourceLabel={knowledgeOriginLabel(object)}
+                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                  status={object.status}
+                  statusLabel={object.sourceType === 'user_created' ? 'Draft' : 'Needs review'}
+                  action={
+                    <button
+                      className="tableLink"
+                      onClick={() => onContinueLastDraft?.(object.id)}
+                      type="button"
+                    >
+                      Continue draft
+                    </button>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Workflow}
+              title="No drafts yet"
+              description="Start a new SOP in Studio and it will show up here as soon as it is saved as a draft."
+              action={
+                onCreateSOP ? (
+                  <button className="iconTextButton" onClick={onCreateSOP} type="button">
+                    <Plus aria-hidden="true" size={16} />
+                    Create New SOP
                   </button>
-                }
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={Workflow}
-            title="No drafts yet"
-            description="Start a new SOP in Studio and it will show up here as soon as it is saved as a draft."
-            action={
-              onCreateSOP ? (
-                <button className="iconTextButton" onClick={onCreateSOP} type="button">
-                  <Plus aria-hidden="true" size={16} />
-                  Create New SOP
-                </button>
-              ) : undefined
-            }
-          />
-        )}
-      </section>
+                ) : undefined
+              }
+            />
+          )}
+        </section>
+      </div>
     </section>
   );
 }

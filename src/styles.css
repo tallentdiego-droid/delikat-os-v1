@@ -110,6 +110,11 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.homeFeedGrid {
+  display: grid;
+  gap: 16px;
+}
+
 .hubGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1810,6 +1815,42 @@ pre {
   min-width: 0;
 }
 
+.workspaceCollapsiblePanel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.workspaceCollapsiblePanel > summary {
+  color: #172033;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.workspaceCollapsiblePanel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workspaceCollapsibleBody {
+  display: grid;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+.workspaceRelatedGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceRelatedGrid .sopCard {
+  padding: 14px;
+}
+
 .workspacePreviewActions {
   display: flex;
   flex-wrap: wrap;
@@ -1910,12 +1951,20 @@ pre {
   letter-spacing: 0;
 }
 
+.workspacePreviewDocument .workspaceDocumentHeader h3 {
+  font-size: 30px;
+}
+
 .workspaceDocumentHeader p {
   margin: 0;
   color: #4b5f77;
   font-size: 15px;
   line-height: 1.65;
   max-width: 72ch;
+}
+
+.workspacePreviewDocument .workspaceDocumentHeader p {
+  max-width: 78ch;
 }
 
 .workspaceDocumentBadges {
