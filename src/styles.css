@@ -1521,6 +1521,81 @@ pre {
   padding: 10px 12px;
 }
 
+.workspaceAIArea {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  background: #fdfefe;
+  padding: 12px;
+}
+
+.workspaceAIActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceAISuggestionCard {
+  display: grid;
+  gap: 12px;
+}
+
+.workspaceAISuggestionBody {
+  display: grid;
+  gap: 12px;
+}
+
+.workspaceAISuggestionCopy,
+.workspaceAISuggestionEvidence {
+  display: grid;
+  gap: 8px;
+}
+
+.workspaceAISuggestionCopy span,
+.workspaceAISuggestionEvidence span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceAISuggestionCopy pre {
+  margin: 0;
+}
+
+.workspaceAISuggestionEvidenceList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceAISuggestionEvidenceList strong {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #44566d;
+  font-size: 12px;
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+.workspaceAISuggestionWarning {
+  border: 1px solid #f4d47a;
+  border-radius: 8px;
+  background: #fff9ed;
+  color: #8a6510;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.workspaceAISuggestionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .workspaceDraftEditor {
   display: grid;
   gap: 12px;
@@ -3580,6 +3655,8 @@ tbody tr:hover,
   .workspacePreviewSummary,
   .workspacePreviewActions,
   .workspaceDraftSplit,
+  .workspaceAIActions,
+  .workspaceAISuggestionActions,
   .workspaceStructuredStepsHeader,
   .workspaceStructuredStepHeader,
   .workspaceStructuredStepFields,

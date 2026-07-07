@@ -61,6 +61,21 @@ interface DraftStep {
   isCustom: boolean;
 }
 
+type AISuggestionKind = 'improve_wording' | 'summarize' | 'missing_steps' | 'checklist_draft' | 'training_outline';
+
+interface AIDraftSuggestion {
+  id: string;
+  kind: AISuggestionKind;
+  title: string;
+  summary: string;
+  body: string;
+  notes: string;
+  warning: string | null;
+  evidenceNotes: string[];
+  directSupport: boolean;
+  applySteps: DraftStep[] | null;
+}
+
 function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageSummary | null): {
   coveragePercent: number;
   label: string;
@@ -250,6 +265,139 @@ function versionHistoryGroup(version: KnowledgeObject['versions'][number], curre
   return 'archived';
 }
 
+function sentenceCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function draftStepFromSection(section: KnowledgeManual['sections'][number], notePrefix: string): DraftStep {
+  return {
+    id: section.id,
+    title: section.heading,
+    notes: `${notePrefix}: ${previewText(section.body, 140)}`,
+    sourceSectionId: section.id,
+    sourceSectionHeading: section.heading,
+    sourceSectionBody: section.body,
+    isCustom: false,
+  };
+}
+
+function checklistDraftBodyFromSections(sections: KnowledgeManual['sections']): string {
+  if (sections.length === 0) return 'No source sections are available to build a checklist draft.';
+  return [
+    'Checklist draft',
+    ...sections.map((section, index) => `${index + 1}. ${section.heading}\n   - Verify against source evidence: ${previewText(section.body, 120)}`),
+  ].join('\n');
+}
+
+function trainingOutlineBodyFromSections(sections: KnowledgeManual['sections']): string {
+  if (sections.length === 0) return 'No source sections are available to build a training outline draft.';
+  return [
+    'Training outline draft',
+    ...sections.map((section, index) => `${index + 1}. ${section.heading}\n   - Coach prompt: Review and demonstrate the approved behavior from the source evidence.`),
+  ].join('\n');
+}
+
+function compactEvidenceNotes(object: KnowledgeObject): string[] {
+  return object.evidence.slice(0, 3).map((item) => `${item.sourceManualTitle} · ${item.sourceSectionHeading}`);
+}
+
+function buildAIDraftSuggestion(
+  kind: AISuggestionKind,
+  object: KnowledgeObject,
+  sourceSections: KnowledgeManual['sections'],
+  draft: DraftState | null,
+): AIDraftSuggestion {
+  const currentTitle = draft?.title ?? object.title;
+  const currentSummary = draft?.summary ?? object.summary ?? previewText(object.approvedVersion.body, 180);
+  const currentBody = draft?.body ?? object.approvedVersion.body;
+  const evidenceNotes = compactEvidenceNotes(object);
+  const supportedByEvidence = sourceSections.length > 0;
+  const sourceBreakdown = sourceSections
+    .slice(0, 5)
+    .map((section) => `${section.heading}: ${previewText(section.body, 150)}`)
+    .join('\n');
+
+  switch (kind) {
+    case 'improve_wording':
+      return {
+        id: `${kind}-${object.id}-${Date.now()}`,
+        kind,
+        title: sentenceCase(currentTitle.trim() || object.title),
+        summary: previewText(currentSummary || object.title, 180),
+        body: [currentSummary || previewText(currentBody, 220), '', sourceBreakdown || currentBody].filter(Boolean).join('\n'),
+        notes: 'AI draft suggestion: wording refined from live source evidence. Review before saving.',
+        warning: supportedByEvidence ? null : 'This suggestion is not directly supported by source evidence and should be reviewed manually.',
+        evidenceNotes,
+        directSupport: supportedByEvidence,
+        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Refined wording source')),
+      };
+    case 'summarize':
+      return {
+        id: `${kind}-${object.id}-${Date.now()}`,
+        kind,
+        title: currentTitle,
+        summary: previewText(sourceSections.map((section) => `${section.heading}. ${section.body}`).join(' '), 180) || currentSummary,
+        body: [
+          'AI draft suggestion: summary only',
+          ...sourceSections.map((section, index) => `${index + 1}. ${section.heading} — ${previewText(section.body, 160)}`),
+        ].join('\n'),
+        notes: 'AI draft suggestion: summary built from source sections. Review before saving.',
+        warning: supportedByEvidence ? null : 'This summary uses live content only where evidence exists. Review the draft before saving.',
+        evidenceNotes,
+        directSupport: supportedByEvidence,
+        applySteps: null,
+      };
+    case 'missing_steps':
+      return {
+        id: `${kind}-${object.id}-${Date.now()}`,
+        kind,
+        title: `Review missing steps for ${currentTitle}`,
+        summary: 'Potential gaps need manual review.',
+        body: [
+          'AI draft suggestion: gap review only',
+          `Known source sections: ${sourceSections.length}`,
+          sourceBreakdown ? `Source evidence reviewed:\n${sourceBreakdown}` : 'No source sections were available to inspect.',
+          'No additional step has been added without direct evidence.',
+        ].join('\n\n'),
+        notes: 'AI draft suggestion: missing-step review only. Add a step only after validating evidence.',
+        warning: 'This suggestion is a review prompt, not a confirmed operational step. Do not publish it without validating source evidence.',
+        evidenceNotes,
+        directSupport: false,
+        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Gap review source')),
+      };
+    case 'checklist_draft':
+      return {
+        id: `${kind}-${object.id}-${Date.now()}`,
+        kind,
+        title: currentTitle,
+        summary: 'Checklist draft built from the live SOP sections.',
+        body: checklistDraftBodyFromSections(sourceSections),
+        notes: 'AI draft suggestion: checklist outline derived from live SOP evidence. Review item wording before saving.',
+        warning: supportedByEvidence ? null : 'This checklist draft is only a placeholder until source evidence is available.',
+        evidenceNotes,
+        directSupport: supportedByEvidence,
+        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Checklist draft source')),
+      };
+    case 'training_outline':
+      return {
+        id: `${kind}-${object.id}-${Date.now()}`,
+        kind,
+        title: currentTitle,
+        summary: 'Training outline draft built from the live SOP sections.',
+        body: trainingOutlineBodyFromSections(sourceSections),
+        notes: 'AI draft suggestion: training outline derived from live SOP evidence. Review before saving.',
+        warning: supportedByEvidence ? null : 'This training outline is only a placeholder until source evidence is available.',
+        evidenceNotes,
+        directSupport: supportedByEvidence,
+        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Training outline source')),
+      };
+  }
+}
+
 export function SOPPreview({
   object,
   manual,
@@ -273,6 +421,7 @@ export function SOPPreview({
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [draftSteps, setDraftSteps] = useState<DraftStep[]>(() => buildDraftSteps(sourceSections));
+  const [aiSuggestion, setAiSuggestion] = useState<AIDraftSuggestion | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +441,7 @@ export function SOPPreview({
       setEditMode(false);
       setDraft(null);
       setDraftSteps([]);
+      setAiSuggestion(null);
       setFeedback(null);
       setError(null);
       return;
@@ -302,6 +452,7 @@ export function SOPPreview({
     setError(null);
     setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
     setDraftSteps(buildDraftSteps(sourceSections));
+    setAiSuggestion(null);
   }, [object?.id]);
 
   function openSection(section: 'evidence' | 'training' | 'checklists' | 'audits' | 'related'): void {
@@ -318,6 +469,7 @@ export function SOPPreview({
   function beginEdit(): void {
     if (!draft) return;
     setEditMode(true);
+    setAiSuggestion(null);
     setFeedback(null);
     setError(null);
   }
@@ -326,6 +478,7 @@ export function SOPPreview({
     if (!object) return;
     setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
     setDraftSteps(buildDraftSteps(sourceSections));
+    setAiSuggestion(null);
     setEditMode(false);
     setFeedback('Draft changes were discarded.');
     setError(null);
@@ -341,6 +494,36 @@ export function SOPPreview({
 
   function addDraftStep(): void {
     setDraftSteps((current) => [...current, createCustomDraftStep()]);
+  }
+
+  function generateAIDraftSuggestion(kind: AISuggestionKind): void {
+    if (!object) return;
+    setAiSuggestion(buildAIDraftSuggestion(kind, object, sourceSections, draft));
+    setFeedback(null);
+    setError(null);
+  }
+
+  function applyAIDraftSuggestion(): void {
+    if (!aiSuggestion || !draft) return;
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            title: aiSuggestion.title,
+            summary: aiSuggestion.summary,
+            body: aiSuggestion.body,
+            notes: aiSuggestion.notes,
+            status: 'draft',
+          }
+        : current,
+    );
+    if (aiSuggestion.applySteps) setDraftSteps(aiSuggestion.applySteps);
+    setFeedback('AI draft suggestion copied into the editable draft. Review before saving.');
+    setAiSuggestion(null);
+  }
+
+  function discardAIDraftSuggestion(): void {
+    setAiSuggestion(null);
   }
 
   async function refreshWorkspace(): Promise<void> {
@@ -384,6 +567,7 @@ export function SOPPreview({
             }
           : current,
       );
+      setAiSuggestion(null);
       await refreshWorkspace();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Knowledge version update failed.');
@@ -409,6 +593,7 @@ export function SOPPreview({
       setEditMode(false);
       setFeedback('SOP archived.');
       setDraft((current) => (current ? { ...current, status: 'archived', sourceVersionId: result.versionId } : current));
+      setAiSuggestion(null);
       await refreshWorkspace();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Knowledge archive failed.');
@@ -444,6 +629,7 @@ export function SOPPreview({
       });
       setDraftSteps(buildDraftSteps(sourceSections));
       setEditMode(true);
+      setAiSuggestion(null);
       setFeedback('Previous version restored into a new draft.');
       await refreshWorkspace();
     } catch (reason) {
@@ -578,6 +764,77 @@ export function SOPPreview({
           Current local context: {category}
           {tags ? ` · ${tags}` : ''}.
         </div>
+        {editMode && draft ? (
+          <div className="workspaceAIArea">
+            <div className="workspaceStructuredStepsHeader">
+              <div>
+                <span>AI draft suggestions</span>
+                <p>These are deterministic draft previews, not live LLM output. They stay local until you copy them into the editable draft.</p>
+              </div>
+            </div>
+            <div className="workspaceAIActions">
+              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('improve_wording')} type="button" disabled={isSaving}>
+                Improve wording
+              </button>
+              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('summarize')} type="button" disabled={isSaving}>
+                Summarize SOP
+              </button>
+              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('missing_steps')} type="button" disabled={isSaving}>
+                Find missing steps
+              </button>
+              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('checklist_draft')} type="button" disabled={isSaving}>
+                Create checklist draft
+              </button>
+              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('training_outline')} type="button" disabled={isSaving}>
+                Create training outline draft
+              </button>
+            </div>
+            {aiSuggestion ? (
+              <SOPCard
+                className="workspaceAISuggestionCard"
+                sourceDetail={aiSuggestion.directSupport ? 'Draft suggestion only' : 'Draft suggestion only · manual review required'}
+                sourceLabel="AI draft suggestion"
+                status="draft"
+                summary={aiSuggestion.summary}
+                title={aiSuggestion.title}
+              >
+                <div className="workspaceAISuggestionBody">
+                  <div className="workspaceAISuggestionCopy">
+                    <span>Suggested draft content</span>
+                    <pre>{aiSuggestion.body}</pre>
+                  </div>
+                  <div className="workspaceAISuggestionEvidence">
+                    <span>Source evidence used</span>
+                    <div className="workspaceAISuggestionEvidenceList">
+                      {aiSuggestion.evidenceNotes.length > 0 ? (
+                        aiSuggestion.evidenceNotes.map((note) => <strong key={note}>{note}</strong>)
+                      ) : (
+                        <strong>No source evidence was available to support this suggestion.</strong>
+                      )}
+                    </div>
+                  </div>
+                  {aiSuggestion.warning ? <div className="workspaceAISuggestionWarning">{aiSuggestion.warning}</div> : null}
+                </div>
+                <div className="workspaceAISuggestionActions">
+                  <button className="iconTextButton" onClick={() => openSection('evidence')} type="button">
+                    Open source evidence
+                  </button>
+                  <button className="iconTextButton" onClick={applyAIDraftSuggestion} type="button">
+                    Copy into draft
+                  </button>
+                  <button className="iconTextButton" onClick={discardAIDraftSuggestion} type="button">
+                    Discard suggestion
+                  </button>
+                </div>
+              </SOPCard>
+            ) : (
+              <div className="workspaceDraftNotes">
+                <span>No AI suggestion selected</span>
+                <p>Choose one of the draft helpers above. Nothing will be published automatically.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
         {editMode && draft ? (
           <div className="workspaceDraftEditor">
             <label>
