@@ -1,5 +1,18 @@
-import { useState } from 'react';
-import { Brain, BookOpen, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Users, Workflow } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  Brain,
+  BookOpen,
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  Search,
+  Settings,
+  ShieldAlert,
+  Users,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeWorkspacePage } from './pages/KnowledgeWorkspacePage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
@@ -10,27 +23,39 @@ import { RolesPage } from './pages/RolesPage';
 import { ChecklistsPage } from './pages/ChecklistsPage';
 import { AuditsPage } from './pages/AuditsPage';
 import { TrainingPage } from './pages/TrainingPage';
+import { OSCard } from './components/os';
 
-type Page = 'home' | 'manager' | 'knowledgeWorkspace' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
+type Page =
+  | 'home'
+  | 'studio'
+  | 'dailyOperations'
+  | 'ai'
+  | 'admin'
+  | 'manager'
+  | 'knowledgeWorkspace'
+  | 'knowledge'
+  | 'organization'
+  | 'operations'
+  | 'roles'
+  | 'training'
+  | 'checklists'
+  | 'audits'
+  | 'command'
+  | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
-  { id: 'manager' as const, label: 'Manager OS', icon: ClipboardList },
-  { id: 'knowledgeWorkspace' as const, label: 'Knowledge Workspace', icon: BookOpen },
-  { id: 'operations' as const, label: 'Operations', icon: Workflow },
-  { id: 'roles' as const, label: 'Roles', icon: Users },
-  { id: 'training' as const, label: 'Training', icon: GraduationCap },
-  { id: 'checklists' as const, label: 'Checklists', icon: ClipboardList },
-  { id: 'audits' as const, label: 'Audits', icon: ShieldAlert },
-  { id: 'command' as const, label: 'AI Command Center', icon: Brain },
-  { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
-  { id: 'organization' as const, label: 'Organization', icon: Building2 },
-  { id: 'settings' as const, label: 'Settings', icon: Settings },
+  { id: 'studio' as const, label: 'Studio', icon: BookOpen },
+  { id: 'dailyOperations' as const, label: 'Daily Operations', icon: ClipboardList },
+  { id: 'ai' as const, label: 'AI', icon: Brain },
+  { id: 'admin' as const, label: 'Admin', icon: Settings },
 ];
 
 function pageTitle(page: Page): string {
-  if (page === 'manager') return 'Manager OS';
-  if (page === 'knowledgeWorkspace') return 'Knowledge Workspace';
+  if (page === 'studio' || page === 'knowledgeWorkspace') return 'Delikat Studio';
+  if (page === 'dailyOperations' || page === 'manager') return 'Daily Operations';
+  if (page === 'ai' || page === 'command') return 'AI Command Center';
+  if (page === 'admin') return 'Admin';
   if (page === 'knowledge') return 'Knowledge';
   if (page === 'organization') return 'Organization';
   if (page === 'operations') return 'Operations';
@@ -38,23 +63,56 @@ function pageTitle(page: Page): string {
   if (page === 'training') return 'Training';
   if (page === 'checklists') return 'Checklists';
   if (page === 'audits') return 'Audits';
-  if (page === 'command') return 'AI Command Center';
   if (page === 'settings') return 'Settings';
   return 'Home';
 }
 
-function PlaceholderPage({ label }: { label: string }): JSX.Element {
+function HubPage({
+  label,
+  detail,
+  cards,
+}: {
+  label: string;
+  detail: string;
+  cards: Array<{
+    title: string;
+    detail: string;
+    icon: LucideIcon;
+    onClick: () => void;
+  }>;
+}): JSX.Element {
   return (
     <section className="pageStack">
       <div className="sectionHeader">
         <div>
           <h2>{label}</h2>
-          <p>This module will consume the Knowledge Engine instead of owning knowledge.</p>
+          <p>{detail}</p>
         </div>
       </div>
-      <div className="placeholderPanel">
-        <h3>Knowledge-first foundation</h3>
-        <p>Operational content remains centralized in Supabase canonical knowledge.</p>
+      <div className="hubGrid">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <OSCard key={card.title} className="hubCard" onClick={card.onClick}>
+              <div className="hubCardHeader">
+                <Icon aria-hidden="true" size={18} />
+                <strong>{card.title}</strong>
+              </div>
+              <p>{card.detail}</p>
+              <button
+                className="iconTextButton"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  card.onClick();
+                }}
+                type="button"
+              >
+                <ArrowRight aria-hidden="true" size={16} />
+                Open
+              </button>
+            </OSCard>
+          );
+        })}
       </div>
     </section>
   );
@@ -62,6 +120,31 @@ function PlaceholderPage({ label }: { label: string }): JSX.Element {
 
 export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('home');
+  const [studioDraftSeed, setStudioDraftSeed] = useState(0);
+
+  const adminCards = useMemo(
+    () => [
+      { title: 'Knowledge', detail: 'Admin library and technical knowledge tools.', icon: BookOpen, onClick: () => setPage('knowledge') },
+      { title: 'Operations', detail: 'Operational data and process structure.', icon: Workflow, onClick: () => setPage('operations') },
+      { title: 'Roles', detail: 'Role workspaces and readiness views.', icon: Users, onClick: () => setPage('roles') },
+      { title: 'Training', detail: 'Training paths and coverage views.', icon: ShieldAlert, onClick: () => setPage('training') },
+      { title: 'Checklists', detail: 'Checklist templates, runs, and execution.', icon: ClipboardList, onClick: () => setPage('checklists') },
+      { title: 'Audits', detail: 'Audit templates, runs, and scoring.', icon: ShieldAlert, onClick: () => setPage('audits') },
+      { title: 'Organization', detail: 'Structure and settings for the workspace.', icon: Building2, onClick: () => setPage('organization') },
+      { title: 'Settings', detail: 'System preferences and internal configuration.', icon: Settings, onClick: () => setPage('settings') },
+    ],
+    [],
+  );
+
+  const dailyOpsCards = useMemo(
+    () => [
+      { title: 'Today’s Shift', detail: 'Full command view for today’s operation.', icon: ClipboardList, onClick: () => setPage('manager') },
+      { title: 'Operations', detail: 'Process structure and operational reference.', icon: Workflow, onClick: () => setPage('operations') },
+      { title: 'Checklists', detail: 'Checklist runs and template execution.', icon: ClipboardList, onClick: () => setPage('checklists') },
+      { title: 'Audits', detail: 'Audit runs, scoring, and review work.', icon: ShieldAlert, onClick: () => setPage('audits') },
+    ],
+    [],
+  );
 
   return (
     <div className="appShell">
@@ -99,56 +182,62 @@ export function App(): JSX.Element {
           </div>
           <div className="headerSearch">
             <Search aria-hidden="true" size={16} />
-            <span>Approved knowledge only</span>
+            <span>Search SOPs in Studio</span>
           </div>
         </header>
 
         <main className="mainPanel">
           {page === 'home' && (
             <DashboardPage
-              onOpenAudits={() => setPage('audits')}
-              onOpenChecklists={() => setPage('checklists')}
-              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onCreateSOP={() => {
+                setPage('studio');
+                setStudioDraftSeed((current) => current + 1);
+              }}
+              onOpenDailyOperations={() => setPage('dailyOperations')}
+              onOpenStudio={() => setPage('studio')}
+              onOpenKnowledgeBase={() => setPage('studio')}
               onOpenOperations={() => setPage('operations')}
-              onOpenManager={() => setPage('manager')}
-              onOpenRoles={() => setPage('roles')}
-              onOpenTraining={() => setPage('training')}
             />
+          )}
+          {page === 'dailyOperations' && (
+            <HubPage label="Daily Operations" detail="Your working hub for shift execution, checklists, audits, and manager tools." cards={dailyOpsCards} />
           )}
           {page === 'manager' && (
             <ManagerPage
               onOpenAudits={() => setPage('audits')}
               onOpenChecklists={() => setPage('checklists')}
-              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onOpenKnowledgeBase={() => setPage('studio')}
               onOpenOperations={() => setPage('operations')}
               onOpenRoles={() => setPage('roles')}
               onOpenTraining={() => setPage('training')}
             />
           )}
-          {page === 'knowledgeWorkspace' && (
+          {page === 'studio' || page === 'knowledgeWorkspace' ? (
             <KnowledgeWorkspacePage
               onOpenAudits={() => setPage('audits')}
               onOpenChecklists={() => setPage('checklists')}
               onOpenTraining={() => setPage('training')}
+              openNewSOPRequestId={studioDraftSeed}
             />
-          )}
+          ) : null}
           {page === 'knowledge' && <KnowledgeBasePage />}
-          {page === 'organization' && <PlaceholderPage label="Organization" />}
-          {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
+          {page === 'admin' && <HubPage label="Admin" detail="Internal pages for the technical and operational back office." cards={adminCards} />}
+          {page === 'organization' && <HubPage label="Organization" detail="Internal page for structure and administration." cards={[{ title: 'Settings', detail: 'Open system settings.', icon: Settings, onClick: () => setPage('settings') }]} />}
+          {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('studio')} />}
           {page === 'roles' && (
             <RolesPage
               onOpenAudits={() => setPage('audits')}
               onOpenChecklists={() => setPage('checklists')}
-              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onOpenKnowledgeBase={() => setPage('studio')}
               onOpenOperations={() => setPage('operations')}
               onOpenTraining={() => setPage('training')}
             />
           )}
-          {page === 'training' && <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
-          {page === 'checklists' && <ChecklistsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
-          {page === 'audits' && <AuditsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}
-          {page === 'command' && <CommandCenterPage />}
-          {page === 'settings' && <PlaceholderPage label="Settings" />}
+          {page === 'training' && <TrainingPage onOpenKnowledgeBase={() => setPage('studio')} />}
+          {page === 'checklists' && <ChecklistsPage onOpenKnowledgeBase={() => setPage('studio')} />}
+          {page === 'audits' && <AuditsPage onOpenKnowledgeBase={() => setPage('studio')} />}
+          {page === 'ai' || page === 'command' ? <CommandCenterPage /> : null}
+          {page === 'settings' && <HubPage label="Settings" detail="System preferences and internal configuration live here." cards={[{ title: 'Admin', detail: 'Back to internal tools.', icon: Settings, onClick: () => setPage('admin') }]} />}
         </main>
       </div>
     </div>

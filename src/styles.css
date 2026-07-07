@@ -91,6 +91,54 @@ button {
   color: #ffffff;
 }
 
+.hubGrid,
+.homeActionGrid,
+.homeDraftGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.homeActionGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.homeSummaryGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.homeDraftGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hubGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.homeActionCard,
+.hubCard {
+  display: grid;
+  gap: 12px;
+}
+
+.homeActionHeader,
+.hubCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.homeActionHeader strong,
+.hubCardHeader strong {
+  font-size: 16px;
+}
+
+.homeActionCard p,
+.hubCard p {
+  margin: 0;
+  color: #5f6f83;
+  line-height: 1.55;
+}
+
 .workspace {
   min-width: 0;
 }
@@ -3730,6 +3778,9 @@ tbody tr:hover,
   .knowledgeToolbar,
   .operationsToolbar,
   .trainingToolbar,
+  .homeActionGrid,
+  .homeDraftGrid,
+  .hubGrid,
   .metricGrid,
   .dashboardSummaryGrid,
   .executionSummaryGrid,

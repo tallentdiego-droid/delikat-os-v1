@@ -815,7 +815,7 @@ export function SOPPreview({
           { label: 'Version', value: `v${currentVersion.versionNumber}` },
           { label: 'Version status', value: versionLabel(currentVersion.status) },
         ]}
-        sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : object.sourceFileUri}
+        sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : object.sourceFileUri}
         sourceLabel={originLabel}
         status={object.status}
         summary={summary || previewText(body, 220)}
@@ -832,7 +832,7 @@ export function SOPPreview({
           </div>
         </div>
         <div className="workspaceDraftBanner">
-          Editing is backed by version snapshots. Title, summary, body, and notes are saved. Category, tags, and structured steps stay local until ontology and step versioning exist. Source evidence remains immutable.
+          Editing is backed by version snapshots. Title, summary, body, and notes are saved. Category, tags, and structured steps stay local until they are ready to be saved with the version. Source evidence remains immutable.
           Current local context: {category}
           {tags ? ` · ${tags}` : ''}. Origin: {originLabel}.
           {object.sourceType === 'user_created' ? ' This SOP began as a user-created draft and has no imported evidence yet.' : null}

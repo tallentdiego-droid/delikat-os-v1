@@ -82,7 +82,7 @@ export function SOPLibrary({
       <section className="workspaceSection workspaceSearchSection">
         <div className="workspaceSectionHeader">
           <div>
-            <h3>SOP search</h3>
+            <h3>Search SOPs</h3>
             <p>Search live SOPs by title, summary, body, tags, source document, role, department, or related content.</p>
           </div>
           <div className="workspaceSearchMeta">{resultSummary}</div>
@@ -166,7 +166,7 @@ export function SOPLibrary({
       <section className="workspaceSection">
         <div className="workspaceSectionHeader">
           <div>
-            <h3>SOP results</h3>
+            <h3>SOP Library</h3>
             <p>{objects.length} SOP{objects.length === 1 ? '' : 's'} in view</p>
           </div>
         </div>
@@ -208,7 +208,7 @@ export function SOPLibrary({
                   ]}
                   onClick={() => onSelectObject(object.id)}
                   selected={isSelected}
-                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                   sourceLabel={originLabel}
                   status={needsImprovementLabel(object) === 'Ready' ? object.status : 'pending'}
                   summary={object.summary ?? previewText(object.approvedVersion.body, 180)}
@@ -237,7 +237,7 @@ export function SOPLibrary({
           </div>
         </div>
         {recentlyEdited.length === 0 ? (
-          <div className="workspaceEmpty">No recently edited SOPs visible.</div>
+          <div className="workspaceEmpty">No recent SOPs visible yet.</div>
         ) : (
           <div className="workspaceMiniList">
             {recentlyEdited.map((object) => (
@@ -246,7 +246,7 @@ export function SOPLibrary({
                 title={object.title}
                 summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
                 sourceLabel={knowledgeOriginLabel(object)}
-                sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
@@ -268,7 +268,7 @@ export function SOPLibrary({
           </div>
         </div>
         {drafts.length === 0 ? (
-          <div className="workspaceEmpty">No drafts are visible in the imported catalog.</div>
+          <div className="workspaceEmpty">No drafts are visible yet.</div>
         ) : (
           <div className="workspaceMiniList">
             {drafts.map((object) => (
@@ -277,7 +277,7 @@ export function SOPLibrary({
                 title={object.title}
                 summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
                 sourceLabel={knowledgeOriginLabel(object)}
-                sourceDetail={object.sourceType === 'user_created' ? 'Created in Knowledge Workspace' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">

@@ -24,7 +24,7 @@ interface ManagerOSModuleProps {
 
 function friendlyError(reason: unknown): string {
   if (reason instanceof Error && reason.message) return reason.message;
-  return 'Manager OS could not reach live Supabase data. Ask an administrator to check the connection and read policies.';
+  return 'Daily Operations could not reach live Supabase data. Ask an administrator to check the connection and read policies.';
 }
 
 function todayBusinessDate(): string {
@@ -111,8 +111,8 @@ export function ManagerOSModule(props: ManagerOSModuleProps = {}): JSX.Element {
     <section className="pageStack managerEngine">
       <div className="sectionHeader">
         <div>
-          <h2>Manager OS</h2>
-          <p>The live workspace for today’s operation: checklists, audits, roles, SOP coverage, and execution status.</p>
+          <h2>Daily Operations</h2>
+          <p>The live workspace for today’s operation: checklists, audits, roles, SOP support, and execution status.</p>
         </div>
         <div className="engineStats">
           <span>{data ? `${todayBusinessDate()}` : '...'}</span>
@@ -129,7 +129,7 @@ export function ManagerOSModule(props: ManagerOSModuleProps = {}): JSX.Element {
       )}
 
       {!data ? (
-        <EmptyState icon={Clock3} title="Loading Manager OS" description="Pulling live operational work from Supabase." />
+        <EmptyState icon={Clock3} title="Loading Daily Operations" description="Pulling live operational work from Supabase." />
       ) : (
         <>
           <div className="metricGrid managerSummaryGrid">
@@ -196,7 +196,7 @@ export function ManagerOSModule(props: ManagerOSModuleProps = {}): JSX.Element {
                 <p>Jump into the knowledge base for the gaps that are blocking execution.</p>
                 <button className="iconTextButton" onClick={props.onOpenKnowledgeBase} type="button">
                   <ArrowRight aria-hidden="true" size={16} />
-                  Open Knowledge
+                  Open Studio
                 </button>
               </OSCard>
 
@@ -399,7 +399,7 @@ export function ManagerOSModule(props: ManagerOSModuleProps = {}): JSX.Element {
                 action={
                   <button className="iconTextButton" onClick={props.onOpenKnowledgeBase} type="button">
                     <ArrowRight aria-hidden="true" size={16} />
-                    Open Knowledge
+                    Open Studio
                   </button>
                 }
                 coveragePercent={roleCoverage?.coveragePercent ?? 0}

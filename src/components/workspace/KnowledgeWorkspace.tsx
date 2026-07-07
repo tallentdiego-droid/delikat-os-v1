@@ -29,7 +29,7 @@ interface WorkspaceState {
 
 function friendlyError(reason: unknown): string {
   if (reason instanceof Error && reason.message) return reason.message;
-  return 'Knowledge Workspace could not reach live Supabase data. Ask an administrator to check the connection and read policies.';
+  return 'Studio could not reach live Supabase data. Ask an administrator to check the connection and read policies.';
 }
 
 function fileLabel(sourceUri: string): string {
@@ -154,12 +154,14 @@ interface KnowledgeWorkspaceProps {
   onOpenTraining?: () => void;
   onOpenChecklists?: () => void;
   onOpenAudits?: () => void;
+  openNewSOPRequestId?: number;
 }
 
 export function KnowledgeWorkspace({
   onOpenTraining,
   onOpenChecklists,
   onOpenAudits,
+  openNewSOPRequestId,
 }: KnowledgeWorkspaceProps): JSX.Element {
   const [data, setData] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +185,12 @@ export function KnowledgeWorkspace({
     roleId: 'all',
     tagIds: [],
   });
+
+  useEffect(() => {
+    if (typeof openNewSOPRequestId === 'number' && openNewSOPRequestId > 0) {
+      openNewSOPModal();
+    }
+  }, [openNewSOPRequestId]);
 
   const refreshData = useCallback(async (): Promise<void> => {
     try {
@@ -363,6 +371,15 @@ export function KnowledgeWorkspace({
   }
 
   function openNewSOPModal(): void {
+    setNewSOPDraft({
+      title: '',
+      summary: '',
+      body: '',
+      notes: '',
+      departmentId: 'all',
+      roleId: 'all',
+      tagIds: [],
+    });
     setNewSOPError(null);
     setNewSOPOpen(true);
   }
@@ -425,8 +442,8 @@ export function KnowledgeWorkspace({
     <section className="pageStack knowledgeWorkspaceShell">
       <div className="sectionHeader">
         <div>
-          <h2>Knowledge Workspace</h2>
-          <p>A read-only SOP workspace for browsing the approved knowledge library like modern knowledge software.</p>
+          <h2>Delikat Studio</h2>
+          <p>Browse, search, and draft SOPs in one place without losing source traceability.</p>
         </div>
         <div className="workspaceHeaderActions">
           <div className="engineStats">
@@ -571,7 +588,7 @@ export function KnowledgeWorkspace({
       ) : null}
 
       {!data ? (
-        <EmptyState icon={BookOpen} title="Loading Knowledge Workspace" description="Pulling live SOP folders, favorites, recent items, and previews from Supabase." />
+        <EmptyState icon={BookOpen} title="Loading Delikat Studio" description="Pulling live SOP folders, favorites, recent items, and previews from Supabase." />
       ) : (
         <div className="knowledgeWorkspaceLayout">
           <aside className="knowledgeWorkspaceSidebar">
