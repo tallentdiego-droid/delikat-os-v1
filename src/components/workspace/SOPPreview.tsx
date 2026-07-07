@@ -772,7 +772,6 @@ export function SOPPreview({
         <div>
           <div className="workspaceDocumentBadges">
             <StatusBadge status={object.status} label={sourceBadge} />
-            {coverageSummary ? <StatusBadge status={coverageSummary.missingCount > 0 ? 'blocked' : 'active'} label={coverageSummary.label} /> : null}
           </div>
           <h3>{title}</h3>
           <p>{summary || previewText(body, 220)}</p>
@@ -854,77 +853,6 @@ export function SOPPreview({
         <div className="workspaceDraftBanner">
           Editing is safe: every save creates a new version, the imported source stays untouched, and user-created drafts remain separate.
         </div>
-        {editMode && draft ? (
-          <div className="workspaceAIArea">
-            <div className="workspaceStructuredStepsHeader">
-              <div>
-                <span>AI draft suggestions</span>
-                <p>These are deterministic draft previews, not live LLM output. They stay local until you copy them into the editable draft.</p>
-              </div>
-            </div>
-            <div className="workspaceAIActions">
-              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('improve_wording')} type="button" disabled={isSaving}>
-                Improve wording
-              </button>
-              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('summarize')} type="button" disabled={isSaving}>
-                Summarize SOP
-              </button>
-              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('missing_steps')} type="button" disabled={isSaving}>
-                Find missing steps
-              </button>
-              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('checklist_draft')} type="button" disabled={isSaving}>
-                Create checklist draft
-              </button>
-              <button className="iconTextButton" onClick={() => generateAIDraftSuggestion('training_outline')} type="button" disabled={isSaving}>
-                Create training outline draft
-              </button>
-            </div>
-            {aiSuggestion ? (
-              <SOPCard
-                className="workspaceAISuggestionCard"
-                sourceDetail={aiSuggestion.directSupport ? 'Draft suggestion only' : 'Draft suggestion only · manual review required'}
-                sourceLabel="AI draft suggestion"
-                status="draft"
-                summary={aiSuggestion.summary}
-                title={aiSuggestion.title}
-              >
-                <div className="workspaceAISuggestionBody">
-                  <div className="workspaceAISuggestionCopy">
-                    <span>Suggested draft content</span>
-                    <pre>{aiSuggestion.body}</pre>
-                  </div>
-                  <div className="workspaceAISuggestionEvidence">
-                    <span>Source evidence used</span>
-                    <div className="workspaceAISuggestionEvidenceList">
-                      {aiSuggestion.evidenceNotes.length > 0 ? (
-                        aiSuggestion.evidenceNotes.map((note) => <strong key={note}>{note}</strong>)
-                      ) : (
-                        <strong>No source evidence was available to support this suggestion.</strong>
-                      )}
-                    </div>
-                  </div>
-                  {aiSuggestion.warning ? <div className="workspaceAISuggestionWarning">{aiSuggestion.warning}</div> : null}
-                </div>
-                <div className="workspaceAISuggestionActions">
-                  <button className="iconTextButton" onClick={() => openSection('evidence')} type="button">
-                    Open source evidence
-                  </button>
-                  <button className="iconTextButton" onClick={applyAIDraftSuggestion} type="button">
-                    Copy into draft
-                  </button>
-                  <button className="iconTextButton" onClick={discardAIDraftSuggestion} type="button">
-                    Discard suggestion
-                  </button>
-                </div>
-              </SOPCard>
-            ) : (
-              <div className="workspaceDraftNotes">
-                <span>No AI suggestion selected</span>
-                <p>Choose one of the draft helpers above. Nothing will be published automatically.</p>
-              </div>
-            )}
-          </div>
-        ) : null}
         {editMode && draft ? (
           <div className="workspaceDraftEditor">
             <label>
@@ -1073,53 +1001,12 @@ export function SOPPreview({
           </section>
         ) : null}
 
-        {coverageSummary && coverageSummary.missingCount > 0 ? (
-          <KnowledgeGapCard
-            action={<span className="quietText">Review the related SOPs and training links below.</span>}
-            coveragePercent={coverageSummary.coveragePercent}
-            description="This SOP still has training requirements that are not fully supported by approved knowledge."
-            detail={coverageSummary.detail}
-            title={coverageSummary.label}
-          />
-        ) : null}
-
         <SOPStepList emptyLabel="No source sections are visible for this SOP." items={steps} title="Steps" />
 
         <section className="detailSection" ref={evidenceRef}>
           <h4>Source evidence</h4>
           <div className="workspaceImmutableBanner">Original imported source — read only.</div>
           <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
-        </section>
-
-        <section className="detailSection" ref={relatedRef}>
-          <h4>Related SOPs</h4>
-        <SOPRelatedKnowledge
-          emptyLabel="No related SOPs are visible yet."
-          items={relatedSOPs.map((item) => ({
-            id: `${item.direction}:${item.relationship.id}`,
-            title: item.object.title,
-            subtitle: item.relationship.typeName,
-            summary: item.object.manualTitle,
-            status: item.object.status,
-            notes: item.relationship.notes ?? item.object.manualCode ?? undefined,
-          }))}
-          title="Related SOPs"
-        />
-        </section>
-
-        <section className="detailSection" ref={trainingRef}>
-          <h4>Training</h4>
-          <LinkedKnowledgePanel emptyLabel="No related training paths are visible yet." items={linkedTraining} title="Training" />
-        </section>
-
-        <section className="detailSection" ref={checklistRef}>
-          <h4>Checklist</h4>
-          <LinkedKnowledgePanel emptyLabel="No related checklists are visible yet." items={linkedChecklists} title="Checklist" />
-        </section>
-
-        <section className="detailSection" ref={auditRef}>
-          <h4>Audit</h4>
-          <LinkedKnowledgePanel emptyLabel="No related audits are visible yet." items={linkedAudits} title="Audit" />
         </section>
 
         <section className="detailSection">

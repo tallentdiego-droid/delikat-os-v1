@@ -1719,7 +1719,7 @@ pre {
 
 .workspaceFilterGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1750,6 +1750,11 @@ pre {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.workspaceFavoritesPlaceholder {
+  display: grid;
+  gap: 10px;
 }
 
 .workspaceResultCard {

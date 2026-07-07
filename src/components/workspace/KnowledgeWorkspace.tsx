@@ -144,19 +144,17 @@ function buildWorkspaceDraftObject(
 }
 
 interface KnowledgeWorkspaceProps {
-  onOpenTraining?: () => void;
-  onOpenChecklists?: () => void;
-  onOpenAudits?: () => void;
   openNewSOPRequestId?: number;
+  initialSelectedObjectId?: string | null;
+  initialSelectedObjectRequestId?: number;
   initialSearchQuery?: string;
   initialSearchRequestId?: number;
 }
 
 export function KnowledgeWorkspace({
-  onOpenTraining,
-  onOpenChecklists,
-  onOpenAudits,
   openNewSOPRequestId,
+  initialSelectedObjectId,
+  initialSelectedObjectRequestId,
   initialSearchQuery,
   initialSearchRequestId,
 }: KnowledgeWorkspaceProps): JSX.Element {
@@ -168,6 +166,7 @@ export function KnowledgeWorkspace({
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [needsImprovementOnly, setNeedsImprovementOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<'recent' | 'title' | 'manual'>('recent');
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [localObjects, setLocalObjects] = useState<KnowledgeObject[]>([]);
   const [newSOPOpen, setNewSOPOpen] = useState(false);
@@ -200,6 +199,13 @@ export function KnowledgeWorkspace({
     setNeedsImprovementOnly(false);
     setSelectedObjectId(null);
   }, [initialSearchQuery, initialSearchRequestId]);
+
+  useEffect(() => {
+    if (typeof initialSelectedObjectRequestId !== 'number') return;
+    if (initialSelectedObjectId) {
+      setSelectedObjectId(initialSelectedObjectId);
+    }
+  }, [initialSelectedObjectId, initialSelectedObjectRequestId]);
 
   const refreshData = useCallback(async (): Promise<void> => {
     try {
@@ -247,11 +253,18 @@ export function KnowledgeWorkspace({
     });
 
     return [...filtered].sort((a, b) => {
+      if (sortMode === 'title') return a.title.localeCompare(b.title) || b.updatedAt.localeCompare(a.updatedAt);
+      if (sortMode === 'manual') {
+        const manualDiff = (a.manualCode ?? a.manualTitle).localeCompare(b.manualCode ?? b.manualTitle);
+        if (manualDiff !== 0) return manualDiff;
+        return a.title.localeCompare(b.title) || b.updatedAt.localeCompare(a.updatedAt);
+      }
+
       const scoreDiff = searchScore(b, query) - searchScore(a, query);
       if (query.trim() && scoreDiff !== 0) return scoreDiff;
       return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
     });
-  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, statusFilter, workspaceObjects]);
+  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, sortMode, statusFilter, workspaceObjects]);
 
   useEffect(() => {
     if (!data) return;
@@ -331,8 +344,6 @@ export function KnowledgeWorkspace({
     [data],
   );
   const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
-  const folderCount = data?.knowledge.manuals.length ?? 0;
-  const importedActualCount = workspaceObjects.filter((object) => object.sourceType === 'imported').length;
   const draftCount = drafts.length;
   const resultSummary = useMemo(() => {
     const total = workspaceObjects.length;
@@ -445,15 +456,9 @@ export function KnowledgeWorkspace({
       <div className="sectionHeader knowledgeWorkspaceHeader">
         <div>
           <h2>Delikat Studio</h2>
-          <p>Search SOPs, create new drafts, and keep source evidence visible in one simple workspace.</p>
+          <p>Browse manuals, search SOPs, edit drafts, and keep imported evidence visible.</p>
         </div>
         <div className="workspaceHeaderActions">
-          <div className="engineStats">
-            <span>{folderCount} folders</span>
-            <span>{workspaceObjects.length} SOPs</span>
-            <span>{draftCount} drafts</span>
-            <span>{importedActualCount} imported</span>
-          </div>
           <button className="iconTextButton" onClick={openNewSOPModal} type="button" disabled={!data}>
             <Plus aria-hidden="true" size={16} />
             New SOP
@@ -771,16 +776,18 @@ export function KnowledgeWorkspace({
             objects={filteredObjects}
             manualFilter={manualCode}
             manualOptions={manualOptions}
-            needsImprovementOnly={needsImprovementOnly}
-            onDepartmentFilterChange={setDepartmentFilter}
-            onManualFilterChange={setManualCode}
-            onNeedsImprovementChange={setNeedsImprovementOnly}
-            onOpenNewSOP={openNewSOPModal}
-            onRoleFilterChange={setRoleFilter}
-            onStatusFilterChange={setStatusFilter}
-            roleFilter={roleFilter}
-            roleOptions={roleOptions}
-            resultSummary={resultSummary}
+              needsImprovementOnly={needsImprovementOnly}
+              onDepartmentFilterChange={setDepartmentFilter}
+              onManualFilterChange={setManualCode}
+              onNeedsImprovementChange={setNeedsImprovementOnly}
+              onSortModeChange={setSortMode}
+              onOpenNewSOP={openNewSOPModal}
+              onRoleFilterChange={setRoleFilter}
+              onStatusFilterChange={setStatusFilter}
+              sortMode={sortMode}
+              roleFilter={roleFilter}
+              roleOptions={roleOptions}
+              resultSummary={resultSummary}
             selectedObjectId={selectedObjectId}
             statusFilter={statusFilter}
             onQueryChange={setQuery}
@@ -799,9 +806,6 @@ export function KnowledgeWorkspace({
                 relatedSOPs={selectedObject.related}
                 sourceSections={sourceSections}
                 trainingPaths={previewTrainingPaths}
-                onOpenAudits={onOpenAudits}
-                onOpenChecklists={onOpenChecklists}
-                onOpenTraining={onOpenTraining}
                 onLocalObjectChange={updateLocalObject}
                 onRefresh={refreshData}
               />

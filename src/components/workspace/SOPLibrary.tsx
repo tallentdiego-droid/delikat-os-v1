@@ -41,6 +41,8 @@ export function SOPLibrary({
   onStatusFilterChange,
   needsImprovementOnly,
   onNeedsImprovementChange,
+  sortMode,
+  onSortModeChange,
   resultSummary,
   onSelectObject,
   onOpenNewSOP,
@@ -63,6 +65,8 @@ export function SOPLibrary({
   onStatusFilterChange: (value: string) => void;
   needsImprovementOnly: boolean;
   onNeedsImprovementChange: (value: boolean) => void;
+  sortMode: 'recent' | 'title' | 'manual';
+  onSortModeChange: (value: 'recent' | 'title' | 'manual') => void;
   resultSummary: string;
   onSelectObject: (id: string) => void;
   onOpenNewSOP?: () => void;
@@ -105,6 +109,14 @@ export function SOPLibrary({
         </label>
 
         <div className="workspaceFilterGrid">
+          <label className="selectField workspaceFilter">
+            <span>Sort</span>
+            <select onChange={(event) => onSortModeChange(event.target.value as 'recent' | 'title' | 'manual')} value={sortMode}>
+              <option value="recent">Most recent</option>
+              <option value="title">Title</option>
+              <option value="manual">Manual</option>
+            </select>
+          </label>
           <label className="selectField workspaceFilter">
             <span>Department</span>
             <select onChange={(event) => onDepartmentFilterChange(event.target.value)} value={departmentFilter}>
@@ -161,13 +173,24 @@ export function SOPLibrary({
           <div className="workspaceFilterSummary">
             <span>Active filters:</span>
             <strong>
-              {query.trim() ? `Search "${query.trim()}"` : 'Search off'} · {manualFilter === 'all' ? 'All manuals' : manualFilter} ·{' '}
+              {query.trim() ? `Search "${query.trim()}"` : 'Search off'} · {sortMode === 'recent' ? 'Most recent' : sortMode === 'title' ? 'Title' : 'Manual'} ·{' '}
+              {manualFilter === 'all' ? 'All manuals' : manualFilter} ·{' '}
               {departmentFilter === 'all' ? 'All departments' : labelFromEntity(departmentOptions.find((department) => department.id === departmentFilter))} ·{' '}
               {roleFilter === 'all' ? 'All roles' : labelFromEntity(roleOptions.find((role) => role.id === roleFilter))} ·{' '}
               {statusFilter === 'all' ? 'All statuses' : statusFilter} · {needsImprovementOnly ? 'Needs improvement only' : 'All quality states'}
             </strong>
           </div>
         ) : null}
+
+        <div className="workspaceFavoritesPlaceholder">
+          <div className="workspaceSectionHeader">
+            <div>
+              <h3>Favorites</h3>
+              <p>Favorites are not persisted yet. This area will surface the SOPs you return to most often.</p>
+            </div>
+          </div>
+          <div className="workspaceEmpty">No favorites yet.</div>
+        </div>
       </section>
 
       <section className="workspaceSection" id="studio-library">

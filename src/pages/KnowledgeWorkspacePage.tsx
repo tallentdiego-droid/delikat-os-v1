@@ -1,27 +1,24 @@
 import { KnowledgeWorkspace } from '../components/workspace/KnowledgeWorkspace';
 
 interface KnowledgeWorkspacePageProps {
-  onOpenTraining?: () => void;
-  onOpenChecklists?: () => void;
-  onOpenAudits?: () => void;
   openNewSOPRequestId?: number;
+  initialSelectedObjectId?: string | null;
+  initialSelectedObjectRequestId?: number;
   initialSearchQuery?: string;
   initialSearchRequestId?: number;
 }
 
 export function KnowledgeWorkspacePage({
-  onOpenTraining,
-  onOpenChecklists,
-  onOpenAudits,
   openNewSOPRequestId,
+  initialSelectedObjectId,
+  initialSelectedObjectRequestId,
   initialSearchQuery,
   initialSearchRequestId,
 }: KnowledgeWorkspacePageProps): JSX.Element {
   return (
     <KnowledgeWorkspace
-      onOpenAudits={onOpenAudits}
-      onOpenChecklists={onOpenChecklists}
-      onOpenTraining={onOpenTraining}
+      initialSelectedObjectId={initialSelectedObjectId}
+      initialSelectedObjectRequestId={initialSelectedObjectRequestId}
       initialSearchQuery={initialSearchQuery}
       initialSearchRequestId={initialSearchRequestId}
       openNewSOPRequestId={openNewSOPRequestId}
