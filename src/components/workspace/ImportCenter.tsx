@@ -1,9 +1,12 @@
-import { Download, FileSpreadsheet, FileText, Upload } from 'lucide-react';
+import { ChangeEvent, useMemo, useState } from 'react';
+import { Download, FileSpreadsheet, FileText, Upload, X } from 'lucide-react';
 import { EmptyState, OSCard } from '../os';
 import {
+  buildImportPreview,
   importValidationRules,
   recipeImportFields,
   sopImportFields,
+  type ImportPreviewResult,
   type ImportField,
 } from '../../lib/imports';
 
@@ -25,6 +28,41 @@ function ImportFieldList({ fields }: { fields: ImportField[] }): JSX.Element {
 }
 
 export function ImportCenter(): JSX.Element {
+  const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const previewRows = useMemo(() => preview?.rows.slice(0, 5) ?? [], [preview]);
+
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    if (!file) return;
+
+    setIsParsing(true);
+    setParseError(null);
+
+    try {
+      const text = await file.text();
+      const nextPreview = buildImportPreview(file.name, text);
+      setPreview(nextPreview);
+      setFileName(file.name);
+    } catch (reason) {
+      setPreview(null);
+      setFileName('');
+      setParseError(reason instanceof Error ? reason.message : 'The CSV could not be parsed.');
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function clearPreview(): void {
+    setPreview(null);
+    setFileName('');
+    setParseError(null);
+  }
+
   return (
     <section className="workspaceSection importCenterSection">
       <div className="workspaceSectionHeader">
@@ -32,14 +70,15 @@ export function ImportCenter(): JSX.Element {
           <h3>Import Center</h3>
           <p>Plan recipe and SOP imports before Studio turns them into draft records.</p>
         </div>
-        <button className="iconTextButton" type="button" disabled>
+        <label className="iconTextButton">
           <Upload aria-hidden="true" size={16} />
-          Upload coming next
-        </button>
+          {isParsing ? 'Parsing…' : 'Upload CSV'}
+          <input accept=".csv,text/csv" className="screenReaderOnly" onChange={handleFileUpload} type="file" />
+        </label>
       </div>
 
       <div className="importWarning">
-        Imports always create draft records first. Imported source stays preserved, and nothing publishes automatically.
+        Preview only. Nothing is saved yet. Imports will create drafts in a later sprint, and imported source stays preserved.
       </div>
 
       <div className="importPlanGrid">
@@ -100,11 +139,106 @@ export function ImportCenter(): JSX.Element {
         </div>
       </section>
 
-      <EmptyState
-        title="Upload coming next"
-        description="This Studio section is ready for template planning now. Upload and mapping will land in the next import sprint."
-      />
+      {parseError ? (
+        <OSCard className="importPreviewCard error">
+          <div className="importPreviewHeader">
+            <div>
+              <strong>Preview unavailable</strong>
+              <p>{parseError}</p>
+            </div>
+            <button className="iconTextButton" onClick={clearPreview} type="button">
+              <X aria-hidden="true" size={16} />
+              Clear
+            </button>
+          </div>
+        </OSCard>
+      ) : null}
+
+      {preview ? (
+        <OSCard className="importPreviewCard">
+          <div className="importPreviewHeader">
+            <div>
+              <strong>{preview.fileName}</strong>
+              <p>
+                Detected import type: <span>{preview.detectedImportType === 'unknown' ? 'Unknown' : preview.detectedImportType.toUpperCase()}</span>
+              </p>
+            </div>
+            <div className="importPreviewActions">
+              <button className="iconTextButton" onClick={clearPreview} type="button">
+                <X aria-hidden="true" size={16} />
+                Clear preview
+              </button>
+            </div>
+          </div>
+          <div className="importPreviewStats">
+            <span><strong>{preview.totalRows}</strong> rows</span>
+            <span><strong>{preview.validRows}</strong> valid</span>
+            <span><strong>{preview.warningRows}</strong> with warnings</span>
+            <span><strong>{preview.errorRows}</strong> with errors</span>
+          </div>
+          <div className="importPreviewSafety">
+            This is preview only. Nothing is saved yet. Imported rows will create drafts in a later sprint, never published automatically.
+          </div>
+          {preview.issues.length > 0 ? (
+            <div className="importPreviewIssues">
+              {preview.issues.map((issue, index) => (
+                <div className={`importPreviewIssue ${issue.severity}`} key={`${issue.field}-${index}`}>
+                  <strong>{issue.rowNumber ? `Row ${issue.rowNumber}` : 'Preview'}</strong>
+                  <span>{issue.message}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="importPreviewTableWrap">
+            <table className="importPreviewTable">
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  {preview.headers.map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.length > 0 ? (
+                  previewRows.map((row) => {
+                    const hasError = row.issues.some((issue) => issue.severity === 'error');
+                    const hasWarning = row.issues.some((issue) => issue.severity === 'warning');
+                    const statusLabel = hasError ? 'Errors' : hasWarning ? 'Warnings' : 'Ready';
+                    return (
+                      <tr key={row.rowNumber}>
+                        <td>{row.rowNumber}</td>
+                        {preview.headers.map((header) => (
+                          <td key={`${row.rowNumber}-${header}`}>{row.values[header] ?? ''}</td>
+                        ))}
+                        <td>{statusLabel}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={preview.headers.length + 2}>No preview rows yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </OSCard>
+      ) : (
+        <EmptyState
+          title={fileName ? `Preview ready for ${fileName}` : 'Upload a CSV to preview rows'}
+          description="Choose a recipe or SOP CSV to inspect row counts, warnings, and a safe draft preview before any import work is built."
+          action={
+            <label className="iconTextButton">
+              <Upload aria-hidden="true" size={16} />
+              {isParsing ? 'Parsing…' : 'Upload CSV'}
+              <input accept=".csv,text/csv" className="screenReaderOnly" onChange={handleFileUpload} type="file" />
+            </label>
+          }
+        />
+      )}
+
     </section>
   );
 }
-
