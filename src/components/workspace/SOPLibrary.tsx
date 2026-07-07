@@ -27,6 +27,7 @@ export function SOPLibrary({
   onQueryChange,
   folderLabel,
   objects,
+  recentlyImported,
   recentlyEdited,
   drafts,
   selectedObjectId,
@@ -50,6 +51,7 @@ export function SOPLibrary({
   onQueryChange: (value: string) => void;
   folderLabel: string;
   objects: KnowledgeObject[];
+  recentlyImported: KnowledgeObject[];
   recentlyEdited: KnowledgeObject[];
   drafts: KnowledgeObject[];
   selectedObjectId: string | null;
@@ -79,7 +81,7 @@ export function SOPLibrary({
 
   return (
     <div className="workspaceCenter">
-      <section className="workspaceSection workspaceSearchSection">
+      <section className="workspaceSection workspaceSearchSection" id="studio-search">
         <div className="workspaceSectionHeader">
           <div>
             <h3>Search SOPs</h3>
@@ -163,7 +165,7 @@ export function SOPLibrary({
         ) : null}
       </section>
 
-      <section className="workspaceSection">
+      <section className="workspaceSection" id="studio-library">
         <div className="workspaceSectionHeader">
           <div>
             <h3>SOP Library</h3>
@@ -190,7 +192,7 @@ export function SOPLibrary({
                 <SOPCard
                   action={
                     <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
-                      Open SOP
+                      {object.sourceType === 'user_created' || object.approvedVersion.status !== 'approved' ? 'Edit SOP' : 'Open SOP'}
                     </button>
                   }
                   className={isSelected ? 'workspaceResultCard selected' : 'workspaceResultCard'}
@@ -210,7 +212,8 @@ export function SOPLibrary({
                   selected={isSelected}
                   sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                   sourceLabel={originLabel}
-                  status={needsImprovementLabel(object) === 'Ready' ? object.status : 'pending'}
+                  status={needsImprovementLabel(object) === 'Ready' ? 'active' : 'draft'}
+                  statusLabel={needsImprovementLabel(object)}
                   summary={object.summary ?? previewText(object.approvedVersion.body, 180)}
                   title={object.title}
                 >
@@ -229,7 +232,39 @@ export function SOPLibrary({
         )}
       </section>
 
-      <section className="workspaceSection">
+      <section className="workspaceSection" id="studio-recent-imported">
+        <div className="workspaceSectionHeader">
+          <div>
+            <h3>Recently imported</h3>
+            <p>Newest imported SOPs ready to review in Studio.</p>
+          </div>
+        </div>
+        {recentlyImported.length === 0 ? (
+          <div className="workspaceEmpty">No imported SOPs are visible yet.</div>
+        ) : (
+          <div className="workspaceMiniList">
+            {recentlyImported.map((object) => (
+              <SOPCard
+                key={object.id}
+                title={object.title}
+                summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
+                sourceLabel={knowledgeOriginLabel(object)}
+                sourceDetail={`${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
+                status="active"
+                statusLabel="Imported"
+                action={
+                  <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
+                    Open in Studio
+                  </button>
+                }
+                onClick={() => onSelectObject(object.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="workspaceSection" id="studio-recent-edited">
         <div className="workspaceSectionHeader">
           <div>
             <h3>Recently edited</h3>
@@ -248,6 +283,7 @@ export function SOPLibrary({
                 sourceLabel={knowledgeOriginLabel(object)}
                 sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
+                statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Needs review'}
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
                     Preview
@@ -260,7 +296,7 @@ export function SOPLibrary({
         )}
       </section>
 
-      <section className="workspaceSection">
+      <section className="workspaceSection" id="studio-drafts">
         <div className="workspaceSectionHeader">
           <div>
             <h3>Drafts</h3>
@@ -268,7 +304,7 @@ export function SOPLibrary({
           </div>
         </div>
         {drafts.length === 0 ? (
-          <div className="workspaceEmpty">No drafts are visible yet.</div>
+          <div className="workspaceEmpty">No drafts yet. Create or edit an SOP to start.</div>
         ) : (
           <div className="workspaceMiniList">
             {drafts.map((object) => (
@@ -279,9 +315,10 @@ export function SOPLibrary({
                 sourceLabel={knowledgeOriginLabel(object)}
                 sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                 status={object.status}
+                statusLabel="Draft"
                 action={
                   <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
-                    Preview
+                    Edit draft
                   </button>
                 }
                 onClick={() => onSelectObject(object.id)}

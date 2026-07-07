@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Layers3, Plus, X } from 'lucide-react';
+import { AlertCircle, BookOpen, Clock3, Layers3, Plus, Search, Star, X } from 'lucide-react';
 import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { FavoriteSOPs } from './FavoriteSOPs';
 import { RecentSOPs } from './RecentSOPs';
@@ -111,13 +111,6 @@ function matchesQuery(object: KnowledgeObject, query: string): boolean {
 
 function folderLabel(manual: KnowledgeManual): string {
   return manual.manualCode ? `${manual.manualCode} · ${manual.title}` : manual.title;
-}
-
-function objectRating(object: KnowledgeObject): number {
-  const coverageBonus = object.related.length > 0 ? 3 : 0;
-  const evidenceBonus = object.evidence.length > 0 ? 2 : 0;
-  const summaryBonus = object.summary ? 1 : 0;
-  return coverageBonus + evidenceBonus + summaryBonus;
 }
 
 function chooseManual(manuals: KnowledgeManual[], object: KnowledgeObject): KnowledgeManual | null {
@@ -281,14 +274,17 @@ export function KnowledgeWorkspace({
     ];
   }, [data, manualCode, workspaceObjects]);
 
-  const favorites = useMemo(() => {
-    if (!data) return [];
-    return [...workspaceObjects].sort((a, b) => objectRating(b) - objectRating(a) || a.title.localeCompare(b.title)).slice(0, 5);
-  }, [workspaceObjects]);
-
   const recentSops = useMemo(() => {
     if (!data) return [];
     return [...workspaceObjects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title)).slice(0, 5);
+  }, [workspaceObjects]);
+
+  const recentlyImported = useMemo(() => {
+    if (!data) return [];
+    return workspaceObjects
+      .filter((object) => object.sourceType === 'imported')
+      .sort((a, b) => b.approvedVersion.createdAt.localeCompare(a.approvedVersion.createdAt) || b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 5);
   }, [workspaceObjects]);
 
   const drafts = useMemo(() => {
@@ -332,6 +328,9 @@ export function KnowledgeWorkspace({
     [data],
   );
   const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
+  const folderCount = data?.knowledge.manuals.length ?? 0;
+  const draftCount = drafts.length;
+  const importedCount = recentlyImported.length;
   const resultSummary = useMemo(() => {
     const total = workspaceObjects.length;
     if (!data) return 'Loading live results from Supabase.';
@@ -382,6 +381,11 @@ export function KnowledgeWorkspace({
     });
     setNewSOPError(null);
     setNewSOPOpen(true);
+  }
+
+  function scrollToSection(id: string): void {
+    const element = document.getElementById(id);
+    element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function closeNewSOPModal(): void {
@@ -443,11 +447,11 @@ export function KnowledgeWorkspace({
       <div className="sectionHeader">
         <div>
           <h2>Delikat Studio</h2>
-          <p>Browse, search, and draft SOPs in one place without losing source traceability.</p>
+          <p>Search SOPs, create new drafts, and keep source evidence visible in one simple workspace.</p>
         </div>
         <div className="workspaceHeaderActions">
           <div className="engineStats">
-            <span>{data?.knowledge.manuals.length ?? '...'} folders</span>
+            <span>{folderCount || '...'} folders</span>
             <span>{data ? workspaceObjects.length : '...'} SOPs</span>
             <span>{data?.knowledge.relationships.length ?? '...'} links</span>
           </div>
@@ -590,68 +594,149 @@ export function KnowledgeWorkspace({
       {!data ? (
         <EmptyState icon={BookOpen} title="Loading Delikat Studio" description="Pulling live SOP folders, favorites, recent items, and previews from Supabase." />
       ) : (
-        <div className="knowledgeWorkspaceLayout">
-          <aside className="knowledgeWorkspaceSidebar">
-            <SOPFolderTree folders={folders} onSelectFolder={setManualCode} />
-            <FavoriteSOPs objects={favorites} onSelectObject={openObject} />
-            <RecentSOPs objects={recentSops} onSelectObject={openObject} />
-          </aside>
-
-          <SOPLibrary
-            folderLabel={manualCode === 'all' ? 'all folders' : manualCode}
-            departmentFilter={departmentFilter}
-            departmentOptions={departmentOptions}
-            drafts={drafts}
-            objects={filteredObjects}
-            manualFilter={manualCode}
-            manualOptions={manualOptions}
-            needsImprovementOnly={needsImprovementOnly}
-            onDepartmentFilterChange={setDepartmentFilter}
-            onManualFilterChange={setManualCode}
-            onNeedsImprovementChange={setNeedsImprovementOnly}
-            onRoleFilterChange={setRoleFilter}
-            onStatusFilterChange={setStatusFilter}
-            roleFilter={roleFilter}
-            roleOptions={roleOptions}
-            resultSummary={resultSummary}
-            selectedObjectId={selectedObjectId}
-            statusFilter={statusFilter}
-            onQueryChange={setQuery}
-            onSelectObject={openObject}
-            query={query}
-            recentlyEdited={recentlyEdited}
-          />
-
-          <div className="knowledgeWorkspacePreview">
-            <div className="workspacePreviewSummary">
-              <MetricCard label="Visible SOPs" value={filteredObjects.length} helper={manualCode === 'all' ? 'Across the whole library' : `Folder ${manualCode}`} />
-              <MetricCard label="Recently edited" value={recentlyEdited.length} helper="Updated approved knowledge" />
-              <MetricCard label="Drafts" value={drafts.length} helper="Not-yet-active records" />
+        <>
+          <section className="workspaceSection studioLaunchSection">
+            <div className="workspaceSectionHeader">
+              <div>
+                <h3>Studio at a glance</h3>
+                <p>Everything you need to start working with SOPs in one place.</p>
+              </div>
             </div>
-
-            {selectedObject ? (
-              <SOPPreview
-                auditTemplates={previewAuditTemplates}
-                checklistTemplates={previewChecklistTemplates}
-                coverage={data.knowledge.coverage}
-                manual={selectedManual}
-                object={selectedObject}
-                relatedSOPs={selectedObject.related}
-                sourceSections={sourceSections}
-                trainingPaths={previewTrainingPaths}
-                onOpenAudits={onOpenAudits}
-              onOpenChecklists={onOpenChecklists}
-              onOpenTraining={onOpenTraining}
-              onLocalObjectChange={updateLocalObject}
-              onRefresh={refreshData}
-            />
-            ) : (
-              <OSCard className="workspacePreviewPanel">
-                <EmptyState icon={Layers3} title="Select a SOP" description="Choose a folder or a SOP to preview its approved knowledge, evidence, and related work." />
+            <div className="studioLaunchGrid">
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Search aria-hidden="true" size={18} />
+                  <strong>Search SOPs</strong>
+                </div>
+                <p>Find a procedure by title, summary, body, tags, source manual, role, or department.</p>
+                <button className="tableLink" onClick={() => scrollToSection('studio-search')} type="button">
+                  Open search
+                </button>
               </OSCard>
-            )}
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Plus aria-hidden="true" size={18} />
+                  <strong>New SOP</strong>
+                </div>
+                <p>Start a new draft in Studio and keep it separate from imported source material.</p>
+                <button className="tableLink" onClick={openNewSOPModal} type="button">
+                  Create draft
+                </button>
+              </OSCard>
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Clock3 aria-hidden="true" size={18} />
+                  <strong>Drafts</strong>
+                </div>
+                <p>{draftCount > 0 ? `${draftCount} draft SOP${draftCount === 1 ? '' : 's'} are ready to edit.` : 'No drafts yet. Create or edit an SOP to start.'}</p>
+                <button className="tableLink" onClick={() => scrollToSection('studio-drafts')} type="button">
+                  Review drafts
+                </button>
+              </OSCard>
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Clock3 aria-hidden="true" size={18} />
+                  <strong>Recently edited</strong>
+                </div>
+                <p>{recentlyEdited.length > 0 ? `${recentlyEdited.length} SOP${recentlyEdited.length === 1 ? '' : 's'} were updated recently.` : 'Recently edited SOPs will appear here.'}</p>
+                <button className="tableLink" onClick={() => scrollToSection('studio-recent-edited')} type="button">
+                  Review recent edits
+                </button>
+              </OSCard>
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <BookOpen aria-hidden="true" size={18} />
+                  <strong>Recently imported</strong>
+                </div>
+                <p>{importedCount > 0 ? `${importedCount} imported SOP${importedCount === 1 ? '' : 's'} are ready to review.` : 'Imported SOPs will appear here as they land.'}</p>
+                <button className="tableLink" onClick={() => scrollToSection('studio-recent-imported')} type="button">
+                  View imported
+                </button>
+              </OSCard>
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Star aria-hidden="true" size={18} />
+                  <strong>Favorites</strong>
+                </div>
+                <p>Saved favorites are not turned on yet, so this space is a simple placeholder for now.</p>
+              </OSCard>
+              <OSCard className="studioLaunchCard">
+                <div className="studioLaunchHeader">
+                  <Layers3 aria-hidden="true" size={18} />
+                  <strong>Categories and folders</strong>
+                </div>
+                <p>{folderCount} manual folders organize the SOP library for quick browsing.</p>
+                <button className="tableLink" onClick={() => scrollToSection('studio-search')} type="button">
+                  Browse folders
+                </button>
+              </OSCard>
+            </div>
+          </section>
+
+          <div className="knowledgeWorkspaceLayout">
+            <aside className="knowledgeWorkspaceSidebar">
+              <SOPFolderTree folders={folders} onSelectFolder={setManualCode} />
+              <FavoriteSOPs />
+              <RecentSOPs objects={recentSops} onSelectObject={openObject} />
+            </aside>
+
+            <SOPLibrary
+              folderLabel={manualCode === 'all' ? 'all folders' : manualCode}
+              departmentFilter={departmentFilter}
+              departmentOptions={departmentOptions}
+              drafts={drafts}
+              objects={filteredObjects}
+              manualFilter={manualCode}
+              manualOptions={manualOptions}
+              needsImprovementOnly={needsImprovementOnly}
+              onDepartmentFilterChange={setDepartmentFilter}
+              onManualFilterChange={setManualCode}
+              onNeedsImprovementChange={setNeedsImprovementOnly}
+              onRoleFilterChange={setRoleFilter}
+              onStatusFilterChange={setStatusFilter}
+              roleFilter={roleFilter}
+              roleOptions={roleOptions}
+              resultSummary={resultSummary}
+              selectedObjectId={selectedObjectId}
+              statusFilter={statusFilter}
+              onQueryChange={setQuery}
+              onSelectObject={openObject}
+              query={query}
+              recentlyImported={recentlyImported}
+              recentlyEdited={recentlyEdited}
+            />
+
+            <div className="knowledgeWorkspacePreview">
+              <div className="workspacePreviewSummary">
+                <MetricCard label="Visible SOPs" value={filteredObjects.length} helper={manualCode === 'all' ? 'Across the whole library' : `Folder ${manualCode}`} />
+                <MetricCard label="Recently edited" value={recentlyEdited.length} helper="Updated approved knowledge" />
+                <MetricCard label="Drafts" value={drafts.length} helper="Not-yet-active records" />
+              </div>
+
+              {selectedObject ? (
+                <SOPPreview
+                  auditTemplates={previewAuditTemplates}
+                  checklistTemplates={previewChecklistTemplates}
+                  coverage={data.knowledge.coverage}
+                  manual={selectedManual}
+                  object={selectedObject}
+                  relatedSOPs={selectedObject.related}
+                  sourceSections={sourceSections}
+                  trainingPaths={previewTrainingPaths}
+                  onOpenAudits={onOpenAudits}
+                  onOpenChecklists={onOpenChecklists}
+                  onOpenTraining={onOpenTraining}
+                  onLocalObjectChange={updateLocalObject}
+                  onRefresh={refreshData}
+                />
+              ) : (
+                <OSCard className="workspacePreviewPanel">
+                  <EmptyState icon={Layers3} title="Select a SOP" description="Choose a folder or a SOP to preview its approved knowledge, evidence, and related work." />
+                </OSCard>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </section>
   );

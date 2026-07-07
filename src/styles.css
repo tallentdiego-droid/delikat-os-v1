@@ -114,6 +114,34 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.studioLaunchSection {
+  gap: 12px;
+}
+
+.studioLaunchGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.studioLaunchCard {
+  display: grid;
+  gap: 12px;
+  min-height: 176px;
+}
+
+.studioLaunchHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studioLaunchCard p {
+  margin: 0;
+  color: #5f6f83;
+  line-height: 1.55;
+}
+
 .homeActionCard,
 .hubCard {
   display: grid;
@@ -3778,6 +3806,7 @@ tbody tr:hover,
   .knowledgeToolbar,
   .operationsToolbar,
   .trainingToolbar,
+  .studioLaunchGrid,
   .homeActionGrid,
   .homeDraftGrid,
   .hubGrid,

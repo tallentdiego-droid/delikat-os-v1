@@ -12,6 +12,7 @@ export function SOPCard({
   title,
   summary,
   status,
+  statusLabel,
   sourceLabel,
   sourceDetail,
   coveragePercent,
@@ -26,6 +27,7 @@ export function SOPCard({
   title: string;
   summary?: string | null;
   status?: string | null;
+  statusLabel?: string | null;
   sourceLabel?: string | null;
   sourceDetail?: string | null;
   coveragePercent?: number;
@@ -45,7 +47,7 @@ export function SOPCard({
           {summary && <p>{summary}</p>}
         </div>
         <div className="sopCardBadges">
-          {status ? <StatusBadge status={status} /> : null}
+          {status ? <StatusBadge status={status} label={statusLabel ?? undefined} /> : null}
           {typeof coveragePercent === 'number' ? <CoverageBadge coveragePercent={coveragePercent} label={coverageLabel ?? undefined} /> : null}
         </div>
       </div>
