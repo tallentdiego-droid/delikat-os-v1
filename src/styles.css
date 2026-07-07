@@ -1577,6 +1577,142 @@ pre {
   align-items: start;
 }
 
+.cashierWorkspace {
+  display: grid;
+  gap: 16px;
+}
+
+.cashierWorkspaceGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.92fr) minmax(0, 1.08fr) minmax(420px, 1.08fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.cashierProfileColumn,
+.cashierCardsColumn,
+.cashierPreviewColumn {
+  min-width: 0;
+}
+
+.cashierProfileCard,
+.cashierDocumentCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.cashierProfileBlock {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e5ebf2;
+  padding-top: 12px;
+}
+
+.cashierProfileBlock strong,
+.cashierDocumentSection strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.cashierProfileBlock p,
+.cashierProfileBlock li,
+.cashierDocumentSection p,
+.cashierDocumentSection li {
+  margin: 0;
+  color: #475569;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.cashierProfileBlock ul,
+.cashierDocumentSection ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.cashierRequiredList {
+  display: grid;
+  gap: 8px;
+}
+
+.cashierRequiredItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #172033;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.cashierRequiredItem small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cashierRequiredItem.active {
+  border-color: #8fb3de;
+  box-shadow: 0 0 0 1px rgba(143, 179, 222, 0.12);
+  background: #f4f8fd;
+}
+
+.cashierSOPGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.cashierDocumentSections {
+  display: grid;
+  gap: 12px;
+}
+
+.cashierDocumentSection {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e5ebf2;
+  padding-top: 12px;
+}
+
+.cashierDocumentSection textarea,
+.cashierDocumentSection input,
+.cashierShellTitle {
+  width: 100%;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.cashierShellTitle {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.cashierDocumentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.workspaceActionFeedback {
+  margin: 0;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .knowledgeWorkspaceSidebar {
   display: grid;
   gap: 14px;

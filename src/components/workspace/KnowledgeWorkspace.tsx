@@ -4,6 +4,7 @@ import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { SOPLibrary } from './SOPLibrary';
 import { SOPPreview } from './SOPPreview';
 import { ImportCenter } from './ImportCenter';
+import { CashierWorkspace } from './CashierWorkspace';
 import { EmptyState, OSCard, SOPCard } from '../os';
 import {
   createKnowledgeDraft,
@@ -179,7 +180,7 @@ export function KnowledgeWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [studioSection, setStudioSection] = useState<'library' | 'import'>('library');
+  const [studioSection, setStudioSection] = useState<'library' | 'import' | 'cashier'>('library');
   const [folderFilter, setFolderFilter] = useState<'all' | 'imported' | 'drafts' | 'user_created' | 'recent'>('all');
   const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | 'imported' | 'user_created'>('all');
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
@@ -530,6 +531,9 @@ export function KnowledgeWorkspace({
             <button className={studioSection === 'library' ? 'iconTextButton primary' : 'iconTextButton'} onClick={() => setStudioSection('library')} type="button">
               SOP Library
             </button>
+            <button className={studioSection === 'cashier' ? 'iconTextButton primary' : 'iconTextButton'} onClick={() => setStudioSection('cashier')} type="button">
+              Cashier MVP
+            </button>
             <button className={studioSection === 'import' ? 'iconTextButton primary' : 'iconTextButton'} onClick={() => setStudioSection('import')} type="button">
               Import Center
             </button>
@@ -673,7 +677,40 @@ export function KnowledgeWorkspace({
         </div>
       ) : null}
 
-      {studioSection === 'import' ? (
+      {studioSection === 'cashier' ? (
+        data ? (
+          <CashierWorkspace
+            audits={data.audits}
+            checklists={data.checklists}
+            knowledge={data.knowledge}
+            onOpenObject={openObject}
+            onRefresh={refreshData}
+            training={data.training}
+          />
+        ) : isLoading ? (
+          <div className="knowledgeWorkspaceEmpty">
+            <EmptyState
+              icon={AlertCircle}
+              title="Cashier MVP is loading"
+              description="Live SOP data is loading from Supabase. The cashier workspace will appear as soon as it is ready."
+            />
+          </div>
+        ) : (
+          <div className="knowledgeWorkspaceEmpty">
+            <EmptyState
+              icon={AlertCircle}
+              title="Cashier MVP is unavailable"
+              description={error ?? 'Cashier workspace could not load live Supabase data.'}
+              action={
+                <button className="iconTextButton" onClick={refreshData} type="button">
+                  <RotateCcw aria-hidden="true" size={16} />
+                  Retry
+                </button>
+              }
+            />
+          </div>
+        )
+      ) : studioSection === 'import' ? (
         <ImportCenter />
       ) : isLoading && !data ? (
         <div className="knowledgeWorkspaceLayout">
