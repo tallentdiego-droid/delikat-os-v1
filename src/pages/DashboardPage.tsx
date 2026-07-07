@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { BookOpen, Plus, Search, Workflow } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { BookOpen, Plus, RotateCcw, Search, Workflow } from 'lucide-react';
 import { EmptyState, OSCard, SOPCard } from '../components/os';
 import { getKnowledgeEngineData, knowledgeOriginLabel, previewText, type KnowledgeEngineData, type KnowledgeObject } from '../lib/knowledge';
 
@@ -26,32 +26,34 @@ export function DashboardPage({
   const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const refreshKnowledge = useCallback(async (): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await getKnowledgeEngineData();
+      setKnowledge(data);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Home could not reach live Supabase data.');
+    } finally {
+      setIsLoading(false);
+      setIsSlowLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     const slowTimer = window.setTimeout(() => {
       if (active) setIsSlowLoading(true);
     }, 3500);
 
-    getKnowledgeEngineData()
-      .then((data) => {
-        if (!active) return;
-        setKnowledge(data);
-        setError(null);
-        setIsLoading(false);
-        setIsSlowLoading(false);
-      })
-      .catch((reason: unknown) => {
-        if (!active) return;
-        setError(reason instanceof Error ? reason.message : 'Home could not reach live Supabase data.');
-        setIsLoading(false);
-        setIsSlowLoading(false);
-      });
+    void refreshKnowledge();
 
     return () => {
       active = false;
       window.clearTimeout(slowTimer);
     };
-  }, []);
+  }, [refreshKnowledge]);
 
   const recentDrafts = useMemo(() => {
     if (!knowledge) return [];
@@ -87,6 +89,10 @@ export function DashboardPage({
       {error ? (
         <div className="notice error">
           <span>{error}</span>
+          <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+            <RotateCcw aria-hidden="true" size={16} />
+            Retry
+          </button>
         </div>
       ) : null}
 
@@ -140,7 +146,19 @@ export function DashboardPage({
               </button>
             ) : null}
           </div>
-          {isLoading && !knowledge ? (
+          {error && !knowledge ? (
+            <EmptyState
+              icon={Workflow}
+              title="Recent SOPs unavailable"
+              description={error}
+              action={
+                <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+                  <RotateCcw aria-hidden="true" size={16} />
+                  Retry
+                </button>
+              }
+            />
+          ) : isLoading && !knowledge ? (
             <EmptyState
               icon={Workflow}
               title={isSlowLoading ? 'Still loading recent SOPs' : 'Loading recent SOPs'}
@@ -181,7 +199,19 @@ export function DashboardPage({
               <p>Draft SOPs saved in Studio.</p>
             </div>
           </div>
-          {isLoading && !knowledge ? (
+          {error && !knowledge ? (
+            <EmptyState
+              icon={Workflow}
+              title="Recent drafts unavailable"
+              description={error}
+              action={
+                <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+                  <RotateCcw aria-hidden="true" size={16} />
+                  Retry
+                </button>
+              }
+            />
+          ) : isLoading && !knowledge ? (
             <EmptyState
               icon={Workflow}
               title={isSlowLoading ? 'Still loading recent drafts' : 'Loading recent drafts'}

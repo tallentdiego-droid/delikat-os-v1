@@ -393,6 +393,7 @@ interface RequiredKnowledgeItemRow {
 
 const MANUAL_CODE_PATTERN = /(?:^|\/)(M[1-9])[-_]/i;
 const DEFAULT_LIMIT = 80;
+const KNOWLEDGE_LOAD_TIMEOUT_MS = 20000;
 
 export const EMPTY_ONTOLOGY_GROUPS: KnowledgeOntologyGroups = {
   departments: [],
@@ -421,6 +422,25 @@ function isMissingCoverageTableError(error: { code?: string; message?: string })
 function ensureSupabase() {
   if (!supabase) throw new Error(supabaseConfigError ?? 'Supabase client is not configured.');
   return supabase;
+}
+
+function timeoutMessage(label: string): string {
+  return `${label} timed out while loading live Supabase data. Please retry.`;
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = KNOWLEDGE_LOAD_TIMEOUT_MS): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage(label)));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function inferManualCode(sourceUri: string | null): ManualCode | null {
@@ -989,232 +1009,242 @@ function attachSectionsToManuals(
 }
 
 export async function getKnowledgeStats(): Promise<KnowledgeStats> {
-  const client = ensureSupabase();
+  return withTimeout(
+    (async () => {
+      const client = ensureSupabase();
 
-  const [manuals, sourceSections, canonicalKnowledge] = await Promise.all([
-    client.from('os_source_manuals').select('id', { count: 'exact', head: true }),
-    client.from('os_source_sections').select('id', { count: 'exact', head: true }),
-    client
-      .from('os_canonical_knowledge')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'active')
-      .not('current_approved_version_id', 'is', null),
-  ]);
+      const [manuals, sourceSections, canonicalKnowledge] = await Promise.all([
+        client.from('os_source_manuals').select('id', { count: 'exact', head: true }),
+        client.from('os_source_sections').select('id', { count: 'exact', head: true }),
+        client
+          .from('os_canonical_knowledge')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .not('current_approved_version_id', 'is', null),
+      ]);
 
-  for (const response of [manuals, sourceSections, canonicalKnowledge]) {
-    if (response.error) throw response.error;
-  }
+      for (const response of [manuals, sourceSections, canonicalKnowledge]) {
+        if (response.error) throw response.error;
+      }
 
-  return {
-    manuals: manuals.count ?? 0,
-    sourceSections: sourceSections.count ?? 0,
-    canonicalKnowledge: canonicalKnowledge.count ?? 0,
-  };
+      return {
+        manuals: manuals.count ?? 0,
+        sourceSections: sourceSections.count ?? 0,
+        canonicalKnowledge: canonicalKnowledge.count ?? 0,
+      };
+    })(),
+    'Knowledge stats',
+  );
 }
 
 export async function getKnowledgeEngineData(): Promise<KnowledgeEngineData> {
-  const client = ensureSupabase();
+  return withTimeout(
+    (async () => {
+      const client = ensureSupabase();
 
-  const { data: knowledgeRows, error: knowledgeError } = await client
-    .from('os_canonical_knowledge')
-    .select('id,slug,title,summary,status,current_approved_version_id,source_type,updated_at')
-    .eq('status', 'active')
-    .not('current_approved_version_id', 'is', null)
-    .order('title', { ascending: true })
-    .limit(1000);
+      const { data: knowledgeRows, error: knowledgeError } = await client
+        .from('os_canonical_knowledge')
+        .select('id,slug,title,summary,status,current_approved_version_id,source_type,updated_at')
+        .eq('status', 'active')
+        .not('current_approved_version_id', 'is', null)
+        .order('title', { ascending: true })
+        .limit(1000);
 
-  if (knowledgeError) throw knowledgeError;
+      if (knowledgeError) throw knowledgeError;
 
-  const canonicalRows = (knowledgeRows ?? []) as CanonicalKnowledgeRow[];
-  const currentVersionIds = canonicalRows.flatMap((row) => (row.current_approved_version_id ? [row.current_approved_version_id] : []));
+      const canonicalRows = (knowledgeRows ?? []) as CanonicalKnowledgeRow[];
+      const currentVersionIds = canonicalRows.flatMap((row) => (row.current_approved_version_id ? [row.current_approved_version_id] : []));
 
-  const currentVersionRows = await selectByIds<KnowledgeVersionRow>(
-    'os_knowledge_versions',
-    currentVersionIds,
-    'id,knowledge_id,version_number,title,summary,notes,body,status,authored_by,author_label,approved_at,published_at,archived_at,restored_from_version_id,created_at,updated_at',
+      const currentVersionRows = await selectByIds<KnowledgeVersionRow>(
+        'os_knowledge_versions',
+        currentVersionIds,
+        'id,knowledge_id,version_number,title,summary,notes,body,status,authored_by,author_label,approved_at,published_at,archived_at,restored_from_version_id,created_at,updated_at',
+      );
+
+      const currentVersions = new Map(
+        currentVersionRows
+          .filter((row) => row.status === 'approved')
+          .map((row) => [row.id, row]),
+      );
+
+      const approvedKnowledge = canonicalRows.filter(
+        (row) => row.current_approved_version_id && currentVersions.has(row.current_approved_version_id),
+      );
+      const approvedKnowledgeIds = approvedKnowledge.map((row) => row.id);
+
+      const allVersionRows = await selectVersionsByKnowledgeIds(approvedKnowledgeIds);
+      const ontologyLinks = await selectOntologyLinks(approvedKnowledgeIds);
+      const { byKnowledgeId: ontologyByKnowledgeId, options: ontologyOptions } = await buildOntologyFromLinks(ontologyLinks);
+
+      const { data: evidenceData, error: evidenceError } = await client
+        .from('os_evidence_links')
+        .select('id,object_id,source_section_id')
+        .eq('object_type', 'canonical_knowledge')
+        .in('object_id', approvedKnowledgeIds);
+
+      if (evidenceError) throw evidenceError;
+
+      const evidenceRows = (evidenceData ?? []) as EvidenceLinkRow[];
+      const sectionRows = await selectByIds<SourceSectionRow>(
+        'os_source_sections',
+        evidenceRows.map((row) => row.source_section_id),
+        'id,manual_id,heading,body,content_hash',
+      );
+      const sectionsById = new Map(sectionRows.map((row) => [row.id, row]));
+
+      const manualRows = await selectByIds<SourceManualRow>(
+        'os_source_manuals',
+        sectionRows.map((row) => row.manual_id),
+        'id,title,source_uri,content_hash,captured_at',
+      );
+      const manualsById = new Map(manualRows.map((row) => [row.id, row]));
+
+      const evidenceByKnowledge = new Map<string, KnowledgeEvidence[]>();
+      for (const evidence of evidenceRows) {
+        const section = sectionsById.get(evidence.source_section_id);
+        if (!section) continue;
+
+        const manual = manualsById.get(section.manual_id);
+        if (!manual) continue;
+
+        const nextEvidence: KnowledgeEvidence = {
+          id: evidence.id,
+          sourceSectionId: section.id,
+          sourceSectionHeading: section.heading,
+          sourceSectionBody: section.body,
+          sourceSectionHash: section.content_hash,
+          sourceManualId: manual.id,
+          sourceManualTitle: manual.title,
+          sourceFileUri: manual.source_uri ?? '',
+          manualCode: inferManualCode(manual.source_uri),
+        };
+        evidenceByKnowledge.set(evidence.object_id, [...(evidenceByKnowledge.get(evidence.object_id) ?? []), nextEvidence]);
+      }
+
+      const allVersionsByKnowledge = new Map<string, KnowledgeVersion[]>();
+      const versionHistoryRows = allVersionRows.length > 0 ? allVersionRows : currentVersionRows;
+      for (const row of versionHistoryRows) {
+        const version: KnowledgeVersion = {
+          id: row.id,
+          knowledgeId: row.knowledge_id,
+          versionNumber: row.version_number,
+          title: row.title,
+          summary: row.summary,
+          notes: row.notes,
+          body: row.body,
+          status: row.status,
+          approvedAt: row.approved_at,
+          publishedAt: row.published_at,
+          archivedAt: row.archived_at,
+          authoredBy: row.authored_by,
+          authorLabel: row.author_label,
+          restoredFromVersionId: row.restored_from_version_id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+        allVersionsByKnowledge.set(row.knowledge_id, [...(allVersionsByKnowledge.get(row.knowledge_id) ?? []), version]);
+      }
+
+      const objects: KnowledgeObject[] = approvedKnowledge.flatMap((knowledge) => {
+        const approvedVersionRow = knowledge.current_approved_version_id
+          ? currentVersions.get(knowledge.current_approved_version_id)
+          : null;
+        const evidence = evidenceByKnowledge.get(knowledge.id) ?? [];
+        const primaryEvidence = evidence[0];
+        if (!approvedVersionRow || !primaryEvidence) return [];
+
+        const approvedVersion: KnowledgeVersion = {
+          id: approvedVersionRow.id,
+          knowledgeId: approvedVersionRow.knowledge_id,
+          versionNumber: approvedVersionRow.version_number,
+          title: approvedVersionRow.title,
+          summary: approvedVersionRow.summary,
+          notes: approvedVersionRow.notes,
+          body: approvedVersionRow.body,
+          status: approvedVersionRow.status,
+          approvedAt: approvedVersionRow.approved_at,
+          publishedAt: approvedVersionRow.published_at,
+          archivedAt: approvedVersionRow.archived_at,
+          authoredBy: approvedVersionRow.authored_by,
+          authorLabel: approvedVersionRow.author_label,
+          restoredFromVersionId: approvedVersionRow.restored_from_version_id,
+          createdAt: approvedVersionRow.created_at,
+          updatedAt: approvedVersionRow.updated_at,
+        };
+        const category = primaryEvidence.manualCode
+          ? `${primaryEvidence.manualCode} - ${primaryEvidence.sourceManualTitle}`
+          : primaryEvidence.sourceManualTitle;
+
+        return [{
+          id: knowledge.id,
+          slug: knowledge.slug,
+          title: approvedVersion.title ?? knowledge.title,
+          summary: approvedVersion.summary ?? knowledge.summary,
+          status: knowledge.status,
+          category,
+          sourceType: knowledge.source_type === 'user_created' ? 'user_created' : 'imported',
+          manualCode: primaryEvidence.manualCode,
+          manualTitle: primaryEvidence.sourceManualTitle,
+          sourceFileUri: primaryEvidence.sourceFileUri,
+          sourceSectionHeading: primaryEvidence.sourceSectionHeading,
+          currentApprovedVersionId: knowledge.current_approved_version_id,
+          approvedVersion,
+          versions: (allVersionsByKnowledge.get(knowledge.id) ?? [approvedVersion]).sort(
+            (a, b) => b.versionNumber - a.versionNumber,
+          ),
+          evidence,
+          updatedAt: knowledge.updated_at,
+          preview: previewText(approvedVersion.body),
+          related: [],
+          ontology: ontologyByKnowledgeId.get(knowledge.id) ?? emptyOntologyGroups(),
+        }];
+      });
+
+      const sortedObjects = objects.sort((a, b) => a.title.localeCompare(b.title));
+      const objectById = new Map(sortedObjects.map((object) => [object.id, object]));
+
+      const { data: relationshipTypeData, error: relationshipTypeError } = await client
+        .from('os_knowledge_relationship_types')
+        .select('id,code,name,description')
+        .order('code', { ascending: true });
+
+      if (relationshipTypeError) throw relationshipTypeError;
+
+      const relationshipTypes = (relationshipTypeData ?? []) as KnowledgeRelationshipType[];
+      const relationshipTypeById = new Map(relationshipTypes.map((type) => [type.id, type]));
+
+      const { data: relationshipData, error: relationshipError } = await client
+        .from('os_knowledge_relationships')
+        .select('id,source_knowledge_id,target_knowledge_id,relationship_type_id,strength,notes,created_at,updated_at')
+        .order('updated_at', { ascending: false });
+
+      if (relationshipError) throw relationshipError;
+
+      const relationships = ((relationshipData ?? []) as RelationshipRow[])
+        .map((row) => buildRelationship(row, relationshipTypeById, objectById))
+        .filter((relationship): relationship is KnowledgeRelationship => relationship !== null);
+      const objectsWithRelationships = attachRelationships(sortedObjects, relationships);
+      const { groups: requiredKnowledgeGroups, items: requiredKnowledgeItems } = await selectRequiredKnowledge();
+      const coverage = buildCoverageSummary(requiredKnowledgeItems, objectsWithRelationships);
+
+      return {
+        manuals: attachSectionsToManuals(manualRows, sectionRows, evidenceRows),
+        objects: objectsWithRelationships,
+        categories: buildCategories(objectsWithRelationships),
+        relationships,
+        relationshipTypes,
+        ontologyOptions,
+        ontologyStats: buildOntologyStats(objectsWithRelationships),
+        requiredKnowledgeGroups,
+        requiredKnowledgeItems,
+        coverage,
+        versions: objectsWithRelationships
+          .flatMap((object) => object.versions)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+      };
+    })(),
+    'Knowledge library',
   );
-
-  const currentVersions = new Map(
-    currentVersionRows
-      .filter((row) => row.status === 'approved')
-      .map((row) => [row.id, row]),
-  );
-
-  const approvedKnowledge = canonicalRows.filter(
-    (row) => row.current_approved_version_id && currentVersions.has(row.current_approved_version_id),
-  );
-  const approvedKnowledgeIds = approvedKnowledge.map((row) => row.id);
-
-  const allVersionRows = await selectVersionsByKnowledgeIds(approvedKnowledgeIds);
-  const ontologyLinks = await selectOntologyLinks(approvedKnowledgeIds);
-  const { byKnowledgeId: ontologyByKnowledgeId, options: ontologyOptions } = await buildOntologyFromLinks(ontologyLinks);
-
-  const { data: evidenceData, error: evidenceError } = await client
-    .from('os_evidence_links')
-    .select('id,object_id,source_section_id')
-    .eq('object_type', 'canonical_knowledge')
-    .in('object_id', approvedKnowledgeIds);
-
-  if (evidenceError) throw evidenceError;
-
-  const evidenceRows = (evidenceData ?? []) as EvidenceLinkRow[];
-  const sectionRows = await selectByIds<SourceSectionRow>(
-    'os_source_sections',
-    evidenceRows.map((row) => row.source_section_id),
-    'id,manual_id,heading,body,content_hash',
-  );
-  const sectionsById = new Map(sectionRows.map((row) => [row.id, row]));
-
-  const manualRows = await selectByIds<SourceManualRow>(
-    'os_source_manuals',
-    sectionRows.map((row) => row.manual_id),
-    'id,title,source_uri,content_hash,captured_at',
-  );
-  const manualsById = new Map(manualRows.map((row) => [row.id, row]));
-
-  const evidenceByKnowledge = new Map<string, KnowledgeEvidence[]>();
-  for (const evidence of evidenceRows) {
-    const section = sectionsById.get(evidence.source_section_id);
-    if (!section) continue;
-
-    const manual = manualsById.get(section.manual_id);
-    if (!manual) continue;
-
-    const nextEvidence: KnowledgeEvidence = {
-      id: evidence.id,
-      sourceSectionId: section.id,
-      sourceSectionHeading: section.heading,
-      sourceSectionBody: section.body,
-      sourceSectionHash: section.content_hash,
-      sourceManualId: manual.id,
-      sourceManualTitle: manual.title,
-      sourceFileUri: manual.source_uri ?? '',
-      manualCode: inferManualCode(manual.source_uri),
-    };
-    evidenceByKnowledge.set(evidence.object_id, [...(evidenceByKnowledge.get(evidence.object_id) ?? []), nextEvidence]);
-  }
-
-  const allVersionsByKnowledge = new Map<string, KnowledgeVersion[]>();
-  const versionHistoryRows = allVersionRows.length > 0 ? allVersionRows : currentVersionRows;
-  for (const row of versionHistoryRows) {
-    const version: KnowledgeVersion = {
-      id: row.id,
-      knowledgeId: row.knowledge_id,
-      versionNumber: row.version_number,
-      title: row.title,
-      summary: row.summary,
-      notes: row.notes,
-      body: row.body,
-      status: row.status,
-      approvedAt: row.approved_at,
-      publishedAt: row.published_at,
-      archivedAt: row.archived_at,
-      authoredBy: row.authored_by,
-      authorLabel: row.author_label,
-      restoredFromVersionId: row.restored_from_version_id,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
-    allVersionsByKnowledge.set(row.knowledge_id, [...(allVersionsByKnowledge.get(row.knowledge_id) ?? []), version]);
-  }
-
-  const objects: KnowledgeObject[] = approvedKnowledge.flatMap((knowledge) => {
-    const approvedVersionRow = knowledge.current_approved_version_id
-      ? currentVersions.get(knowledge.current_approved_version_id)
-      : null;
-    const evidence = evidenceByKnowledge.get(knowledge.id) ?? [];
-    const primaryEvidence = evidence[0];
-    if (!approvedVersionRow || !primaryEvidence) return [];
-
-    const approvedVersion: KnowledgeVersion = {
-      id: approvedVersionRow.id,
-      knowledgeId: approvedVersionRow.knowledge_id,
-      versionNumber: approvedVersionRow.version_number,
-      title: approvedVersionRow.title,
-      summary: approvedVersionRow.summary,
-      notes: approvedVersionRow.notes,
-      body: approvedVersionRow.body,
-      status: approvedVersionRow.status,
-      approvedAt: approvedVersionRow.approved_at,
-      publishedAt: approvedVersionRow.published_at,
-      archivedAt: approvedVersionRow.archived_at,
-      authoredBy: approvedVersionRow.authored_by,
-      authorLabel: approvedVersionRow.author_label,
-      restoredFromVersionId: approvedVersionRow.restored_from_version_id,
-      createdAt: approvedVersionRow.created_at,
-      updatedAt: approvedVersionRow.updated_at,
-    };
-    const category = primaryEvidence.manualCode
-      ? `${primaryEvidence.manualCode} - ${primaryEvidence.sourceManualTitle}`
-      : primaryEvidence.sourceManualTitle;
-
-    return [{
-      id: knowledge.id,
-      slug: knowledge.slug,
-      title: approvedVersion.title ?? knowledge.title,
-      summary: approvedVersion.summary ?? knowledge.summary,
-      status: knowledge.status,
-      category,
-      sourceType: knowledge.source_type === 'user_created' ? 'user_created' : 'imported',
-      manualCode: primaryEvidence.manualCode,
-      manualTitle: primaryEvidence.sourceManualTitle,
-      sourceFileUri: primaryEvidence.sourceFileUri,
-      sourceSectionHeading: primaryEvidence.sourceSectionHeading,
-      currentApprovedVersionId: knowledge.current_approved_version_id,
-      approvedVersion,
-      versions: (allVersionsByKnowledge.get(knowledge.id) ?? [approvedVersion]).sort(
-        (a, b) => b.versionNumber - a.versionNumber,
-      ),
-      evidence,
-      updatedAt: knowledge.updated_at,
-      preview: previewText(approvedVersion.body),
-      related: [],
-      ontology: ontologyByKnowledgeId.get(knowledge.id) ?? emptyOntologyGroups(),
-    }];
-  });
-
-  const sortedObjects = objects.sort((a, b) => a.title.localeCompare(b.title));
-  const objectById = new Map(sortedObjects.map((object) => [object.id, object]));
-
-  const { data: relationshipTypeData, error: relationshipTypeError } = await client
-    .from('os_knowledge_relationship_types')
-    .select('id,code,name,description')
-    .order('code', { ascending: true });
-
-  if (relationshipTypeError) throw relationshipTypeError;
-
-  const relationshipTypes = (relationshipTypeData ?? []) as KnowledgeRelationshipType[];
-  const relationshipTypeById = new Map(relationshipTypes.map((type) => [type.id, type]));
-
-  const { data: relationshipData, error: relationshipError } = await client
-    .from('os_knowledge_relationships')
-    .select('id,source_knowledge_id,target_knowledge_id,relationship_type_id,strength,notes,created_at,updated_at')
-    .order('updated_at', { ascending: false });
-
-  if (relationshipError) throw relationshipError;
-
-  const relationships = ((relationshipData ?? []) as RelationshipRow[])
-    .map((row) => buildRelationship(row, relationshipTypeById, objectById))
-    .filter((relationship): relationship is KnowledgeRelationship => relationship !== null);
-  const objectsWithRelationships = attachRelationships(sortedObjects, relationships);
-  const { groups: requiredKnowledgeGroups, items: requiredKnowledgeItems } = await selectRequiredKnowledge();
-  const coverage = buildCoverageSummary(requiredKnowledgeItems, objectsWithRelationships);
-
-  return {
-    manuals: attachSectionsToManuals(manualRows, sectionRows, evidenceRows),
-    objects: objectsWithRelationships,
-    categories: buildCategories(objectsWithRelationships),
-    relationships,
-    relationshipTypes,
-    ontologyOptions,
-    ontologyStats: buildOntologyStats(objectsWithRelationships),
-    requiredKnowledgeGroups,
-    requiredKnowledgeItems,
-    coverage,
-    versions: objectsWithRelationships
-      .flatMap((object) => object.versions)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-  };
 }
 
 export async function searchKnowledge({

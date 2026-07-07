@@ -1603,6 +1603,20 @@ pre {
   line-height: 1.55;
 }
 
+.workspaceLoadSummary {
+  margin: 6px 0 0;
+  color: #637188;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.knowledgeWorkspaceEmpty {
+  display: grid;
+  place-items: start;
+  min-height: 320px;
+}
+
 .workspaceSearchHeader {
   align-items: flex-start;
 }

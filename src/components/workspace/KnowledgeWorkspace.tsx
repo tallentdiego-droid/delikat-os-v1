@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Layers3, Plus, X } from 'lucide-react';
+import { AlertCircle, Layers3, Plus, RotateCcw, X } from 'lucide-react';
 import { SOPFolderTree, type SOPFolderTreeItem } from './SOPFolderTree';
 import { SOPLibrary } from './SOPLibrary';
 import { SOPPreview } from './SOPPreview';
@@ -25,6 +25,23 @@ interface WorkspaceState {
   training: TrainingEngineData;
   checklists: ChecklistEngineData;
   audits: AuditEngineData;
+}
+
+const WORKSPACE_LOAD_TIMEOUT_MS = 20000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
 }
 
 function friendlyError(reason: unknown): string {
@@ -160,6 +177,7 @@ export function KnowledgeWorkspace({
 }: KnowledgeWorkspaceProps): JSX.Element {
   const [data, setData] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [studioSection, setStudioSection] = useState<'library' | 'import'>('library');
   const [folderFilter, setFolderFilter] = useState<'all' | 'imported' | 'drafts' | 'user_created' | 'recent'>('all');
@@ -214,31 +232,34 @@ export function KnowledgeWorkspace({
   }, [initialSelectedObjectId, initialSelectedObjectRequestId]);
 
   const refreshData = useCallback(async (): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const [knowledge, training, checklists, audits] = await Promise.all([
+      const [knowledge, training, checklists, audits] = await withTimeout(
+        Promise.all([
         getKnowledgeEngineData(),
         getTrainingEngineData(),
         getChecklistEngineData(),
         getAuditEngineData(),
-      ]);
+        ]),
+        WORKSPACE_LOAD_TIMEOUT_MS,
+        'Studio timed out while loading live Supabase data. Please retry.',
+      ) as [KnowledgeEngineData, TrainingEngineData, ChecklistEngineData, AuditEngineData];
       setData({ knowledge, training, checklists, audits });
       setError(null);
       setSelectedObjectId((current) => current ?? knowledge.objects[0]?.id ?? null);
     } catch (reason) {
       setError(friendlyError(reason));
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let active = true;
-
     void refreshData().catch((reason: unknown) => {
-      if (active) setError(friendlyError(reason));
+      setError(friendlyError(reason));
     });
-
-    return () => {
-      active = false;
-    };
   }, [refreshData]);
 
   const workspaceObjects = useMemo(() => {
@@ -496,6 +517,13 @@ export function KnowledgeWorkspace({
         <div>
           <h2>Delikat Studio</h2>
           <p>Browse manuals, search SOPs, edit drafts, and keep imported evidence visible.</p>
+          {data ? (
+            <p className="workspaceLoadSummary">
+              {data.knowledge.objects.length} SOPs loaded · {data.knowledge.manuals.length} manuals
+            </p>
+          ) : isLoading ? (
+            <p className="workspaceLoadSummary">Loading live SOP library from Supabase…</p>
+          ) : null}
         </div>
         <div className="workspaceHeaderActions">
           <div className="studioSectionTabs" role="tablist" aria-label="Studio sections">
@@ -517,6 +545,9 @@ export function KnowledgeWorkspace({
         <div className="notice error actionNotice">
           <AlertCircle aria-hidden="true" size={18} />
           <span>{error}</span>
+          <button className="iconTextButton" onClick={refreshData} type="button">
+            Retry
+          </button>
         </div>
       )}
 
@@ -644,7 +675,7 @@ export function KnowledgeWorkspace({
 
       {studioSection === 'import' ? (
         <ImportCenter />
-      ) : !data ? (
+      ) : isLoading && !data ? (
         <div className="knowledgeWorkspaceLayout">
           <aside className="knowledgeWorkspaceSidebar">
             <OSCard className="workspaceSkeletonPanel">
@@ -708,6 +739,20 @@ export function KnowledgeWorkspace({
               <div className="workspaceSkeletonBlock" />
             </OSCard>
           </div>
+        </div>
+      ) : !data ? (
+        <div className="knowledgeWorkspaceEmpty">
+          <EmptyState
+            icon={AlertCircle}
+            title="Studio is unavailable"
+            description={error ?? 'Studio could not load live Supabase data.'}
+            action={
+              <button className="iconTextButton" onClick={refreshData} type="button">
+                <RotateCcw aria-hidden="true" size={16} />
+                Retry
+              </button>
+            }
+          />
         </div>
       ) : (
         <div className="knowledgeWorkspaceLayout">
