@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Brain, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Users, Workflow } from 'lucide-react';
+import { Brain, BookOpen, Building2, ClipboardList, Database, GraduationCap, LayoutDashboard, Search, Settings, ShieldAlert, Users, Workflow } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
+import { KnowledgeWorkspacePage } from './pages/KnowledgeWorkspacePage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { ManagerPage } from './pages/ManagerPage';
@@ -10,11 +11,12 @@ import { ChecklistsPage } from './pages/ChecklistsPage';
 import { AuditsPage } from './pages/AuditsPage';
 import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'home' | 'manager' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
+type Page = 'home' | 'manager' | 'knowledgeWorkspace' | 'knowledge' | 'organization' | 'operations' | 'roles' | 'training' | 'checklists' | 'audits' | 'command' | 'settings';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: LayoutDashboard },
   { id: 'manager' as const, label: 'Manager OS', icon: ClipboardList },
+  { id: 'knowledgeWorkspace' as const, label: 'Knowledge Workspace', icon: BookOpen },
   { id: 'operations' as const, label: 'Operations', icon: Workflow },
   { id: 'roles' as const, label: 'Roles', icon: Users },
   { id: 'training' as const, label: 'Training', icon: GraduationCap },
@@ -28,6 +30,7 @@ const navigation = [
 
 function pageTitle(page: Page): string {
   if (page === 'manager') return 'Manager OS';
+  if (page === 'knowledgeWorkspace') return 'Knowledge Workspace';
   if (page === 'knowledge') return 'Knowledge';
   if (page === 'organization') return 'Organization';
   if (page === 'operations') return 'Operations';
@@ -122,6 +125,7 @@ export function App(): JSX.Element {
               onOpenTraining={() => setPage('training')}
             />
           )}
+          {page === 'knowledgeWorkspace' && <KnowledgeWorkspacePage />}
           {page === 'knowledge' && <KnowledgeBasePage />}
           {page === 'organization' && <PlaceholderPage label="Organization" />}
           {page === 'operations' && <OperationsPage onOpenKnowledgeBase={() => setPage('knowledge')} />}

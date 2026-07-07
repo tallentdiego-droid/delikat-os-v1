@@ -1356,6 +1356,180 @@ pre {
   max-width: 1480px;
 }
 
+.knowledgeWorkspaceShell {
+  max-width: 1600px;
+}
+
+.knowledgeWorkspaceLayout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1.15fr) minmax(360px, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.knowledgeWorkspaceSidebar {
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 16px;
+}
+
+.workspaceSection {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceSectionHeader h3 {
+  margin: 0;
+  color: #172033;
+  letter-spacing: 0;
+}
+
+.workspaceSectionHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspaceFolderList,
+.workspaceMiniList,
+.workspaceCardGrid,
+.workspaceEvidenceList {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceFolderCard,
+.workspaceMiniCard,
+.workspacePreviewPanel {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.workspaceFolderCard.active {
+  border-color: #8fb3de;
+  box-shadow: 0 0 0 1px rgba(143, 179, 222, 0.15);
+}
+
+.workspaceFolderButton,
+.workspaceMiniButton {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+}
+
+.workspaceFolderHeader,
+.workspaceMiniHeader {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+
+.workspaceFolderIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #eef3f8;
+  color: #172033;
+  flex: none;
+}
+
+.workspaceFolderHeader strong,
+.workspaceMiniHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.workspaceFolderHeader p,
+.workspaceMiniButton p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspaceFolderMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.workspaceCenter {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceSearch {
+  position: sticky;
+  top: 16px;
+  z-index: 2;
+  background: #f5f7fa;
+}
+
+.workspacePreview {
+  display: grid;
+  gap: 14px;
+}
+
+.workspacePreviewSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspacePreviewPanel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.workspacePreviewIntro {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspacePreviewIntro span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspacePreviewIntro p {
+  margin: 6px 0 0;
+  color: #172033;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.workspaceEmpty {
+  border: 1px dashed #cfd8e5;
+  border-radius: 8px;
+  color: #607086;
+  padding: 14px;
+  background: #fff;
+}
+
+.workspaceSection .sopCard {
+  padding: 14px;
+}
+
 .engineStats {
   display: flex;
   flex-wrap: wrap;
@@ -3076,6 +3250,9 @@ tbody tr:hover,
   .managerActionGrid,
   .managerRunGrid,
   .managerRoleGrid,
+  .knowledgeWorkspaceLayout,
+  .workspacePreviewIntro,
+  .workspacePreviewSummary,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,
