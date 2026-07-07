@@ -1,18 +1,10 @@
 import { Plus, Search } from 'lucide-react';
 import { SOPCard, EmptyState } from '../os';
 import type { KnowledgeManual, KnowledgeObject, KnowledgeOntologyEntity, ManualFilter } from '../../lib/knowledge';
-import { knowledgeOriginLabel, previewText } from '../../lib/knowledge';
-
-function labelFromEntity(entity: KnowledgeOntologyEntity | null | undefined): string {
-  return entity ? entity.name : 'Not set';
-}
+import { previewText } from '../../lib/knowledge';
 
 function manualLabel(manual: KnowledgeManual): string {
   return manual.manualCode ? `${manual.manualCode} · ${manual.title}` : manual.title;
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
 }
 
 function needsImprovementLabel(object: KnowledgeObject): string {
@@ -22,12 +14,17 @@ function needsImprovementLabel(object: KnowledgeObject): string {
   return 'Ready';
 }
 
+function entityLabel(entity: KnowledgeOntologyEntity | undefined): string {
+  return entity?.name ?? 'All';
+}
+
 export function SOPLibrary({
   query,
   onQueryChange,
   folderLabel,
   objects,
   selectedObjectId,
+  folderFilter,
   manualFilter,
   onManualFilterChange,
   manualOptions,
@@ -52,6 +49,7 @@ export function SOPLibrary({
   folderLabel: string;
   objects: KnowledgeObject[];
   selectedObjectId: string | null;
+  folderFilter: 'all' | 'imported' | 'drafts' | 'user_created' | 'recent';
   manualFilter: ManualFilter;
   onManualFilterChange: (value: ManualFilter) => void;
   manualOptions: KnowledgeManual[];
@@ -73,6 +71,7 @@ export function SOPLibrary({
 }): JSX.Element {
   const hasFilters =
     query.trim().length > 0 ||
+    folderFilter !== 'all' ||
     manualFilter !== 'all' ||
     departmentFilter !== 'all' ||
     roleFilter !== 'all' ||
@@ -174,9 +173,18 @@ export function SOPLibrary({
             <span>Active filters:</span>
             <strong>
               {query.trim() ? `Search "${query.trim()}"` : 'Search off'} · {sortMode === 'recent' ? 'Most recent' : sortMode === 'title' ? 'Title' : 'Manual'} ·{' '}
+              {folderFilter === 'all'
+                ? 'All folders'
+                : folderFilter === 'imported'
+                  ? 'Imported manuals'
+                  : folderFilter === 'drafts'
+                    ? 'Drafts'
+                    : folderFilter === 'user_created'
+                      ? 'User-created'
+                      : 'Recently edited'} ·{' '}
               {manualFilter === 'all' ? 'All manuals' : manualFilter} ·{' '}
-              {departmentFilter === 'all' ? 'All departments' : labelFromEntity(departmentOptions.find((department) => department.id === departmentFilter))} ·{' '}
-              {roleFilter === 'all' ? 'All roles' : labelFromEntity(roleOptions.find((role) => role.id === roleFilter))} ·{' '}
+              {departmentFilter === 'all' ? 'All departments' : entityLabel(departmentOptions.find((department) => department.id === departmentFilter))} ·{' '}
+              {roleFilter === 'all' ? 'All roles' : entityLabel(roleOptions.find((role) => role.id === roleFilter))} ·{' '}
               {statusFilter === 'all' ? 'All statuses' : statusFilter} · {needsImprovementOnly ? 'Needs improvement only' : 'All quality states'}
             </strong>
           </div>
@@ -215,52 +223,28 @@ export function SOPLibrary({
         ) : (
           <div className="workspaceCardGrid">
             {objects.map((object) => {
-              const department = object.ontology.departments[0] ?? null;
-              const role = object.ontology.roles[0] ?? null;
-              const area = object.ontology.areas[0] ?? null;
-              const process = object.ontology.businessProcesses[0] ?? null;
-              const evidenceLabel = `${object.evidence.length} evidence link${object.evidence.length === 1 ? '' : 's'}`;
               const isSelected = selectedObjectId === object.id;
-              const originLabel = knowledgeOriginLabel(object);
               const stateLabel = needsImprovementLabel(object);
+              const sourceLabel = object.sourceType === 'user_created' ? 'Studio draft' : 'Source manual';
+              const sourceDetail = object.sourceType === 'user_created' ? 'Created in Studio' : object.manualCode ?? object.manualTitle;
               return (
                 <SOPCard
                   action={
                     <button className="tableLink" onClick={() => onSelectObject(object.id)} type="button">
-                      {object.sourceType === 'user_created' || object.approvedVersion.status !== 'approved' ? 'Edit SOP' : 'Open SOP'}
+                      Open
                     </button>
                   }
                   className={isSelected ? 'workspaceResultCard selected' : 'workspaceResultCard'}
                   key={object.id}
-                  metadata={[
-                    { label: 'Source manual', value: object.manualCode ?? object.manualTitle },
-                    { label: 'Evidence', value: evidenceLabel },
-                    { label: 'Department', value: labelFromEntity(department) },
-                    { label: 'Role', value: labelFromEntity(role) },
-                    { label: 'Area', value: labelFromEntity(area) },
-                    { label: 'Process', value: labelFromEntity(process) },
-                    { label: 'Updated', value: formatDate(object.updatedAt) },
-                    { label: 'Version', value: `v${object.approvedVersion.versionNumber}` },
-                    { label: 'Version status', value: object.approvedVersion.status },
-                  ]}
                   onClick={() => onSelectObject(object.id)}
                   selected={isSelected}
-                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                  sourceLabel={originLabel}
+                  sourceDetail={sourceDetail}
+                  sourceLabel={sourceLabel}
                   status={stateLabel === 'Ready' ? 'active' : 'draft'}
                   statusLabel={stateLabel}
                   summary={object.summary ?? previewText(object.approvedVersion.body, 180)}
                   title={object.title}
-                >
-                  <div className="workspaceResultBody">
-                    <p>{previewText(object.approvedVersion.body, 240)}</p>
-                    <div className="workspaceResultHints">
-                      <span>{object.evidence.length > 0 ? 'Evidence attached' : 'Evidence missing'}</span>
-                      <span>{object.related.length > 0 ? `${object.related.length} related SOPs` : 'No related SOPs yet'}</span>
-                      <span>{stateLabel}</span>
-                    </div>
-                  </div>
-                </SOPCard>
+                />
               );
             })}
           </div>

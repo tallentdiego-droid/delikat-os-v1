@@ -1561,8 +1561,8 @@ pre {
 
 .knowledgeWorkspaceLayout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1.15fr) minmax(360px, 0.95fr);
-  gap: 14px;
+  grid-template-columns: 240px minmax(0, 1.35fr) minmax(420px, 1.05fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -1571,6 +1571,7 @@ pre {
   gap: 14px;
   position: sticky;
   top: 16px;
+  min-width: 0;
 }
 
 .workspaceSection {
@@ -1691,6 +1692,7 @@ pre {
 .workspaceCenter {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .workspaceSearch {
@@ -1710,6 +1712,7 @@ pre {
 .workspacePreview {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .workspaceSearchSection {
@@ -1798,8 +1801,13 @@ pre {
   display: grid;
   gap: 14px;
   padding: 18px;
-  max-width: 940px;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
+  width: 100%;
+}
+
+.workspacePreviewDocument {
+  min-width: 0;
 }
 
 .workspacePreviewActions {
@@ -1891,8 +1899,8 @@ pre {
 .workspaceDocumentHeader,
 .workspaceDocumentBody,
 .workspaceDocumentPanel {
-  max-width: 900px;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
 }
 
 .workspaceDocumentHeader h3 {
@@ -1925,6 +1933,33 @@ pre {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+}
+
+.workspacePreviewSourceLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #4b5f77;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspacePreviewSourceLine span:first-child {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #4c5d73;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.workspacePreviewSourceLine strong {
+  color: #172033;
+  font-weight: 700;
 }
 
 .workspaceDocumentPanel,
@@ -2311,6 +2346,23 @@ pre {
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.workspaceHistoryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #4b5f77;
+  font-size: 12px;
+}
+
+.workspaceHistoryMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #44566d;
+  font-weight: 700;
+  padding: 4px 8px;
 }
 
 .workspaceHistoryHeader h4 {

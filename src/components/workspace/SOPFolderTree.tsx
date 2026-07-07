@@ -1,9 +1,8 @@
 import { FolderOpen, Files } from 'lucide-react';
 import { OSCard } from '../os';
-import type { ManualFilter } from '../../lib/knowledge';
 
 export interface SOPFolderTreeItem {
-  id: ManualFilter;
+  id: string;
   title: string;
   subtitle: string;
   count: number;
@@ -15,14 +14,14 @@ export function SOPFolderTree({
   onSelectFolder,
 }: {
   folders: SOPFolderTreeItem[];
-  onSelectFolder: (id: ManualFilter) => void;
+  onSelectFolder: (id: string) => void;
 }): JSX.Element {
   return (
     <section className="workspaceSection">
       <div className="workspaceSectionHeader">
         <div>
-          <h3>SOP folders</h3>
-          <p>Approved manuals organized as the workspace library.</p>
+          <h3>Folders</h3>
+          <p>Simple ways to browse the SOP library.</p>
         </div>
       </div>
       <div className="workspaceFolderList">

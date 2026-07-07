@@ -7,7 +7,6 @@ import { EmptyState, OSCard, SOPCard } from '../os';
 import {
   createKnowledgeDraft,
   getKnowledgeEngineData,
-  knowledgeOriginLabel,
   previewText,
   type KnowledgeEngineData,
   type KnowledgeObject,
@@ -161,6 +160,7 @@ export function KnowledgeWorkspace({
   const [data, setData] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [folderFilter, setFolderFilter] = useState<'all' | 'imported' | 'drafts' | 'user_created' | 'recent'>('all');
   const [manualCode, setManualCode] = useState<ManualFilter>('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -240,16 +240,33 @@ export function KnowledgeWorkspace({
     return [...data.knowledge.objects, ...localObjects];
   }, [data, localObjects]);
 
+  const recentlyEditedIds = useMemo(
+    () =>
+      new Set(
+        [...workspaceObjects]
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title))
+          .slice(0, 8)
+          .map((object) => object.id),
+      ),
+    [workspaceObjects],
+  );
+
   const filteredObjects = useMemo(() => {
     if (!data) return [];
     const filtered = workspaceObjects.filter((object) => {
+      const folderMatches =
+        folderFilter === 'all' ||
+        (folderFilter === 'imported' && object.sourceType === 'imported') ||
+        (folderFilter === 'drafts' && (object.status !== 'active' || object.approvedVersion.status !== 'approved')) ||
+        (folderFilter === 'user_created' && object.sourceType === 'user_created') ||
+        (folderFilter === 'recent' && recentlyEditedIds.has(object.id));
       const manualMatches = manualCode === 'all' || object.manualCode === manualCode;
       const departmentMatches =
         departmentFilter === 'all' || object.ontology.departments.some((department) => department.id === departmentFilter);
       const roleMatches = roleFilter === 'all' || object.ontology.roles.some((role) => role.id === roleFilter);
       const statusMatches = statusFilter === 'all' || object.status === statusFilter || object.approvedVersion.status === statusFilter;
       const needsImprovementMatches = !needsImprovementOnly || hasNeedsImprovement(object);
-      return manualMatches && departmentMatches && roleMatches && statusMatches && needsImprovementMatches && matchesQuery(object, query);
+      return folderMatches && manualMatches && departmentMatches && roleMatches && statusMatches && needsImprovementMatches && matchesQuery(object, query);
     });
 
     return [...filtered].sort((a, b) => {
@@ -264,7 +281,7 @@ export function KnowledgeWorkspace({
       if (query.trim() && scoreDiff !== 0) return scoreDiff;
       return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
     });
-  }, [data, departmentFilter, manualCode, needsImprovementOnly, query, roleFilter, sortMode, statusFilter, workspaceObjects]);
+  }, [data, departmentFilter, folderFilter, manualCode, needsImprovementOnly, query, recentlyEditedIds, roleFilter, sortMode, statusFilter, workspaceObjects]);
 
   useEffect(() => {
     if (!data) return;
@@ -292,29 +309,37 @@ export function KnowledgeWorkspace({
     if (!data) return [];
     const allCount = workspaceObjects.length;
     return [
-      { id: 'all', title: 'All SOPs', subtitle: 'Entire approved library', count: allCount, selected: manualCode === 'all' },
-      ...data.knowledge.manuals.map((manual) => ({
-        id: (manual.manualCode ?? 'all') as ManualFilter,
-        title: folderLabel(manual),
-        subtitle: `${manual.sections.length} source sections · ${fileLabel(manual.sourceUri)}`,
-        count: workspaceObjects.filter((object) => object.manualCode === manual.manualCode).length,
-        selected: manual.manualCode !== null && manualCode === manual.manualCode,
-      })),
+      { id: 'all', title: 'All SOPs', subtitle: 'Everything in the live library', count: allCount, selected: folderFilter === 'all' && manualCode === 'all' },
+      {
+        id: 'imported',
+        title: 'Imported manuals',
+        subtitle: 'Source manuals only',
+        count: workspaceObjects.filter((object) => object.sourceType === 'imported').length,
+        selected: folderFilter === 'imported',
+      },
+      {
+        id: 'drafts',
+        title: 'Drafts',
+        subtitle: 'Not yet published',
+        count: workspaceObjects.filter((object) => object.status !== 'active' || object.approvedVersion.status !== 'approved').length,
+        selected: folderFilter === 'drafts',
+      },
+      {
+        id: 'user_created',
+        title: 'User-created',
+        subtitle: 'Drafts started in Studio',
+        count: workspaceObjects.filter((object) => object.sourceType === 'user_created').length,
+        selected: folderFilter === 'user_created',
+      },
+      {
+        id: 'recent',
+        title: 'Recently edited',
+        subtitle: 'Last updated SOPs',
+        count: recentlyEditedIds.size,
+        selected: folderFilter === 'recent',
+      },
     ];
-  }, [data, manualCode, workspaceObjects]);
-
-  const drafts = useMemo(() => {
-    if (!data) return [];
-    return workspaceObjects
-      .filter((object) => object.status !== 'active' || object.approvedVersion.status !== 'approved')
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, 5);
-  }, [workspaceObjects]);
-
-  const recentlyEdited = useMemo(() => {
-    if (!data) return [];
-    return [...workspaceObjects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
-  }, [workspaceObjects]);
+  }, [data, folderFilter, manualCode, recentlyEditedIds, workspaceObjects]);
 
   const previewTrainingPaths = useMemo(() => {
     if (!data || !selectedObject) return [];
@@ -344,7 +369,6 @@ export function KnowledgeWorkspace({
     [data],
   );
   const manualOptions = useMemo(() => data?.knowledge.manuals ?? [], [data]);
-  const draftCount = drafts.length;
   const resultSummary = useMemo(() => {
     const total = workspaceObjects.length;
     if (!data) return 'Loading live results from Supabase.';
@@ -663,90 +687,38 @@ export function KnowledgeWorkspace({
       ) : (
         <div className="knowledgeWorkspaceLayout">
           <aside className="knowledgeWorkspaceSidebar">
-            <SOPFolderTree folders={folders} onSelectFolder={setManualCode} />
+            <SOPFolderTree
+              folders={folders}
+              onSelectFolder={(id) => {
+                setFolderFilter(id as typeof folderFilter);
+                setManualCode('all');
+              }}
+            />
 
             <section className="workspaceSection">
               <div className="workspaceSectionHeader">
                 <div>
-                  <h3>Drafts</h3>
-                  <p>{draftCount > 0 ? `${draftCount} draft SOP${draftCount === 1 ? '' : 's'} are ready to edit.` : 'No drafts yet. Create or edit an SOP to start.'}</p>
-                </div>
-              </div>
-              {drafts.length === 0 ? (
-                <div className="workspaceEmpty">No drafts yet. Create or edit an SOP to start.</div>
-              ) : (
-                <div className="workspaceMiniList">
-                  {drafts.slice(0, 5).map((object) => (
-                    <SOPCard
-                      key={object.id}
-                      className="workspaceMiniCard"
-                      title={object.title}
-                      summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                      sourceLabel={knowledgeOriginLabel(object)}
-                      sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                      status={object.status}
-                      statusLabel={object.sourceType === 'user_created' ? 'Draft' : 'Needs review'}
-                      action={
-                        <button className="tableLink" onClick={() => openObject(object.id)} type="button">
-                          Open
-                        </button>
-                      }
-                      onClick={() => openObject(object.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="workspaceSection">
-              <div className="workspaceSectionHeader">
-                <div>
-                  <h3>Recently edited</h3>
-                  <p>Latest approved SOP updates in the catalog.</p>
-                </div>
-              </div>
-              {recentlyEdited.length === 0 ? (
-                <div className="workspaceEmpty">No recent SOPs visible yet.</div>
-              ) : (
-                <div className="workspaceMiniList">
-                  {recentlyEdited.slice(0, 5).map((object) => (
-                    <SOPCard
-                      key={object.id}
-                      className="workspaceMiniCard"
-                      title={object.title}
-                      summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                      sourceLabel={knowledgeOriginLabel(object)}
-                      sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                      status={object.status}
-                      statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Needs review'}
-                      action={
-                        <button className="tableLink" onClick={() => openObject(object.id)} type="button">
-                          Preview
-                        </button>
-                      }
-                      onClick={() => openObject(object.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="workspaceSection">
-              <div className="workspaceSectionHeader">
-                <div>
-                  <h3>Imported manuals</h3>
-                  <p>Source folders that stay read only in Studio.</p>
+                  <h3>Manuals</h3>
+                  <p>Source manuals loaded from Supabase.</p>
                 </div>
               </div>
               <div className="workspaceMiniList">
                 {manualOptions.length === 0 ? (
-                  <div className="workspaceEmpty">No imported manuals were loaded yet.</div>
+                  <div className="workspaceEmpty">No source manuals were loaded yet.</div>
                 ) : (
                   manualOptions.map((manual) => {
                     const manualCount = workspaceObjects.filter((object) => object.manualCode === manual.manualCode).length;
+                    const isSelected = manualCode === manual.manualCode;
                     return (
-                      <OSCard className="workspaceMiniCard" key={manual.id}>
-                        <button className="workspaceMiniButton" onClick={() => setManualCode((manual.manualCode ?? 'all') as ManualFilter)} type="button">
+                      <OSCard className="workspaceMiniCard" key={manual.id} selected={isSelected}>
+                        <button
+                          className="workspaceMiniButton"
+                          onClick={() => {
+                            setFolderFilter('all');
+                            setManualCode((manual.manualCode ?? 'all') as ManualFilter);
+                          }}
+                          type="button"
+                        >
                           <div className="workspaceMiniHeader">
                             <div className="workspaceFolderIcon">
                               <Layers3 aria-hidden="true" size={16} />
@@ -774,8 +746,9 @@ export function KnowledgeWorkspace({
             departmentFilter={departmentFilter}
             departmentOptions={departmentOptions}
             objects={filteredObjects}
-            manualFilter={manualCode}
-            manualOptions={manualOptions}
+              folderFilter={folderFilter}
+              manualFilter={manualCode}
+              manualOptions={manualOptions}
               needsImprovementOnly={needsImprovementOnly}
               onDepartmentFilterChange={setDepartmentFilter}
               onManualFilterChange={setManualCode}

@@ -1,18 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, Archive, Edit3, History, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
-import {
-  KnowledgeGapCard,
-  LinkedKnowledgePanel,
-  SOPCard,
-  SOPRelatedKnowledge,
-  SOPStepList,
-  SOPEvidencePanel,
-  StatusBadge,
-} from '../os';
+import { ArrowRight, Archive, Edit3, History, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { EmptyState, SOPCard, SOPStepList, SOPEvidencePanel, StatusBadge } from '../os';
 import {
   archiveKnowledgeVersion,
   publishKnowledgeVersion,
-  knowledgeOriginLabel,
   restoreKnowledgeVersion,
   saveKnowledgeDraft,
   previewText,
@@ -53,71 +44,9 @@ interface DraftState {
   sourceVersionId: string | null;
 }
 
-interface DraftStep {
-  id: string;
-  title: string;
-  notes: string;
-  sourceSectionId: string | null;
-  sourceSectionHeading: string | null;
-  sourceSectionBody: string;
-  isCustom: boolean;
-}
-
-type AISuggestionKind = 'improve_wording' | 'summarize' | 'missing_steps' | 'checklist_draft' | 'training_outline';
-
-interface AIDraftSuggestion {
-  id: string;
-  kind: AISuggestionKind;
-  title: string;
-  summary: string;
-  body: string;
-  notes: string;
-  warning: string | null;
-  evidenceNotes: string[];
-  directSupport: boolean;
-  applySteps: DraftStep[] | null;
-}
-
-function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageSummary | null): {
-  coveragePercent: number;
-  label: string;
-  detail: string;
-  missingCount: number;
-} {
-  if (!coverage) {
-    return {
-      coveragePercent: 0,
-      label: 'Coverage not loaded',
-      detail: 'Approved SOP coverage is loading.',
-      missingCount: 0,
-    };
-  }
-
-  const matches = [...coverage.missing, ...coverage.satisfied].filter((result) =>
-    result.matchedObjects.some((matched) => matched.id === object.id),
-  );
-  if (matches.length === 0) {
-    return {
-      coveragePercent: 0,
-      label: 'Missing SOP coverage',
-      detail: 'This SOP is not mapped to any training requirement yet.',
-      missingCount: 0,
-    };
-  }
-
-  const satisfiedCount = matches.filter((result) => result.status === 'satisfied').length;
-  const missingCount = matches.filter((result) => result.status === 'missing').length;
-  const coveragePercent = Math.round((satisfiedCount / matches.length) * 100);
-
-  return {
-    coveragePercent,
-    label: missingCount > 0 ? 'Coverage gaps remain' : 'Coverage ready',
-    detail:
-      missingCount > 0
-        ? `${missingCount} training requirement${missingCount === 1 ? '' : 's'} still need approved SOP support.`
-        : 'All mapped training requirements are covered by approved SOPs.',
-    missingCount,
-  };
+function sourceBadgeLabel(object: KnowledgeObject): string {
+  if (object.sourceType === 'user_created') return 'User-created';
+  return object.versions.length > 1 ? 'Edited' : 'Imported';
 }
 
 function versionLabel(status: string): string {
@@ -133,61 +62,17 @@ function versionAuthorLabel(version: KnowledgeObject['versions'][number]): strin
   return 'System';
 }
 
-function linkedTrainingItems(
-  paths: TrainingPath[],
-  onOpenTraining?: () => void,
-): Array<{ id: string; title: string; subtitle: string; preview: string; status: string; notes?: string; action?: JSX.Element }> {
-  return paths.map((path) => ({
-    id: path.id,
-    title: path.title,
-    subtitle: path.role?.name ?? path.department?.name ?? 'Training path',
-    preview: `${path.items.length} items · ${path.coveragePercent}% covered`,
-    status: path.missingItemCount > 0 ? 'blocked' : path.status,
-    notes: path.missingItemCount > 0 ? `${path.missingItemCount} missing training items` : `${path.linkedKnowledgeCount} linked SOPs`,
-    action: onOpenTraining ? (
-      <button className="tableLink" onClick={onOpenTraining} type="button">
-        Review training
-      </button>
-    ) : undefined,
-  }));
-}
-
-function linkedChecklistItems(
-  templates: ChecklistTemplate[],
-  onOpenChecklists?: () => void,
-): Array<{ id: string; title: string; subtitle: string; preview: string; status: string; notes?: string; action?: JSX.Element }> {
-  return templates.map((template) => ({
-    id: template.id,
-    title: template.title,
-    subtitle: template.role?.title ?? template.process?.name ?? 'Checklist template',
-    preview: `${template.itemCount} items · ${template.coveragePercent}% covered`,
-    status: template.missingKnowledgeCount > 0 ? 'blocked' : template.status,
-    notes: template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} missing SOP links` : `${template.linkedKnowledgeCount} linked SOPs`,
-    action: onOpenChecklists ? (
-      <button className="tableLink" onClick={onOpenChecklists} type="button">
-        Review checklist
-      </button>
-    ) : undefined,
-  }));
-}
-
-function linkedAuditItems(
-  templates: AuditTemplate[],
-  onOpenAudits?: () => void,
-): Array<{ id: string; title: string; subtitle: string; preview: string; status: string; notes?: string; action?: JSX.Element }> {
-  return templates.map((template) => ({
-    id: template.id,
-    title: template.title,
-    subtitle: template.checklistTemplate?.role?.title ?? template.auditType,
-    preview: `${template.itemCount} items · ${template.coveragePercent}% covered`,
-    status: template.missingKnowledgeCount > 0 ? 'blocked' : template.status,
-    notes: template.missingKnowledgeCount > 0 ? `${template.missingKnowledgeCount} missing SOP links` : `${template.linkedKnowledgeCount} linked SOPs`,
-    action: onOpenAudits ? (
-      <button className="tableLink" onClick={onOpenAudits} type="button">
-        Review audit
-      </button>
-    ) : undefined,
-  }));
+function buildDraftFromVersion(version: KnowledgeObject['versions'][number], object: KnowledgeObject): DraftState {
+  return {
+    title: version.title ?? object.title,
+    summary: version.summary ?? object.summary ?? '',
+    body: version.body,
+    notes: version.notes ?? '',
+    category: object.category,
+    tags: object.ontology.tags.map((tag) => tag.name).join(', '),
+    status: version.status,
+    sourceVersionId: version.id,
+  };
 }
 
 function evidenceToItems(evidence: KnowledgeEvidence[]): Array<{
@@ -208,284 +93,25 @@ function evidenceToItems(evidence: KnowledgeEvidence[]): Array<{
   }));
 }
 
-type KnowledgeVersionSnapshot = KnowledgeObject['versions'][number] | KnowledgeObject['approvedVersion'];
+type VersionGroup = 'current' | 'draft' | 'published' | 'archived';
 
-function buildDraftFromVersion(version: KnowledgeVersionSnapshot, object: KnowledgeObject): DraftState {
-  return {
-    title: version.title ?? object.title,
-    summary: version.summary ?? object.summary ?? '',
-    body: version.body,
-    notes: version.notes ?? '',
-    category: object.category,
-    tags: object.ontology.tags.map((tag) => tag.name).join(', '),
-    status: version.status,
-    sourceVersionId: version.id,
-  };
-}
-
-function buildDraftSteps(sourceSections: KnowledgeManual['sections']): DraftStep[] {
-  return sourceSections.map((section) => ({
-    id: section.id,
-    title: section.heading,
-    notes: previewText(section.body, 160),
-    sourceSectionId: section.id,
-    sourceSectionHeading: section.heading,
-    sourceSectionBody: section.body,
-    isCustom: false,
-  }));
-}
-
-function nextVersionNumber(object: KnowledgeObject): number {
-  return object.versions.reduce((max, version) => Math.max(max, version.versionNumber), 0) + 1;
-}
-
-function snapshotFromDraft(
-  object: KnowledgeObject,
-  draft: DraftState,
-  versionId: string,
-  action: 'draft' | 'publish' | 'archive' | 'restore',
-): KnowledgeObject['versions'][number] {
-  const timestamp = new Date().toISOString();
-  return {
-    id: versionId,
-    knowledgeId: object.id,
-    versionNumber: nextVersionNumber(object),
-    title: draft.title || object.title,
-    summary: draft.summary || object.summary,
-    notes: draft.notes || null,
-    body: draft.body,
-    status: action === 'publish' ? 'approved' : action === 'archive' ? 'deprecated' : 'draft',
-    approvedAt: action === 'publish' ? timestamp : null,
-    publishedAt: action === 'publish' ? timestamp : null,
-    archivedAt: action === 'archive' ? timestamp : null,
-    authoredBy: null,
-    authorLabel: 'User-created SOP',
-    restoredFromVersionId: draft.sourceVersionId,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-function applyLocalDraftMutation(
-  object: KnowledgeObject,
-  draft: DraftState,
-  versionId: string,
-  action: 'draft' | 'publish' | 'archive' | 'restore',
-): KnowledgeObject {
-  const version = snapshotFromDraft(object, draft, versionId, action);
-  const versions = [version, ...object.versions.filter((entry) => entry.id !== version.id)].sort(
-    (a, b) => b.versionNumber - a.versionNumber,
-  );
-
-  return {
-    ...object,
-    title: draft.title || object.title,
-    summary: draft.summary || object.summary,
-    status: action === 'archive' ? 'archived' : action === 'publish' ? 'active' : 'draft',
-    currentApprovedVersionId: action === 'publish' ? version.id : object.currentApprovedVersionId,
-    approvedVersion: version,
-    versions,
-    updatedAt: version.updatedAt,
-    preview: previewText(version.body),
-    sourceType: 'user_created',
-  };
-}
-
-function createCustomDraftStep(): DraftStep {
-  return {
-    id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `draft-step-${Date.now()}`,
-    title: '',
-    notes: '',
-    sourceSectionId: null,
-    sourceSectionHeading: null,
-    sourceSectionBody: '',
-    isCustom: true,
-  };
-}
-
-function moveDraftStep(steps: DraftStep[], index: number, delta: number): DraftStep[] {
-  const nextIndex = index + delta;
-  if (nextIndex < 0 || nextIndex >= steps.length) return steps;
-  const next = [...steps];
-  const [item] = next.splice(index, 1);
-  next.splice(nextIndex, 0, item);
-  return next;
-}
-
-function sourceLabelForVersion(version: KnowledgeObject['versions'][number], object: KnowledgeObject): string {
-  return version.title ?? object.title;
-}
-
-function sourceBadgeLabel(object: KnowledgeObject): string {
-  if (object.sourceType === 'user_created') return 'User-created';
-  return object.versions.length > 1 ? 'Edited' : 'Imported';
-}
-
-function versionHistoryGroup(version: KnowledgeObject['versions'][number], currentVersionId: string | null): 'current' | 'draft' | 'published' | 'archived' {
+function versionGroup(version: KnowledgeObject['versions'][number], currentVersionId: string | null): VersionGroup {
   if (currentVersionId && version.id === currentVersionId) return 'current';
   if (version.status === 'approved') return 'published';
   if (version.status === 'draft' || version.status === 'in_review') return 'draft';
   return 'archived';
 }
 
-function sentenceCase(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-}
-
-function draftStepFromSection(section: KnowledgeManual['sections'][number], notePrefix: string): DraftStep {
-  return {
-    id: section.id,
-    title: section.heading,
-    notes: `${notePrefix}: ${previewText(section.body, 140)}`,
-    sourceSectionId: section.id,
-    sourceSectionHeading: section.heading,
-    sourceSectionBody: section.body,
-    isCustom: false,
-  };
-}
-
-function checklistDraftBodyFromSections(sections: KnowledgeManual['sections']): string {
-  if (sections.length === 0) return 'No source sections are available to build a checklist draft.';
-  return [
-    'Checklist draft',
-    ...sections.map((section, index) => `${index + 1}. ${section.heading}\n   - Verify against source evidence: ${previewText(section.body, 120)}`),
-  ].join('\n');
-}
-
-function trainingOutlineBodyFromSections(sections: KnowledgeManual['sections']): string {
-  if (sections.length === 0) return 'No source sections are available to build a training outline draft.';
-  return [
-    'Training outline draft',
-    ...sections.map((section, index) => `${index + 1}. ${section.heading}\n   - Coach prompt: Review and demonstrate the approved behavior from the source evidence.`),
-  ].join('\n');
-}
-
-function compactEvidenceNotes(object: KnowledgeObject): string[] {
-  return object.evidence.slice(0, 3).map((item) => `${item.sourceManualTitle} · ${item.sourceSectionHeading}`);
-}
-
-function buildAIDraftSuggestion(
-  kind: AISuggestionKind,
-  object: KnowledgeObject,
-  sourceSections: KnowledgeManual['sections'],
-  draft: DraftState | null,
-): AIDraftSuggestion {
-  const currentTitle = draft?.title ?? object.title;
-  const currentSummary = draft?.summary ?? object.summary ?? previewText(object.approvedVersion.body, 180);
-  const currentBody = draft?.body ?? object.approvedVersion.body;
-  const evidenceNotes = compactEvidenceNotes(object);
-  const supportedByEvidence = sourceSections.length > 0;
-  const sourceBreakdown = sourceSections
-    .slice(0, 5)
-    .map((section) => `${section.heading}: ${previewText(section.body, 150)}`)
-    .join('\n');
-
-  switch (kind) {
-    case 'improve_wording':
-      return {
-        id: `${kind}-${object.id}-${Date.now()}`,
-        kind,
-        title: sentenceCase(currentTitle.trim() || object.title),
-        summary: previewText(currentSummary || object.title, 180),
-        body: [currentSummary || previewText(currentBody, 220), '', sourceBreakdown || currentBody].filter(Boolean).join('\n'),
-        notes: 'AI draft suggestion: wording refined from live source evidence. Review before saving.',
-        warning: supportedByEvidence ? null : 'This suggestion is not directly supported by source evidence and should be reviewed manually.',
-        evidenceNotes,
-        directSupport: supportedByEvidence,
-        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Refined wording source')),
-      };
-    case 'summarize':
-      return {
-        id: `${kind}-${object.id}-${Date.now()}`,
-        kind,
-        title: currentTitle,
-        summary: previewText(sourceSections.map((section) => `${section.heading}. ${section.body}`).join(' '), 180) || currentSummary,
-        body: [
-          'AI draft suggestion: summary only',
-          ...sourceSections.map((section, index) => `${index + 1}. ${section.heading} — ${previewText(section.body, 160)}`),
-        ].join('\n'),
-        notes: 'AI draft suggestion: summary built from source sections. Review before saving.',
-        warning: supportedByEvidence ? null : 'This summary uses live content only where evidence exists. Review the draft before saving.',
-        evidenceNotes,
-        directSupport: supportedByEvidence,
-        applySteps: null,
-      };
-    case 'missing_steps':
-      return {
-        id: `${kind}-${object.id}-${Date.now()}`,
-        kind,
-        title: `Review missing steps for ${currentTitle}`,
-        summary: 'Potential gaps need manual review.',
-        body: [
-          'AI draft suggestion: gap review only',
-          `Known source sections: ${sourceSections.length}`,
-          sourceBreakdown ? `Source evidence reviewed:\n${sourceBreakdown}` : 'No source sections were available to inspect.',
-          'No additional step has been added without direct evidence.',
-        ].join('\n\n'),
-        notes: 'AI draft suggestion: missing-step review only. Add a step only after validating evidence.',
-        warning: 'This suggestion is a review prompt, not a confirmed operational step. Do not publish it without validating source evidence.',
-        evidenceNotes,
-        directSupport: false,
-        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Gap review source')),
-      };
-    case 'checklist_draft':
-      return {
-        id: `${kind}-${object.id}-${Date.now()}`,
-        kind,
-        title: currentTitle,
-        summary: 'Checklist draft built from the live SOP sections.',
-        body: checklistDraftBodyFromSections(sourceSections),
-        notes: 'AI draft suggestion: checklist outline derived from live SOP evidence. Review item wording before saving.',
-        warning: supportedByEvidence ? null : 'This checklist draft is only a placeholder until source evidence is available.',
-        evidenceNotes,
-        directSupport: supportedByEvidence,
-        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Checklist draft source')),
-      };
-    case 'training_outline':
-      return {
-        id: `${kind}-${object.id}-${Date.now()}`,
-        kind,
-        title: currentTitle,
-        summary: 'Training outline draft built from the live SOP sections.',
-        body: trainingOutlineBodyFromSections(sourceSections),
-        notes: 'AI draft suggestion: training outline derived from live SOP evidence. Review before saving.',
-        warning: supportedByEvidence ? null : 'This training outline is only a placeholder until source evidence is available.',
-        evidenceNotes,
-        directSupport: supportedByEvidence,
-        applySteps: sourceSections.map((section) => draftStepFromSection(section, 'Training outline source')),
-      };
-  }
-}
-
 export function SOPPreview({
   object,
   manual,
   sourceSections,
-  coverage,
-  relatedSOPs,
-  trainingPaths,
-  checklistTemplates,
-  auditTemplates,
-  onOpenTraining,
-  onOpenChecklists,
-  onOpenAudits,
   onRefresh,
   onLocalObjectChange,
 }: SOPPreviewProps): JSX.Element {
-  const coverageSummary = useMemo(() => (object ? coverageForObject(object, coverage) : null), [coverage, object]);
   const evidenceRef = useRef<HTMLElement | null>(null);
-  const trainingRef = useRef<HTMLElement | null>(null);
-  const checklistRef = useRef<HTMLElement | null>(null);
-  const auditRef = useRef<HTMLElement | null>(null);
-  const relatedRef = useRef<HTMLElement | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [draftSteps, setDraftSteps] = useState<DraftStep[]>(() => buildDraftSteps(sourceSections));
-  const [aiSuggestion, setAiSuggestion] = useState<AIDraftSuggestion | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -495,192 +121,162 @@ export function SOPPreview({
     return object.versions.find((version) => version.id === object.currentApprovedVersionId) ?? object.approvedVersion;
   }, [object]);
 
-  const latestEditableVersion = useMemo(() => {
-    if (!object) return null;
-    return [...object.versions].find((version) => version.status === 'draft' || version.status === 'in_review') ?? activeVersion;
-  }, [activeVersion, object]);
-  const currentVersionId = object?.currentApprovedVersionId ?? activeVersion?.id ?? null;
+  const currentVersion = activeVersion ?? object?.approvedVersion ?? null;
+  const history = useMemo(() => (object ? [...object.versions].sort((a, b) => b.versionNumber - a.versionNumber) : []), [object]);
 
   useEffect(() => {
     if (!object) {
       setEditMode(false);
       setDraft(null);
-      setDraftSteps([]);
-      setAiSuggestion(null);
       setFeedback(null);
       setError(null);
       return;
     }
 
     setEditMode(false);
+    setDraft(buildDraftFromVersion(currentVersion ?? object.approvedVersion, object));
     setFeedback(null);
     setError(null);
-    setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
-    setDraftSteps(buildDraftSteps(sourceSections));
-    setAiSuggestion(null);
-    setEditMode(object.sourceType === 'user_created');
-  }, [object?.id]);
+  }, [object, currentVersion]);
 
-  function openSection(section: 'evidence' | 'training' | 'checklists' | 'audits' | 'related'): void {
-    const target = {
-      evidence: evidenceRef.current,
-      training: trainingRef.current,
-      checklists: checklistRef.current,
-      audits: auditRef.current,
-      related: relatedRef.current,
-    }[section];
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!object) {
+    return (
+      <section className="workspacePreviewPanel">
+        <div className="workspaceSectionHeader workspaceDocumentHeader">
+          <div>
+            <h3>SOP preview</h3>
+            <p>Select an SOP to review its live knowledge context.</p>
+          </div>
+        </div>
+        <EmptyState title="Select an SOP to preview" description="Choose a folder or a SOP to open the readable document view, evidence, and version history." />
+      </section>
+    );
+  }
+
+  const sourceBadge = sourceBadgeLabel(object);
+  const title = editMode ? draft?.title ?? object.title : currentVersion?.title ?? object.title;
+  const summary = editMode ? draft?.summary ?? object.summary ?? '' : currentVersion?.summary ?? object.summary ?? '';
+  const body = editMode ? draft?.body ?? currentVersion?.body ?? object.approvedVersion.body : currentVersion?.body ?? object.approvedVersion.body;
+  const notes = editMode ? draft?.notes ?? '' : currentVersion?.notes ?? '';
+  const tags = editMode ? draft?.tags ?? object.ontology.tags.map((tag) => tag.name).join(', ') : object.ontology.tags.map((tag) => tag.name).join(', ');
+  const currentVersionId = currentVersion?.id ?? object.currentApprovedVersionId ?? null;
+
+  const versionGroups: Array<{ key: VersionGroup; title: string; description: string; items: KnowledgeObject['versions'] }> = [
+    {
+      key: 'current',
+      title: 'Current version',
+      description: 'The version currently open in Studio.',
+      items: history.filter((version) => version.id === currentVersionId),
+    },
+    {
+      key: 'draft',
+      title: 'Draft versions',
+      description: 'Working copies that are not yet published.',
+      items: history.filter((version) => versionGroup(version, currentVersionId) === 'draft'),
+    },
+    {
+      key: 'published',
+      title: 'Published versions',
+      description: 'Approved versions kept for reference.',
+      items: history.filter((version) => versionGroup(version, currentVersionId) === 'published'),
+    },
+    {
+      key: 'archived',
+      title: 'Archived versions',
+      description: 'Archived versions kept for traceability.',
+      items: history.filter((version) => versionGroup(version, currentVersionId) === 'archived'),
+    },
+  ].filter((group) => group.items.length > 0) as Array<{ key: VersionGroup; title: string; description: string; items: KnowledgeObject['versions'] }>;
+
+  async function refreshWorkspace(): Promise<void> {
+    if (onRefresh) await onRefresh();
   }
 
   function beginEdit(): void {
     if (!draft) return;
     setEditMode(true);
-    setAiSuggestion(null);
     setFeedback(null);
     setError(null);
   }
 
   function cancelEdit(): void {
     if (!object) return;
-    setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
-    setDraftSteps(buildDraftSteps(sourceSections));
-    setAiSuggestion(null);
+    setDraft(buildDraftFromVersion(currentVersion ?? object.approvedVersion, object));
     setEditMode(false);
     setFeedback('Draft changes were discarded.');
     setError(null);
   }
 
-  function updateDraftStep(stepId: string, updater: (step: DraftStep) => DraftStep): void {
-    setDraftSteps((current) => current.map((step) => (step.id === stepId ? updater(step) : step)));
-  }
-
-  function removeDraftStep(stepId: string): void {
-    setDraftSteps((current) => current.filter((step) => step.id !== stepId));
-  }
-
-  function addDraftStep(): void {
-    setDraftSteps((current) => [...current, createCustomDraftStep()]);
-  }
-
-  function generateAIDraftSuggestion(kind: AISuggestionKind): void {
-    if (!object) return;
-    setAiSuggestion(buildAIDraftSuggestion(kind, object, sourceSections, draft));
-    setFeedback(null);
-    setError(null);
-  }
-
-  function applyAIDraftSuggestion(): void {
-    if (!aiSuggestion || !draft) return;
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            title: aiSuggestion.title,
-            summary: aiSuggestion.summary,
-            body: aiSuggestion.body,
-            notes: aiSuggestion.notes,
-            status: 'draft',
-          }
-        : current,
-    );
-    if (aiSuggestion.applySteps) setDraftSteps(aiSuggestion.applySteps);
-    setFeedback('AI draft suggestion copied into the editable draft. Review before saving.');
-    setAiSuggestion(null);
-  }
-
-  function discardAIDraftSuggestion(): void {
-    setAiSuggestion(null);
-  }
-
-  async function refreshWorkspace(): Promise<void> {
-    if (onRefresh) await onRefresh();
-  }
-
   async function persistVersion(action: 'draft' | 'publish'): Promise<void> {
     if (!object || !draft) return;
     setIsSaving(true);
-    setError(null);
     setFeedback(null);
+    setError(null);
 
     try {
-      const result =
-        action === 'draft'
-          ? await saveKnowledgeDraft({
-              knowledgeId: object.id,
-              title: draft.title,
-              summary: draft.summary,
-              body: draft.body,
-              notes: draft.notes,
-              sourceVersionId: draft.sourceVersionId,
-            })
-          : await publishKnowledgeVersion({
-              knowledgeId: object.id,
-              title: draft.title,
-              summary: draft.summary,
-              body: draft.body,
-              notes: draft.notes,
-              sourceVersionId: draft.sourceVersionId,
-            });
-
-      setEditMode(false);
-      setFeedback(action === 'draft' ? 'Draft saved as a new version.' : 'Version published and promoted to current approval.');
-      setDraft((current) =>
-        current
-          ? {
-              ...current,
-              sourceVersionId: result.versionId,
-              status: action === 'publish' ? 'approved' : 'draft',
-            }
-          : current,
-      );
-      if (object.sourceType === 'user_created' && onLocalObjectChange) {
-        onLocalObjectChange(applyLocalDraftMutation(object, draft, result.versionId, action));
+      if (action === 'draft') {
+        await saveKnowledgeDraft({
+          knowledgeId: object.id,
+          title: draft.title,
+          summary: draft.summary,
+          body: draft.body,
+          notes: draft.notes,
+          sourceVersionId: draft.sourceVersionId,
+        });
+      } else {
+        await publishKnowledgeVersion({
+          knowledgeId: object.id,
+          title: draft.title,
+          summary: draft.summary,
+          body: draft.body,
+          notes: draft.notes,
+          sourceVersionId: draft.sourceVersionId,
+        });
       }
-      setAiSuggestion(null);
+
+      setFeedback(action === 'draft' ? 'Draft saved.' : 'Version published.');
+      setEditMode(false);
       await refreshWorkspace();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Knowledge version update failed.');
+      setError(reason instanceof Error ? reason.message : 'SOP changes could not be saved.');
     } finally {
       setIsSaving(false);
     }
   }
 
   async function archiveCurrent(): Promise<void> {
-    if (!object) return;
+    if (!object || !draft) return;
     setIsSaving(true);
-    setError(null);
     setFeedback(null);
+    setError(null);
+
     try {
-      const result = await archiveKnowledgeVersion({
+      await archiveKnowledgeVersion({
         knowledgeId: object.id,
-        title: draft?.title ?? activeVersion?.title ?? object.title,
-        summary: draft?.summary ?? activeVersion?.summary ?? object.summary ?? '',
-        body: draft?.body ?? activeVersion?.body ?? object.approvedVersion.body,
-        notes: draft?.notes ?? activeVersion?.notes ?? '',
-        sourceVersionId: draft?.sourceVersionId ?? activeVersion?.id ?? object.currentApprovedVersionId,
+        title: draft.title,
+        summary: draft.summary,
+        body: draft.body,
+        notes: draft.notes,
+        sourceVersionId: draft.sourceVersionId,
       });
+      setFeedback('Version archived.');
       setEditMode(false);
-      setFeedback('SOP archived.');
-      setDraft((current) => (current ? { ...current, status: 'archived', sourceVersionId: result.versionId } : current));
-      if (object.sourceType === 'user_created' && onLocalObjectChange) {
-        onLocalObjectChange(applyLocalDraftMutation(object, draft ?? buildDraftFromVersion(activeVersion ?? object.approvedVersion, object), result.versionId, 'archive'));
-      }
-      setAiSuggestion(null);
       await refreshWorkspace();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Knowledge archive failed.');
+      setError(reason instanceof Error ? reason.message : 'The version could not be archived.');
     } finally {
       setIsSaving(false);
     }
   }
 
   async function restoreVersion(version: KnowledgeObject['versions'][number]): Promise<void> {
-    if (!object) return;
+    if (!object || !draft) return;
     setIsSaving(true);
-    setError(null);
     setFeedback(null);
+    setError(null);
+
     try {
-      const result = await restoreKnowledgeVersion({
+      await restoreKnowledgeVersion({
         knowledgeId: object.id,
         title: version.title ?? object.title,
         summary: version.summary ?? object.summary ?? '',
@@ -688,86 +284,18 @@ export function SOPPreview({
         notes: version.notes ?? '',
         sourceVersionId: version.id,
       });
-
-      setDraft({
-        title: version.title ?? object.title,
-        summary: version.summary ?? object.summary ?? '',
-        body: version.body,
-        notes: version.notes ?? '',
-        category: object.category,
-        tags: object.ontology.tags.map((tag) => tag.name).join(', '),
-        status: version.status,
-        sourceVersionId: result.versionId,
-      });
-      setDraftSteps(buildDraftSteps(sourceSections));
-      setEditMode(true);
-      setAiSuggestion(null);
-      setFeedback('Previous version restored into a new draft.');
-      if (object.sourceType === 'user_created' && onLocalObjectChange) {
-        onLocalObjectChange(applyLocalDraftMutation(object, buildDraftFromVersion(version, object), result.versionId, 'restore'));
-      }
+      setFeedback('Version restored.');
+      setEditMode(false);
       await refreshWorkspace();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Knowledge restore failed.');
+      setError(reason instanceof Error ? reason.message : 'The version could not be restored.');
     } finally {
       setIsSaving(false);
     }
   }
 
-  if (!object) {
-    return (
-      <section className="workspacePreviewPanel">
-        <div className="workspaceSectionHeader">
-          <div>
-            <h3>SOP preview</h3>
-            <p>Select a SOP to review its live knowledge context.</p>
-          </div>
-        </div>
-        <div className="workspaceEmpty">No SOP is selected yet.</div>
-      </section>
-    );
-  }
-
-  const title = editMode ? draft?.title ?? object.title : activeVersion?.title ?? object.title;
-  const summary = editMode ? draft?.summary ?? object.summary ?? '' : activeVersion?.summary ?? object.summary ?? '';
-  const body = editMode ? draft?.body ?? activeVersion?.body ?? object.approvedVersion.body : activeVersion?.body ?? object.approvedVersion.body;
-  const notes = editMode ? draft?.notes ?? '' : activeVersion?.notes ?? '';
-  const category = editMode ? draft?.category ?? object.category : object.category;
-  const tags = editMode ? draft?.tags ?? object.ontology.tags.map((tag) => tag.name).join(', ') : object.ontology.tags.map((tag) => tag.name).join(', ');
-  const originLabel = knowledgeOriginLabel(object);
-  const linkedTraining = linkedTrainingItems(trainingPaths, onOpenTraining);
-  const linkedChecklists = linkedChecklistItems(checklistTemplates, onOpenChecklists);
-  const linkedAudits = linkedAuditItems(auditTemplates, onOpenAudits);
-  const currentVersion = activeVersion ?? object.approvedVersion;
-  const history = [...object.versions].sort((a, b) => b.versionNumber - a.versionNumber);
-  const sourceBadge = sourceBadgeLabel(object);
-  const technicalDetails = [
-    { label: 'Source manual', value: manual?.title ?? object.manualTitle ?? 'Unassigned' },
-    { label: 'Manual code', value: manual?.manualCode ?? object.manualCode ?? 'Unassigned' },
-    { label: 'Updated', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(object.updatedAt)) },
-    { label: 'Version', value: `v${currentVersion.versionNumber}` },
-    { label: 'Version status', value: versionLabel(currentVersion.status) },
-    { label: 'Category', value: category || 'Unassigned' },
-    { label: 'Tags', value: tags || 'No tags' },
-  ];
-  const tagList = (tags ? tags.split(',').map((tag) => tag.trim()).filter(Boolean) : []);
-
-  const steps = sourceSections.map((section, index) => ({
-    id: section.id,
-    sequence: index + 1,
-    title: section.heading,
-    summary: previewText(section.body, 160),
-    durationLabel: manual?.manualCode ?? manual?.title ?? 'Source section',
-    status: section.knowledgeIds.includes(object.id) ? 'satisfied' : 'pending',
-    notes: `Source hash ${section.contentHash}`,
-    references: [
-      { label: 'Manual', value: manual?.manualCode ?? manual?.title ?? object.manualCode ?? 'Source file' },
-      { label: 'Source file', value: object.sourceFileUri },
-    ],
-  }));
-
   return (
-    <section className="workspacePreviewPanel">
+    <section className="workspacePreviewPanel workspacePreviewDocument">
       <div className="workspaceSectionHeader workspaceDocumentHeader">
         <div>
           <div className="workspaceDocumentBadges">
@@ -775,21 +303,26 @@ export function SOPPreview({
           </div>
           <h3>{title}</h3>
           <p>{summary || previewText(body, 220)}</p>
+          <div className="workspacePreviewSourceLine">
+            <span>Source manual</span>
+            <strong>{manual?.title ?? object.manualTitle ?? 'Unassigned'}</strong>
+            <span>{manual?.sourceUri ?? object.sourceFileUri}</span>
+          </div>
         </div>
-            <div className="workspacePreviewActions">
-              {feedback ? <StatusBadge status={draft?.status ?? 'draft'} label={feedback} /> : null}
-              {error ? <span className="workspaceActionError">{error}</span> : null}
-              {!editMode ? (
+        <div className="workspacePreviewActions">
+          {feedback ? <StatusBadge status={draft?.status ?? 'draft'} label={feedback} /> : null}
+          {error ? <span className="workspaceActionError">{error}</span> : null}
+          {!editMode ? (
             <button className="iconTextButton" onClick={beginEdit} type="button" disabled={isSaving}>
               <Edit3 aria-hidden="true" size={16} />
               Edit SOP
             </button>
-              ) : (
-                <>
-                  <button className="iconTextButton" onClick={() => void persistVersion('draft')} type="button" disabled={isSaving}>
-                    <Save aria-hidden="true" size={16} />
-                    Save Draft
-                  </button>
+          ) : (
+            <>
+              <button className="iconTextButton" onClick={() => void persistVersion('draft')} type="button" disabled={isSaving}>
+                <Save aria-hidden="true" size={16} />
+                Save Draft
+              </button>
               <button className="iconTextButton" onClick={() => void persistVersion('publish')} type="button" disabled={isSaving}>
                 <ArrowRight aria-hidden="true" size={16} />
                 Publish
@@ -804,7 +337,7 @@ export function SOPPreview({
               </button>
             </>
           )}
-          <button className="iconTextButton" onClick={() => openSection('evidence')} type="button">
+          <button className="iconTextButton" onClick={() => evidenceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} type="button">
             <ArrowRight aria-hidden="true" size={16} />
             Open source evidence
           </button>
@@ -812,29 +345,90 @@ export function SOPPreview({
       </div>
 
       <div className="workspaceDocumentBody">
-        <div className="workspaceDocumentIntro">
-          <section className="workspaceDocumentPanel">
-            <div className="workspaceSectionHeader">
-              <div>
-                <h4>Summary</h4>
-                <p>What this SOP covers at a glance.</p>
-              </div>
+        <section className="workspaceDocumentPanel">
+          <div className="workspaceSectionHeader">
+            <div>
+              <h4>Summary</h4>
+              <p>What this SOP covers at a glance.</p>
             </div>
+          </div>
+          {editMode && draft ? (
+            <label className="workspaceDraftEditor">
+              <span>Summary</span>
+              <textarea
+                onChange={(event) => setDraft({ ...draft, summary: event.target.value })}
+                value={draft.summary}
+                rows={4}
+              />
+            </label>
+          ) : (
             <p className="workspaceDocumentText">{summary || previewText(body, 240)}</p>
-          </section>
+          )}
+        </section>
 
+        <section className="workspaceDocumentPanel">
+          <div className="workspaceSectionHeader">
+            <div>
+              <h4>Purpose / Body</h4>
+              <p>The readable SOP content for daily use.</p>
+            </div>
+          </div>
+          {editMode && draft ? (
+            <label className="workspaceDraftEditor">
+              <span>Purpose / body</span>
+              <textarea
+                onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+                value={draft.body}
+                rows={12}
+              />
+            </label>
+          ) : (
+            <div className="workspaceDocumentBodyCopy">{body || 'No SOP body is visible yet.'}</div>
+          )}
+        </section>
+
+        <section className="workspaceDocumentPanel">
+          <div className="workspaceSectionHeader">
+            <div>
+              <h4>Steps</h4>
+              <p>Imported source sections visible in the current SOP.</p>
+            </div>
+          </div>
+          <SOPStepList emptyLabel="No source sections are visible for this SOP." items={sourceSections.map((section, index) => ({
+            id: section.id,
+            sequence: index + 1,
+            title: section.heading,
+            summary: previewText(section.body, 160),
+            durationLabel: manual?.manualCode ?? manual?.title ?? 'Source section',
+            status: section.knowledgeIds.includes(object.id) ? 'satisfied' : 'pending',
+            notes: `Source hash ${section.contentHash}`,
+            references: [
+              { label: 'Manual', value: manual?.manualCode ?? manual?.title ?? object.manualCode ?? 'Source file' },
+              { label: 'Source file', value: object.sourceFileUri },
+            ],
+          }))} title="Steps" />
+        </section>
+
+        {notes ? (
           <section className="workspaceDocumentPanel">
             <div className="workspaceSectionHeader">
               <div>
-                <h4>Purpose / Body</h4>
-                <p>The readable SOP content for daily use.</p>
+                <h4>Notes</h4>
+                <p>Working notes for the current version.</p>
               </div>
             </div>
-            <div className="workspaceDocumentBodyCopy">{body || 'No SOP body is visible yet.'}</div>
+            {editMode && draft ? (
+              <label className="workspaceDraftEditor">
+                <span>Notes</span>
+                <textarea onChange={(event) => setDraft({ ...draft, notes: event.target.value })} value={draft.notes} rows={3} />
+              </label>
+            ) : (
+              <div className="workspaceNotesBody">{notes}</div>
+            )}
           </section>
-        </div>
+        ) : null}
 
-        <div className="workspaceDocumentTags">
+        <section className="workspaceDocumentPanel">
           <div className="workspaceSectionHeader">
             <div>
               <h4>Tags</h4>
@@ -842,213 +436,41 @@ export function SOPPreview({
             </div>
           </div>
           <div className="workspaceTagList">
-            {tagList.length > 0 ? (
-              tagList.map((tag) => <span key={tag}>{tag}</span>)
-            ) : (
-              <div className="emptyInline">No tags are attached yet.</div>
-            )}
+            {tags
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean)
+              .map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
           </div>
-        </div>
+        </section>
 
-        <div className="workspaceDraftBanner">
-          Editing is safe: every save creates a new version, the imported source stays untouched, and user-created drafts remain separate.
-        </div>
-        {editMode && draft ? (
-          <div className="workspaceDraftEditor">
-            <label>
-              <span>Title</span>
-              <input onChange={(event) => setDraft({ ...draft, title: event.target.value })} value={draft.title} />
-            </label>
-            <label>
-              <span>Summary</span>
-              <textarea onChange={(event) => setDraft({ ...draft, summary: event.target.value })} value={draft.summary} rows={4} />
-            </label>
-            <label>
-              <span>Purpose / body</span>
-              <textarea onChange={(event) => setDraft({ ...draft, body: event.target.value })} value={draft.body} rows={10} />
-            </label>
-            <label>
-              <span>Notes</span>
-              <textarea onChange={(event) => setDraft({ ...draft, notes: event.target.value })} value={draft.notes} rows={3} />
-            </label>
-            <div className="workspaceDraftSplit">
-              <label>
-                <span>Category</span>
-                <input onChange={(event) => setDraft({ ...draft, category: event.target.value })} value={draft.category} />
-              </label>
-              <label>
-                <span>Tags</span>
-                <input onChange={(event) => setDraft({ ...draft, tags: event.target.value })} value={draft.tags} />
-              </label>
-            </div>
-            <label>
-              <span>Version status</span>
-              <select disabled value={draft.status}>
-                <option value="draft">Draft</option>
-                <option value="in_review">In review</option>
-                <option value="approved">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-              <small className="workspaceDraftHint">Status follows the draft, publish, and archive actions.</small>
-            </label>
-            {notes ? (
-              <div className="workspaceDraftNotes">
-                <span>Current notes</span>
-                <p>{notes}</p>
-              </div>
-            ) : null}
-            <div className="workspaceStructuredSteps">
-              <div className="workspaceStructuredStepsHeader">
-                <div>
-                  <span>Structured draft steps</span>
-                  <p>These steps are local-only until step versions are stored with the SOP version.</p>
-                </div>
-                <button className="iconTextButton" onClick={addDraftStep} type="button" disabled={isSaving}>
-                  <Plus aria-hidden="true" size={16} />
-                  Add step
-                </button>
-              </div>
-              {draftSteps.length === 0 ? (
-                <div className="workspaceDraftNotes">
-                  <span>No draft steps yet</span>
-                  <p>Add a local step draft from the source sections or create a new blank step for planning.</p>
-                </div>
-              ) : (
-                <div className="workspaceStructuredStepList">
-                  {draftSteps.map((step, index) => {
-                    const canMoveUp = index > 0;
-                    const canMoveDown = index < draftSteps.length - 1;
-                    return (
-                      <div className="workspaceStructuredStepCard" key={step.id}>
-                        <div className="workspaceStructuredStepHeader">
-                          <div>
-                            <strong>{step.title || step.sourceSectionHeading || 'Draft step'}</strong>
-                            <p>{step.isCustom ? 'Local draft step' : 'Imported source section'}</p>
-                          </div>
-                          <div className="workspaceStructuredStepActions">
-                            <button
-                              className="iconTextButton"
-                              onClick={() => setDraftSteps((current) => moveDraftStep(current, index, -1))}
-                              type="button"
-                              disabled={isSaving || !canMoveUp}
-                            >
-                              <ArrowUp aria-hidden="true" size={14} />
-                              Up
-                            </button>
-                            <button
-                              className="iconTextButton"
-                              onClick={() => setDraftSteps((current) => moveDraftStep(current, index, 1))}
-                              type="button"
-                              disabled={isSaving || !canMoveDown}
-                            >
-                              <ArrowDown aria-hidden="true" size={14} />
-                              Down
-                            </button>
-                            <button className="iconTextButton" onClick={() => removeDraftStep(step.id)} type="button" disabled={isSaving}>
-                              <Trash2 aria-hidden="true" size={14} />
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                        <div className="workspaceStructuredStepFields">
-                          <label>
-                            <span>Step title</span>
-                            <input
-                              onChange={(event) =>
-                                updateDraftStep(step.id, (current) => ({
-                                  ...current,
-                                  title: event.target.value,
-                                }))
-                              }
-                              value={step.title}
-                              placeholder="Add a clear step title"
-                            />
-                          </label>
-                          <label>
-                            <span>Step notes</span>
-                            <textarea
-                              onChange={(event) =>
-                                updateDraftStep(step.id, (current) => ({
-                                  ...current,
-                                  notes: event.target.value,
-                                }))
-                              }
-                              value={step.notes}
-                              placeholder="Add notes for this draft step"
-                              rows={3}
-                            />
-                          </label>
-                        </div>
-                        <div className="workspaceStructuredStepMeta">
-                          <span>{step.isCustom ? 'Local draft only' : 'From imported source'}</span>
-                          {step.sourceSectionHeading ? <strong>{step.sourceSectionHeading}</strong> : <strong>No source heading yet</strong>}
-                        </div>
-                        {step.sourceSectionBody ? (
-                          <pre className="workspaceStructuredStepSource">{step.sourceSectionBody}</pre>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+        <section className="workspaceDocumentPanel" ref={evidenceRef}>
+          <div className="workspaceSectionHeader">
+            <div>
+              <h4>Source evidence</h4>
+              <p>Original imported source — read only.</p>
             </div>
           </div>
-        ) : null}
-        {notes ? (
-          <section className="detailSection workspaceNotesPanel">
-            <h4>Notes</h4>
-            <div className="workspaceNotesBody">{notes}</div>
-          </section>
-        ) : null}
-
-        <SOPStepList emptyLabel="No source sections are visible for this SOP." items={steps} title="Steps" />
-
-        <section className="detailSection" ref={evidenceRef}>
-          <h4>Source evidence</h4>
           <div className="workspaceImmutableBanner">Original imported source — read only.</div>
           <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
         </section>
 
-        <section className="detailSection">
-        <div className="workspaceHistoryHeader">
-          <div>
-            <h4>
-              <History aria-hidden="true" size={16} />
-              History
-            </h4>
-            <p>Version, date, author, and status are preserved for every change.</p>
+        <section className="workspaceDocumentPanel">
+          <div className="workspaceHistoryHeader">
+            <div>
+              <h4>
+                <History aria-hidden="true" size={16} />
+                History
+              </h4>
+              <p>Version, date, author, and status are preserved for every change.</p>
+            </div>
+            <div className="quietText">{currentVersion?.title ?? object.title}</div>
           </div>
-          <div className="quietText">{currentVersion.title ?? object.title}</div>
-        </div>
-        <div className="workspaceHistoryGroups">
-          {[
-            {
-              key: 'current',
-              title: 'Current version',
-              description: 'This is the version currently open in the workspace.',
-              items: history.filter((version) => version.id === currentVersionId),
-            },
-            {
-              key: 'draft',
-              title: 'Draft versions',
-              description: 'Working copies that have not been published yet.',
-              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'draft'),
-            },
-            {
-              key: 'published',
-              title: 'Published versions',
-              description: 'Previously approved versions that are no longer current.',
-              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'published'),
-            },
-            {
-              key: 'archived',
-              title: 'Archived versions',
-              description: 'Versions that were archived for reference.',
-              items: history.filter((version) => versionHistoryGroup(version, currentVersionId) === 'archived'),
-            },
-          ]
-            .filter((group) => group.items.length > 0)
-            .map((group) => (
+
+          <div className="workspaceHistoryGroups">
+            {versionGroups.map((group) => (
               <div className="workspaceHistoryGroup" key={group.key}>
                 <div className="workspaceHistoryGroupHeader">
                   <div>
@@ -1060,27 +482,15 @@ export function SOPPreview({
                 <div className="workspaceHistoryList">
                   {group.items.map((version) => {
                     const isCurrent = version.id === currentVersionId;
-                    const displayTitle = sourceLabelForVersion(version, object);
                     return (
                       <SOPCard
                         key={version.id}
                         className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
-                        metadata={[
-                          { label: 'Version', value: `v${version.versionNumber}` },
-                          { label: 'Date', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt)) },
-                          { label: 'Author', value: versionAuthorLabel(version) },
-                        ]}
-                        sourceDetail={
-                          isCurrent
-                            ? version.status === 'approved'
-                              ? 'Current approved version'
-                              : 'Current draft version'
-                            : versionLabel(version.status)
-                        }
+                        sourceDetail={isCurrent ? (version.status === 'approved' ? 'Current approved version' : 'Current draft version') : versionLabel(version.status)}
                         sourceLabel={isCurrent ? 'Current version' : 'Version'}
                         status={version.status}
                         summary={previewText(version.summary ?? version.body, 180)}
-                        title={displayTitle}
+                        title={version.title ?? object.title}
                         action={
                           isCurrent ? (
                             <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
@@ -1094,6 +504,11 @@ export function SOPPreview({
                           )
                         }
                       >
+                        <div className="workspaceHistoryMeta">
+                          <span>v{version.versionNumber}</span>
+                          <span>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt))}</span>
+                          <span>{versionAuthorLabel(version)}</span>
+                        </div>
                         {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
                         <p className="sopVersionBody">{previewText(version.body, 260)}</p>
                       </SOPCard>
@@ -1102,20 +517,48 @@ export function SOPPreview({
                 </div>
               </div>
             ))}
-        </div>
-      </section>
-
-        <details className="workspaceTechnicalDetails">
-          <summary>Technical details</summary>
-          <div className="workspaceTechnicalDetailsGrid">
-            {technicalDetails.map((item) => (
-              <div className="workspaceTechnicalDetail" key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
           </div>
-        </details>
+        </section>
+
+        {editMode && draft ? (
+          <section className="workspaceDocumentPanel">
+            <div className="workspaceSectionHeader">
+              <div>
+                <h4>Edit draft</h4>
+                <p>Change the draft content without touching the imported source evidence.</p>
+              </div>
+            </div>
+            <div className="workspaceDraftEditor">
+              <label>
+                <span>Title</span>
+                <input onChange={(event) => setDraft({ ...draft, title: event.target.value })} value={draft.title} />
+              </label>
+              <label>
+                <span>Purpose / body</span>
+                <textarea onChange={(event) => setDraft({ ...draft, body: event.target.value })} value={draft.body} rows={10} />
+              </label>
+              <div className="workspaceDraftSplit">
+                <label>
+                  <span>Category</span>
+                  <input onChange={(event) => setDraft({ ...draft, category: event.target.value })} value={draft.category} />
+                </label>
+                <label>
+                  <span>Tags</span>
+                  <input onChange={(event) => setDraft({ ...draft, tags: event.target.value })} value={draft.tags} />
+                </label>
+              </div>
+              <label>
+                <span>Version status</span>
+                <select disabled value={draft.status}>
+                  <option value="draft">Draft</option>
+                  <option value="in_review">In review</option>
+                  <option value="approved">Published</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        ) : null}
       </div>
     </section>
   );
