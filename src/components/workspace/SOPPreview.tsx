@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Archive, Edit3, History, RotateCcw, Save, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, Archive, Edit3, History, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import {
   KnowledgeGapCard,
   LinkedKnowledgePanel,
@@ -47,7 +47,18 @@ interface DraftState {
   notes: string;
   category: string;
   tags: string;
+  status: string;
   sourceVersionId: string | null;
+}
+
+interface DraftStep {
+  id: string;
+  title: string;
+  notes: string;
+  sourceSectionId: string | null;
+  sourceSectionHeading: string | null;
+  sourceSectionBody: string;
+  isCustom: boolean;
 }
 
 function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageSummary | null): {
@@ -94,7 +105,7 @@ function coverageForObject(object: KnowledgeObject, coverage: KnowledgeCoverageS
 
 function versionLabel(status: string): string {
   if (status === 'approved') return 'Published';
-  if (status === 'deprecated') return 'Archived';
+  if (status === 'deprecated' || status === 'archived') return 'Archived';
   if (status === 'in_review') return 'In review';
   return 'Draft';
 }
@@ -190,12 +201,53 @@ function buildDraftFromVersion(version: KnowledgeVersionSnapshot, object: Knowle
     notes: version.notes ?? '',
     category: object.category,
     tags: object.ontology.tags.map((tag) => tag.name).join(', '),
+    status: version.status,
     sourceVersionId: version.id,
   };
 }
 
+function buildDraftSteps(sourceSections: KnowledgeManual['sections']): DraftStep[] {
+  return sourceSections.map((section) => ({
+    id: section.id,
+    title: section.heading,
+    notes: previewText(section.body, 160),
+    sourceSectionId: section.id,
+    sourceSectionHeading: section.heading,
+    sourceSectionBody: section.body,
+    isCustom: false,
+  }));
+}
+
+function createCustomDraftStep(): DraftStep {
+  return {
+    id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `draft-step-${Date.now()}`,
+    title: '',
+    notes: '',
+    sourceSectionId: null,
+    sourceSectionHeading: null,
+    sourceSectionBody: '',
+    isCustom: true,
+  };
+}
+
+function moveDraftStep(steps: DraftStep[], index: number, delta: number): DraftStep[] {
+  const nextIndex = index + delta;
+  if (nextIndex < 0 || nextIndex >= steps.length) return steps;
+  const next = [...steps];
+  const [item] = next.splice(index, 1);
+  next.splice(nextIndex, 0, item);
+  return next;
+}
+
 function sourceLabelForVersion(version: KnowledgeObject['versions'][number], object: KnowledgeObject): string {
   return version.title ?? object.title;
+}
+
+function versionHistoryGroup(version: KnowledgeObject['versions'][number], currentApprovedVersionId: string): 'current' | 'draft' | 'published' | 'archived' {
+  if (version.id === currentApprovedVersionId) return 'current';
+  if (version.status === 'approved') return 'published';
+  if (version.status === 'draft' || version.status === 'in_review') return 'draft';
+  return 'archived';
 }
 
 export function SOPPreview({
@@ -220,6 +272,7 @@ export function SOPPreview({
   const relatedRef = useRef<HTMLElement | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
+  const [draftSteps, setDraftSteps] = useState<DraftStep[]>(() => buildDraftSteps(sourceSections));
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +291,7 @@ export function SOPPreview({
     if (!object) {
       setEditMode(false);
       setDraft(null);
+      setDraftSteps([]);
       setFeedback(null);
       setError(null);
       return;
@@ -247,7 +301,8 @@ export function SOPPreview({
     setFeedback(null);
     setError(null);
     setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
-  }, [latestEditableVersion, object]);
+    setDraftSteps(buildDraftSteps(sourceSections));
+  }, [object?.id]);
 
   function openSection(section: 'evidence' | 'training' | 'checklists' | 'audits' | 'related'): void {
     const target = {
@@ -270,9 +325,22 @@ export function SOPPreview({
   function cancelEdit(): void {
     if (!object) return;
     setDraft(buildDraftFromVersion(latestEditableVersion ?? object.approvedVersion, object));
+    setDraftSteps(buildDraftSteps(sourceSections));
     setEditMode(false);
     setFeedback('Draft changes were discarded.');
     setError(null);
+  }
+
+  function updateDraftStep(stepId: string, updater: (step: DraftStep) => DraftStep): void {
+    setDraftSteps((current) => current.map((step) => (step.id === stepId ? updater(step) : step)));
+  }
+
+  function removeDraftStep(stepId: string): void {
+    setDraftSteps((current) => current.filter((step) => step.id !== stepId));
+  }
+
+  function addDraftStep(): void {
+    setDraftSteps((current) => [...current, createCustomDraftStep()]);
   }
 
   async function refreshWorkspace(): Promise<void> {
@@ -312,6 +380,7 @@ export function SOPPreview({
           ? {
               ...current,
               sourceVersionId: result.versionId,
+              status: action === 'publish' ? 'approved' : 'draft',
             }
           : current,
       );
@@ -329,7 +398,7 @@ export function SOPPreview({
     setError(null);
     setFeedback(null);
     try {
-      await archiveKnowledgeVersion({
+      const result = await archiveKnowledgeVersion({
         knowledgeId: object.id,
         title: draft?.title ?? activeVersion?.title ?? object.title,
         summary: draft?.summary ?? activeVersion?.summary ?? object.summary ?? '',
@@ -339,6 +408,7 @@ export function SOPPreview({
       });
       setEditMode(false);
       setFeedback('SOP archived.');
+      setDraft((current) => (current ? { ...current, status: 'archived', sourceVersionId: result.versionId } : current));
       await refreshWorkspace();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Knowledge archive failed.');
@@ -369,8 +439,10 @@ export function SOPPreview({
         notes: version.notes ?? '',
         category: object.category,
         tags: object.ontology.tags.map((tag) => tag.name).join(', '),
+        status: version.status,
         sourceVersionId: result.versionId,
       });
+      setDraftSteps(buildDraftSteps(sourceSections));
       setEditMode(true);
       setFeedback('Previous version restored into a new draft.');
       await refreshWorkspace();
@@ -423,13 +495,13 @@ export function SOPPreview({
 
   return (
     <section className="workspacePreviewPanel">
-      <div className="workspaceSectionHeader">
-        <div>
-          <h3>SOP preview</h3>
-          <p>Read-only source evidence stays intact while editable versions are captured as safe snapshots.</p>
-        </div>
+        <div className="workspaceSectionHeader">
+          <div>
+            <h3>SOP preview</h3>
+            <p>Read-only source evidence stays intact while editable versions are captured as safe snapshots.</p>
+          </div>
         <div className="workspacePreviewActions">
-          {feedback ? <StatusBadge status="draft" label={feedback} /> : null}
+          {feedback ? <StatusBadge status={draft?.status ?? 'draft'} label={feedback} /> : null}
           {error ? <span className="workspaceActionError">{error}</span> : null}
           {!editMode ? (
             <button className="iconTextButton" onClick={beginEdit} type="button" disabled={isSaving}>
@@ -502,7 +574,8 @@ export function SOPPreview({
           </div>
         </div>
         <div className="workspaceDraftBanner">
-          Editing is backed by version snapshots. Title, summary, body, and notes are saved; category and tags remain local until ontology editing exists. Current local context: {category}
+          Editing is backed by version snapshots. Title, summary, body, and notes are saved. Category, tags, and structured steps stay local until ontology and step versioning exist. Source evidence remains immutable.
+          Current local context: {category}
           {tags ? ` · ${tags}` : ''}.
         </div>
         {editMode && draft ? (
@@ -516,7 +589,7 @@ export function SOPPreview({
               <textarea onChange={(event) => setDraft({ ...draft, summary: event.target.value })} value={draft.summary} rows={4} />
             </label>
             <label>
-              <span>Content</span>
+              <span>Purpose / body</span>
               <textarea onChange={(event) => setDraft({ ...draft, body: event.target.value })} value={draft.body} rows={10} />
             </label>
             <label>
@@ -533,12 +606,117 @@ export function SOPPreview({
                 <input onChange={(event) => setDraft({ ...draft, tags: event.target.value })} value={draft.tags} />
               </label>
             </div>
+            <label>
+              <span>Version status</span>
+              <select disabled value={draft.status}>
+                <option value="draft">Draft</option>
+                <option value="in_review">In review</option>
+                <option value="approved">Published</option>
+                <option value="archived">Archived</option>
+              </select>
+              <small className="workspaceDraftHint">Status follows the draft, publish, and archive actions.</small>
+            </label>
             {notes ? (
               <div className="workspaceDraftNotes">
                 <span>Current notes</span>
                 <p>{notes}</p>
               </div>
             ) : null}
+            <div className="workspaceStructuredSteps">
+              <div className="workspaceStructuredStepsHeader">
+                <div>
+                  <span>Structured draft steps</span>
+                  <p>These steps are local-only until step versions are stored with the SOP version.</p>
+                </div>
+                <button className="iconTextButton" onClick={addDraftStep} type="button" disabled={isSaving}>
+                  <Plus aria-hidden="true" size={16} />
+                  Add step
+                </button>
+              </div>
+              {draftSteps.length === 0 ? (
+                <div className="workspaceDraftNotes">
+                  <span>No draft steps yet</span>
+                  <p>Add a local step draft from the source sections or create a new blank step for planning.</p>
+                </div>
+              ) : (
+                <div className="workspaceStructuredStepList">
+                  {draftSteps.map((step, index) => {
+                    const canMoveUp = index > 0;
+                    const canMoveDown = index < draftSteps.length - 1;
+                    return (
+                      <div className="workspaceStructuredStepCard" key={step.id}>
+                        <div className="workspaceStructuredStepHeader">
+                          <div>
+                            <strong>{step.title || step.sourceSectionHeading || 'Draft step'}</strong>
+                            <p>{step.isCustom ? 'Local draft step' : 'Imported source section'}</p>
+                          </div>
+                          <div className="workspaceStructuredStepActions">
+                            <button
+                              className="iconTextButton"
+                              onClick={() => setDraftSteps((current) => moveDraftStep(current, index, -1))}
+                              type="button"
+                              disabled={isSaving || !canMoveUp}
+                            >
+                              <ArrowUp aria-hidden="true" size={14} />
+                              Up
+                            </button>
+                            <button
+                              className="iconTextButton"
+                              onClick={() => setDraftSteps((current) => moveDraftStep(current, index, 1))}
+                              type="button"
+                              disabled={isSaving || !canMoveDown}
+                            >
+                              <ArrowDown aria-hidden="true" size={14} />
+                              Down
+                            </button>
+                            <button className="iconTextButton" onClick={() => removeDraftStep(step.id)} type="button" disabled={isSaving}>
+                              <Trash2 aria-hidden="true" size={14} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <div className="workspaceStructuredStepFields">
+                          <label>
+                            <span>Step title</span>
+                            <input
+                              onChange={(event) =>
+                                updateDraftStep(step.id, (current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }))
+                              }
+                              value={step.title}
+                              placeholder="Add a clear step title"
+                            />
+                          </label>
+                          <label>
+                            <span>Step notes</span>
+                            <textarea
+                              onChange={(event) =>
+                                updateDraftStep(step.id, (current) => ({
+                                  ...current,
+                                  notes: event.target.value,
+                                }))
+                              }
+                              value={step.notes}
+                              placeholder="Add notes for this draft step"
+                              rows={3}
+                            />
+                          </label>
+                        </div>
+                        <div className="workspaceStructuredStepMeta">
+                          <span>{step.isCustom ? 'Local draft only' : 'From imported source'}</span>
+                          {step.sourceSectionHeading ? <strong>{step.sourceSectionHeading}</strong> : <strong>No source heading yet</strong>}
+                        </div>
+                        {step.sourceSectionBody ? (
+                          <pre className="workspaceStructuredStepSource">{step.sourceSectionBody}</pre>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
       </SOPCard>
@@ -557,6 +735,7 @@ export function SOPPreview({
 
       <section className="detailSection" ref={evidenceRef}>
         <h4>Evidence</h4>
+        <div className="workspaceImmutableBanner">Source evidence is immutable and remains read-only so traceability is never lost.</div>
         <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
       </section>
 
@@ -602,42 +781,82 @@ export function SOPPreview({
           </div>
           <div className="quietText">{currentVersion.title ?? object.title}</div>
         </div>
-        <div className="workspaceHistoryList">
-          {history.map((version) => {
-            const isCurrent = version.id === object.currentApprovedVersionId;
-            const displayTitle = sourceLabelForVersion(version, object);
-            return (
-              <SOPCard
-                key={version.id}
-                className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
-                metadata={[
-                  { label: 'Version', value: `v${version.versionNumber}` },
-                  { label: 'Date', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt)) },
-                  { label: 'Author', value: versionAuthorLabel(version) },
-                ]}
-                sourceDetail={isCurrent ? 'Current published version' : versionLabel(version.status)}
-                sourceLabel={isCurrent ? 'Published' : 'Version'}
-                status={version.status}
-                summary={previewText(version.summary ?? version.body, 180)}
-                title={displayTitle}
-                action={
-                  isCurrent ? (
-                    <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
-                      Edit current
-                    </button>
-                  ) : (
-                    <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
-                      <RotateCcw aria-hidden="true" size={14} />
-                      Restore previous version
-                    </button>
-                  )
-                }
-              >
-                {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
-                <p className="sopVersionBody">{previewText(version.body, 260)}</p>
-              </SOPCard>
-            );
-          })}
+        <div className="workspaceHistoryGroups">
+          {[
+            {
+              key: 'current',
+              title: 'Current version',
+              description: 'This is the active approved SOP version.',
+              items: history.filter((version) => version.id === object.currentApprovedVersionId),
+            },
+            {
+              key: 'draft',
+              title: 'Draft versions',
+              description: 'Working copies that have not been published yet.',
+              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'draft'),
+            },
+            {
+              key: 'published',
+              title: 'Published versions',
+              description: 'Previously approved versions that are no longer current.',
+              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'published'),
+            },
+            {
+              key: 'archived',
+              title: 'Archived versions',
+              description: 'Versions that were archived for reference.',
+              items: history.filter((version) => versionHistoryGroup(version, object.currentApprovedVersionId) === 'archived'),
+            },
+          ]
+            .filter((group) => group.items.length > 0)
+            .map((group) => (
+              <div className="workspaceHistoryGroup" key={group.key}>
+                <div className="workspaceHistoryGroupHeader">
+                  <div>
+                    <strong>{group.title}</strong>
+                    <p>{group.description}</p>
+                  </div>
+                  <span>{group.items.length}</span>
+                </div>
+                <div className="workspaceHistoryList">
+                  {group.items.map((version) => {
+                    const isCurrent = version.id === object.currentApprovedVersionId;
+                    const displayTitle = sourceLabelForVersion(version, object);
+                    return (
+                      <SOPCard
+                        key={version.id}
+                        className={isCurrent ? 'workspaceHistoryCard current' : 'workspaceHistoryCard'}
+                        metadata={[
+                          { label: 'Version', value: `v${version.versionNumber}` },
+                          { label: 'Date', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(version.updatedAt)) },
+                          { label: 'Author', value: versionAuthorLabel(version) },
+                        ]}
+                        sourceDetail={isCurrent ? 'Current published version' : versionLabel(version.status)}
+                        sourceLabel={isCurrent ? 'Published' : 'Version'}
+                        status={version.status}
+                        summary={previewText(version.summary ?? version.body, 180)}
+                        title={displayTitle}
+                        action={
+                          isCurrent ? (
+                            <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
+                              Edit current
+                            </button>
+                          ) : (
+                            <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
+                              <RotateCcw aria-hidden="true" size={14} />
+                              Restore previous version
+                            </button>
+                          )
+                        }
+                      >
+                        {version.notes ? <p className="sopDraftNotes">{version.notes}</p> : null}
+                        <p className="sopVersionBody">{previewText(version.body, 260)}</p>
+                      </SOPCard>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
         </div>
       </section>
     </section>

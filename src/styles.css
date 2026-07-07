@@ -1539,7 +1539,8 @@ pre {
 }
 
 .workspaceDraftEditor input,
-.workspaceDraftEditor textarea {
+.workspaceDraftEditor textarea,
+.workspaceDraftEditor select {
   width: 100%;
   border: 1px solid #d7dfe9;
   border-radius: 8px;
@@ -1553,10 +1554,150 @@ pre {
   resize: vertical;
 }
 
+.workspaceDraftHint {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-transform: none;
+}
+
 .workspaceDraftSplit {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.workspaceStructuredSteps {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  background: #fdfefe;
+  padding: 12px;
+}
+
+.workspaceStructuredStepsHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspaceStructuredStepsHeader span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceStructuredStepsHeader p {
+  margin: 4px 0 0;
+  color: #34506d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspaceStructuredStepList {
+  display: grid;
+  gap: 12px;
+}
+
+.workspaceStructuredStepCard {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d7dfe9;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.workspaceStructuredStepHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspaceStructuredStepHeader strong {
+  display: block;
+  color: #172033;
+}
+
+.workspaceStructuredStepHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspaceStructuredStepActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.workspaceStructuredStepFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspaceStructuredStepFields label {
+  display: grid;
+  gap: 6px;
+}
+
+.workspaceStructuredStepFields span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceStructuredStepFields input,
+.workspaceStructuredStepFields textarea {
+  width: 100%;
+  border: 1px solid #d7dfe9;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.workspaceStructuredStepFields textarea {
+  resize: vertical;
+}
+
+.workspaceStructuredStepMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: #4b5f77;
+  font-size: 13px;
+}
+
+.workspaceStructuredStepMeta span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #4c5d73;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.workspaceStructuredStepMeta strong {
+  color: #172033;
+}
+
+.workspaceStructuredStepSource {
+  margin: 0;
 }
 
 .workspaceDraftNotes {
@@ -1580,6 +1721,16 @@ pre {
   color: #172033;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.workspaceImmutableBanner {
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #34506d;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
 }
 
 .workspaceHistoryHeader {
@@ -1606,6 +1757,47 @@ pre {
 .workspaceHistoryList {
   display: grid;
   gap: 10px;
+}
+
+.workspaceHistoryGroups {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceHistoryGroup {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceHistoryGroupHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspaceHistoryGroupHeader strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.workspaceHistoryGroupHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspaceHistoryGroupHeader span {
+  min-width: 34px;
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #435268;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  text-align: center;
 }
 
 .workspaceHistoryCard {
@@ -3388,7 +3580,11 @@ tbody tr:hover,
   .workspacePreviewSummary,
   .workspacePreviewActions,
   .workspaceDraftSplit,
+  .workspaceStructuredStepsHeader,
+  .workspaceStructuredStepHeader,
+  .workspaceStructuredStepFields,
   .workspaceHistoryHeader,
+  .workspaceHistoryGroupHeader,
   .expandedEvidence,
   .detailGrid,
   .ontologyGrid,
