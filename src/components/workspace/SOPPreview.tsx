@@ -316,6 +316,11 @@ function sourceLabelForVersion(version: KnowledgeObject['versions'][number], obj
   return version.title ?? object.title;
 }
 
+function sourceBadgeLabel(object: KnowledgeObject): string {
+  if (object.sourceType === 'user_created') return 'User-created';
+  return object.versions.length > 1 ? 'Edited' : 'Imported';
+}
+
 function versionHistoryGroup(version: KnowledgeObject['versions'][number], currentVersionId: string | null): 'current' | 'draft' | 'published' | 'archived' {
   if (currentVersionId && version.id === currentVersionId) return 'current';
   if (version.status === 'approved') return 'published';
@@ -735,6 +740,17 @@ export function SOPPreview({
   const linkedAudits = linkedAuditItems(auditTemplates, onOpenAudits);
   const currentVersion = activeVersion ?? object.approvedVersion;
   const history = [...object.versions].sort((a, b) => b.versionNumber - a.versionNumber);
+  const sourceBadge = sourceBadgeLabel(object);
+  const technicalDetails = [
+    { label: 'Source manual', value: manual?.title ?? object.manualTitle ?? 'Unassigned' },
+    { label: 'Manual code', value: manual?.manualCode ?? object.manualCode ?? 'Unassigned' },
+    { label: 'Updated', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(object.updatedAt)) },
+    { label: 'Version', value: `v${currentVersion.versionNumber}` },
+    { label: 'Version status', value: versionLabel(currentVersion.status) },
+    { label: 'Category', value: category || 'Unassigned' },
+    { label: 'Tags', value: tags || 'No tags' },
+  ];
+  const tagList = (tags ? tags.split(',').map((tag) => tag.trim()).filter(Boolean) : []);
 
   const steps = sourceSections.map((section, index) => ({
     id: section.id,
@@ -752,25 +768,29 @@ export function SOPPreview({
 
   return (
     <section className="workspacePreviewPanel">
-        <div className="workspaceSectionHeader">
-          <div>
-            <h3>SOP preview</h3>
-            <p>Read-only source evidence stays intact while editable versions are captured as safe snapshots.</p>
+      <div className="workspaceSectionHeader workspaceDocumentHeader">
+        <div>
+          <div className="workspaceDocumentBadges">
+            <StatusBadge status={object.status} label={sourceBadge} />
+            {coverageSummary ? <StatusBadge status={coverageSummary.missingCount > 0 ? 'blocked' : 'active'} label={coverageSummary.label} /> : null}
           </div>
-        <div className="workspacePreviewActions">
-          {feedback ? <StatusBadge status={draft?.status ?? 'draft'} label={feedback} /> : null}
-          {error ? <span className="workspaceActionError">{error}</span> : null}
-          {!editMode ? (
+          <h3>{title}</h3>
+          <p>{summary || previewText(body, 220)}</p>
+        </div>
+            <div className="workspacePreviewActions">
+              {feedback ? <StatusBadge status={draft?.status ?? 'draft'} label={feedback} /> : null}
+              {error ? <span className="workspaceActionError">{error}</span> : null}
+              {!editMode ? (
             <button className="iconTextButton" onClick={beginEdit} type="button" disabled={isSaving}>
               <Edit3 aria-hidden="true" size={16} />
               Edit SOP
             </button>
-          ) : (
-            <>
-              <button className="iconTextButton" onClick={() => void persistVersion('draft')} type="button" disabled={isSaving}>
-                <Save aria-hidden="true" size={16} />
-                Save draft
-              </button>
+              ) : (
+                <>
+                  <button className="iconTextButton" onClick={() => void persistVersion('draft')} type="button" disabled={isSaving}>
+                    <Save aria-hidden="true" size={16} />
+                    Save Draft
+                  </button>
               <button className="iconTextButton" onClick={() => void persistVersion('publish')} type="button" disabled={isSaving}>
                 <ArrowRight aria-hidden="true" size={16} />
                 Publish
@@ -789,53 +809,50 @@ export function SOPPreview({
             <ArrowRight aria-hidden="true" size={16} />
             Open source evidence
           </button>
-          <button className="iconTextButton" onClick={() => openSection('training')} type="button">
-            <ArrowRight aria-hidden="true" size={16} />
-            View training
-          </button>
-          <button className="iconTextButton" onClick={() => openSection('checklists')} type="button">
-            <ArrowRight aria-hidden="true" size={16} />
-            View checklist
-          </button>
-          <button className="iconTextButton" onClick={() => openSection('audits')} type="button">
-            <ArrowRight aria-hidden="true" size={16} />
-            View audit
-          </button>
         </div>
       </div>
 
-      <SOPCard
-        coverageLabel={coverageSummary?.label ?? undefined}
-        coveragePercent={coverageSummary?.coveragePercent}
-        metadata={[
-          { label: 'Origin', value: originLabel },
-          { label: 'Source manual', value: manual?.title ?? object.manualTitle ?? 'Unassigned' },
-          { label: 'Manual code', value: manual?.manualCode ?? object.manualCode ?? 'Unassigned' },
-          { label: 'Updated', value: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(object.updatedAt)) },
-          { label: 'Version', value: `v${currentVersion.versionNumber}` },
-          { label: 'Version status', value: versionLabel(currentVersion.status) },
-        ]}
-        sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : object.sourceFileUri}
-        sourceLabel={originLabel}
-        status={object.status}
-        summary={summary || previewText(body, 220)}
-        title={title}
-      >
-        <div className="workspacePreviewIntro">
-          <div>
-            <span>Purpose</span>
-            <p>{summary || previewText(body, 240)}</p>
+      <div className="workspaceDocumentBody">
+        <div className="workspaceDocumentIntro">
+          <section className="workspaceDocumentPanel">
+            <div className="workspaceSectionHeader">
+              <div>
+                <h4>Summary</h4>
+                <p>What this SOP covers at a glance.</p>
+              </div>
+            </div>
+            <p className="workspaceDocumentText">{summary || previewText(body, 240)}</p>
+          </section>
+
+          <section className="workspaceDocumentPanel">
+            <div className="workspaceSectionHeader">
+              <div>
+                <h4>Purpose / Body</h4>
+                <p>The readable SOP content for daily use.</p>
+              </div>
+            </div>
+            <div className="workspaceDocumentBodyCopy">{body || 'No SOP body is visible yet.'}</div>
+          </section>
+        </div>
+
+        <div className="workspaceDocumentTags">
+          <div className="workspaceSectionHeader">
+            <div>
+              <h4>Tags</h4>
+              <p>Organizational context linked to this SOP.</p>
+            </div>
           </div>
-          <div>
-            <span>Summary</span>
-            <p>{previewText(body, 300)}</p>
+          <div className="workspaceTagList">
+            {tagList.length > 0 ? (
+              tagList.map((tag) => <span key={tag}>{tag}</span>)
+            ) : (
+              <div className="emptyInline">No tags are attached yet.</div>
+            )}
           </div>
         </div>
+
         <div className="workspaceDraftBanner">
-          Editing is backed by version snapshots. Title, summary, body, and notes are saved. Category, tags, and structured steps stay local until they are ready to be saved with the version. Source evidence remains immutable.
-          Current local context: {category}
-          {tags ? ` · ${tags}` : ''}. Origin: {originLabel}.
-          {object.sourceType === 'user_created' ? ' This SOP began as a user-created draft and has no imported evidence yet.' : null}
+          Editing is safe: every save creates a new version, the imported source stays untouched, and user-created drafts remain separate.
         </div>
         {editMode && draft ? (
           <div className="workspaceAIArea">
@@ -1049,28 +1066,33 @@ export function SOPPreview({
             </div>
           </div>
         ) : null}
-      </SOPCard>
+        {notes ? (
+          <section className="detailSection workspaceNotesPanel">
+            <h4>Notes</h4>
+            <div className="workspaceNotesBody">{notes}</div>
+          </section>
+        ) : null}
 
-      {coverageSummary && coverageSummary.missingCount > 0 ? (
-        <KnowledgeGapCard
-          action={<span className="quietText">Review the related SOPs and training links below.</span>}
-          coveragePercent={coverageSummary.coveragePercent}
-          description="This SOP still has training requirements that are not fully supported by approved knowledge."
-          detail={coverageSummary.detail}
-          title={coverageSummary.label}
-        />
-      ) : null}
+        {coverageSummary && coverageSummary.missingCount > 0 ? (
+          <KnowledgeGapCard
+            action={<span className="quietText">Review the related SOPs and training links below.</span>}
+            coveragePercent={coverageSummary.coveragePercent}
+            description="This SOP still has training requirements that are not fully supported by approved knowledge."
+            detail={coverageSummary.detail}
+            title={coverageSummary.label}
+          />
+        ) : null}
 
-      <SOPStepList emptyLabel="No source sections are visible for this SOP." items={steps} title="Steps" />
+        <SOPStepList emptyLabel="No source sections are visible for this SOP." items={steps} title="Steps" />
 
-      <section className="detailSection" ref={evidenceRef}>
-        <h4>Evidence</h4>
-        <div className="workspaceImmutableBanner">Source evidence is immutable and remains read-only so traceability is never lost.</div>
-        <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
-      </section>
+        <section className="detailSection" ref={evidenceRef}>
+          <h4>Source evidence</h4>
+          <div className="workspaceImmutableBanner">Original imported source — read only.</div>
+          <SOPEvidencePanel emptyLabel="No source evidence is visible for this SOP." evidence={evidenceToItems(object.evidence)} title="Source evidence" />
+        </section>
 
-      <section className="detailSection" ref={relatedRef}>
-        <h4>Related SOPs</h4>
+        <section className="detailSection" ref={relatedRef}>
+          <h4>Related SOPs</h4>
         <SOPRelatedKnowledge
           emptyLabel="No related SOPs are visible yet."
           items={relatedSOPs.map((item) => ({
@@ -1083,24 +1105,24 @@ export function SOPPreview({
           }))}
           title="Related SOPs"
         />
-      </section>
+        </section>
 
-      <section className="detailSection" ref={trainingRef}>
-        <h4>Training</h4>
-        <LinkedKnowledgePanel emptyLabel="No related training paths are visible yet." items={linkedTraining} title="Training" />
-      </section>
+        <section className="detailSection" ref={trainingRef}>
+          <h4>Training</h4>
+          <LinkedKnowledgePanel emptyLabel="No related training paths are visible yet." items={linkedTraining} title="Training" />
+        </section>
 
-      <section className="detailSection" ref={checklistRef}>
-        <h4>Checklist</h4>
-        <LinkedKnowledgePanel emptyLabel="No related checklists are visible yet." items={linkedChecklists} title="Checklist" />
-      </section>
+        <section className="detailSection" ref={checklistRef}>
+          <h4>Checklist</h4>
+          <LinkedKnowledgePanel emptyLabel="No related checklists are visible yet." items={linkedChecklists} title="Checklist" />
+        </section>
 
-      <section className="detailSection" ref={auditRef}>
-        <h4>Audit</h4>
-        <LinkedKnowledgePanel emptyLabel="No related audits are visible yet." items={linkedAudits} title="Audit" />
-      </section>
+        <section className="detailSection" ref={auditRef}>
+          <h4>Audit</h4>
+          <LinkedKnowledgePanel emptyLabel="No related audits are visible yet." items={linkedAudits} title="Audit" />
+        </section>
 
-      <section className="detailSection">
+        <section className="detailSection">
         <div className="workspaceHistoryHeader">
           <div>
             <h4>
@@ -1175,12 +1197,12 @@ export function SOPPreview({
                         action={
                           isCurrent ? (
                             <button className="tableLink" onClick={beginEdit} type="button" disabled={isSaving}>
-                              Edit current
+                              Edit Version
                             </button>
                           ) : (
                             <button className="tableLink" onClick={() => void restoreVersion(version)} type="button" disabled={isSaving}>
                               <RotateCcw aria-hidden="true" size={14} />
-                              Restore previous version
+                              Restore Version
                             </button>
                           )
                         }
@@ -1195,6 +1217,19 @@ export function SOPPreview({
             ))}
         </div>
       </section>
+
+        <details className="workspaceTechnicalDetails">
+          <summary>Technical details</summary>
+          <div className="workspaceTechnicalDetailsGrid">
+            {technicalDetails.map((item) => (
+              <div className="workspaceTechnicalDetail" key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </details>
+      </div>
     </section>
   );
 }

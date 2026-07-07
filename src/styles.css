@@ -1662,7 +1662,8 @@ pre {
 .workspacePreviewPanel {
   display: grid;
   gap: 14px;
-  padding: 14px;
+  padding: 18px;
+  max-width: 100%;
 }
 
 .workspacePreviewActions {
@@ -1687,6 +1688,137 @@ pre {
   font-size: 13px;
   line-height: 1.55;
   padding: 10px 12px;
+}
+
+.workspaceDocumentHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.workspaceDocumentHeader h3 {
+  margin: 8px 0 10px;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.workspaceDocumentHeader p {
+  margin: 0;
+  color: #4b5f77;
+  font-size: 15px;
+  line-height: 1.65;
+  max-width: 72ch;
+}
+
+.workspaceDocumentBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceDocumentBody {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceDocumentIntro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.workspaceDocumentPanel,
+.workspaceDocumentTags,
+.workspaceNotesPanel,
+.workspaceTechnicalDetails {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.workspaceDocumentText {
+  margin: 0;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.workspaceDocumentBodyCopy {
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.workspaceDocumentTags {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceTagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspaceTagList span {
+  border: 1px solid #d7dde7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #435268;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.workspaceNotesBody {
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.workspaceTechnicalDetails {
+  display: grid;
+  gap: 10px;
+}
+
+.workspaceTechnicalDetails summary {
+  color: #4b5f77;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspaceTechnicalDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspaceTechnicalDetail {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.workspaceTechnicalDetail span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspaceTechnicalDetail strong {
+  color: #172033;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .workspaceAIArea {
