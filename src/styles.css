@@ -1681,6 +1681,71 @@ pre {
   padding-top: 12px;
 }
 
+.cashierEvidencePanel {
+  display: grid;
+  gap: 12px;
+}
+
+.cashierEvidenceLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  color: #475569;
+  font-size: 13px;
+}
+
+.cashierEvidenceLine span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cashierEvidenceLine strong {
+  color: #172033;
+}
+
+.cashierEvidenceList {
+  display: grid;
+  gap: 10px;
+}
+
+.cashierEvidenceItem {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.cashierEvidenceItem strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.cashierEvidenceItem p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.cashierEvidenceItem small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.cashierRelatedSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: #475569;
+  font-size: 13px;
+}
+
 .cashierDocumentSection textarea,
 .cashierDocumentSection input,
 .cashierShellTitle {

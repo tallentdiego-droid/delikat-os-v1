@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Edit3, Save } from 'lucide-react';
-import { OSCard, SOPCard } from '../os';
-import { SOPPreview } from './SOPPreview';
-import type { KnowledgeEngineData, KnowledgeManual, KnowledgeObject } from '../../lib/knowledge';
+import { Edit3, Save, RotateCcw } from 'lucide-react';
+import { OSCard, SOPCard, StatusBadge } from '../os';
+import {
+  createKnowledgeDraft,
+  previewText,
+  saveKnowledgeDraft,
+  type KnowledgeEngineData,
+  type KnowledgeManual,
+  type KnowledgeObject,
+} from '../../lib/knowledge';
 import type { TrainingEngineData } from '../../lib/training';
 import type { ChecklistEngineData } from '../../lib/checklists';
 import type { AuditEngineData } from '../../lib/audits';
@@ -27,7 +33,7 @@ interface CashierSOPDefinition {
   searchTerms: string[];
 }
 
-interface DraftShellState {
+interface DraftState {
   title: string;
   purpose: string;
   whenToUse: string;
@@ -116,7 +122,38 @@ function findCashierObject(objects: KnowledgeObject[], definition: CashierSOPDef
   );
 }
 
-function splitShellSteps(value: string): string[] {
+function seedDraftFromSelection(definition: CashierSOPDefinition, object: KnowledgeObject | null): DraftState {
+  if (!object) {
+    return {
+      title: definition.title,
+      purpose: 'Draft shell — fill with Delikat procedure.',
+      whenToUse: definition.whenToUse,
+      steps: 'Draft shell — fill with Delikat procedure.',
+      notes: definition.notes,
+    };
+  }
+
+  return {
+    title: object.title,
+    purpose: object.summary ?? definition.purposeLabel,
+    whenToUse: definition.whenToUse,
+    steps: object.approvedVersion.body || 'Draft shell — fill with Delikat procedure.',
+    notes: object.approvedVersion.notes ?? definition.notes,
+  };
+}
+
+function draftBody(value: DraftState): string {
+  return [
+    `Purpose\n${value.purpose.trim()}`,
+    `When to use\n${value.whenToUse.trim()}`,
+    `Steps\n${value.steps.trim()}`,
+    `Notes\n${value.notes.trim()}`,
+  ]
+    .filter((section) => section.replace(/\s/g, '').length > 0)
+    .join('\n\n');
+}
+
+function splitDisplaySteps(value: string): string[] {
   return value
     .split(/\n|;/)
     .map((step) => step.trim())
@@ -135,17 +172,12 @@ export function CashierWorkspace({
   const [selectedKey, setSelectedKey] = useState<CashierSOPKey>('cashOpening');
   const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [draftShells, setDraftShells] = useState<Record<CashierSOPKey, DraftShellState>>(() =>
-    CASHIER_SOPS.reduce<Record<CashierSOPKey, DraftShellState>>((acc, item) => {
-      acc[item.key] = {
-        title: item.title,
-        purpose: 'Draft shell — fill with Delikat procedure.',
-        whenToUse: item.whenToUse,
-        steps: 'Draft shell — fill with Delikat procedure.',
-        notes: item.notes,
-      };
+  const [error, setError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<CashierSOPKey, DraftState>>(() =>
+    CASHIER_SOPS.reduce<Record<CashierSOPKey, DraftState>>((acc, item) => {
+      acc[item.key] = seedDraftFromSelection(item, null);
       return acc;
-    }, {} as Record<CashierSOPKey, DraftShellState>),
+    }, {} as Record<CashierSOPKey, DraftState>),
   );
 
   const selectedDefinition = CASHIER_SOPS.find((item) => item.key === selectedKey) ?? CASHIER_SOPS[0];
@@ -161,6 +193,17 @@ export function CashierWorkspace({
     () => (selectedObject ? sourceSectionsForObject(selectedManual, selectedObject) : []),
     [selectedManual, selectedObject],
   );
+
+  const selectedDraft = drafts[selectedKey];
+  const isEditable = selectedObject ? editMode : true;
+  const sourceBadge = selectedObject
+    ? selectedObject.sourceType === 'user_created'
+      ? 'User-created'
+      : selectedObject.versions.length > 1
+        ? 'Edited'
+        : 'Imported'
+    : 'Draft shell';
+
   const selectedTrainingPaths = useMemo(
     () =>
       selectedObject
@@ -183,12 +226,110 @@ export function CashierWorkspace({
     [audits.templates, selectedObject],
   );
 
-  const shellDraft = draftShells[selectedKey];
+  function selectCashierSOP(key: CashierSOPKey): void {
+    const definition = CASHIER_SOPS.find((item) => item.key === key) ?? CASHIER_SOPS[0];
+    const linkedObject = findCashierObject(cashierObjects, definition);
 
-  function saveShellDraft(): void {
-    setFeedback('Draft shell saved locally.');
-    setEditMode(false);
+    setSelectedKey(key);
+    setFeedback(null);
+    setError(null);
+
+    if (linkedObject) {
+      setDrafts((current) => ({
+        ...current,
+        [key]: seedDraftFromSelection(definition, linkedObject),
+      }));
+      setEditMode(false);
+      return;
+    }
+
+    setDrafts((current) => ({
+      ...current,
+      [key]: seedDraftFromSelection(definition, null),
+    }));
+    setEditMode(true);
   }
+
+  function resetCurrentDraft(): void {
+    const definition = selectedDefinition;
+    const linkedObject = selectedObject;
+    setDrafts((current) => ({
+      ...current,
+      [selectedKey]: seedDraftFromSelection(definition, linkedObject),
+    }));
+    setError(null);
+    setFeedback('Draft shell reset.');
+    setEditMode(Boolean(linkedObject));
+  }
+
+  function cancelEditing(): void {
+    if (!selectedObject) {
+      resetCurrentDraft();
+      return;
+    }
+
+    setDrafts((current) => ({
+      ...current,
+      [selectedKey]: seedDraftFromSelection(selectedDefinition, selectedObject),
+    }));
+    setEditMode(false);
+    setFeedback('Draft changes were discarded.');
+    setError(null);
+  }
+
+  async function saveCurrentDraft(): Promise<void> {
+    const currentDraft = drafts[selectedKey];
+    const linkedObject = selectedObject;
+
+    if (!currentDraft.title.trim() || !currentDraft.steps.trim()) {
+      setError('A title and steps are required before saving this draft.');
+      return;
+    }
+
+    setFeedback(null);
+    setError(null);
+
+    try {
+      const summary = currentDraft.purpose.trim();
+      const body = draftBody(currentDraft);
+
+      if (linkedObject) {
+        await saveKnowledgeDraft({
+          knowledgeId: linkedObject.id,
+          title: currentDraft.title.trim(),
+          summary,
+          body,
+          notes: currentDraft.notes.trim(),
+          sourceVersionId: linkedObject.currentApprovedVersionId ?? linkedObject.approvedVersion.id,
+        });
+        await onRefresh?.();
+      } else {
+        const created = await createKnowledgeDraft({
+          title: currentDraft.title.trim(),
+          summary,
+          body,
+          notes: currentDraft.notes.trim(),
+        });
+
+        await onRefresh?.();
+        onOpenObject?.(created.knowledge.id);
+      }
+
+      setFeedback(linkedObject ? 'Draft saved.' : 'Draft shell saved as a new SOP draft.');
+      setEditMode(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Draft could not be saved.');
+    }
+  }
+
+  const selectionSummary = selectedObject
+    ? selectedObject.summary ?? selectedDefinition.purposeLabel
+    : 'Draft shell — fill with Delikat procedure.';
+  const selectionSteps = selectedObject
+    ? selectedSourceSections.length > 0
+      ? selectedSourceSections.slice(0, 5).map((section) => section.heading)
+      : splitDisplaySteps(previewText(selectedObject.approvedVersion.body, 260))
+    : splitDisplaySteps(selectedDraft.steps);
 
   return (
     <section className="cashierWorkspace">
@@ -227,21 +368,20 @@ export function CashierWorkspace({
             <div className="cashierProfileBlock">
               <strong>Required SOPs</strong>
               <div className="cashierRequiredList">
-                {CASHIER_SOPS.map((item) => (
-                  <button
-                    className={item.key === selectedKey ? 'cashierRequiredItem active' : 'cashierRequiredItem'}
-                    key={item.key}
-                    onClick={() => {
-                      setSelectedKey(item.key);
-                      setEditMode(false);
-                      setFeedback(null);
-                    }}
-                    type="button"
-                  >
-                    <span>{item.title}</span>
-                    <small>{findCashierObject(cashierObjects, item) ? 'Linked SOP' : 'Needs SOP'}</small>
-                  </button>
-                ))}
+                {CASHIER_SOPS.map((item) => {
+                  const linkedObject = findCashierObject(cashierObjects, item);
+                  return (
+                    <button
+                      className={item.key === selectedKey ? 'cashierRequiredItem active' : 'cashierRequiredItem'}
+                      key={item.key}
+                      onClick={() => selectCashierSOP(item.key)}
+                      type="button"
+                    >
+                      <span>{item.title}</span>
+                      <small>{linkedObject ? 'Ready' : 'Needs SOP'}</small>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -262,30 +402,31 @@ export function CashierWorkspace({
                     <button
                       className="tableLink"
                       onClick={() => {
-                        if (linkedObject) onOpenObject?.(linkedObject.id);
-                        setSelectedKey(item.key);
-                        setEditMode(false);
-                        setFeedback(null);
+                        selectCashierSOP(item.key);
+                        if (linkedObject) setEditMode(true);
                       }}
                       type="button"
                     >
-                      {linkedObject ? 'Open SOP' : 'Needs SOP'}
+                      {linkedObject ? 'Edit into clean SOP' : 'Needs SOP'}
                     </button>
                   }
                   key={item.key}
-                  onClick={() => {
-                    if (linkedObject) onOpenObject?.(linkedObject.id);
-                    setSelectedKey(item.key);
-                    setEditMode(false);
-                    setFeedback(null);
-                  }}
+                  onClick={() => selectCashierSOP(item.key)}
                   selected={item.key === selectedKey}
-                  sourceDetail={linkedObject ? `${linkedObject.manualCode ?? linkedObject.manualTitle} · ${linkedObject.sourceSectionHeading}` : 'Draft shell — fill with Delikat procedure.'}
-                  sourceLabel={linkedObject ? 'Source manual' : 'Draft shell'}
+                  sourceDetail={
+                    linkedObject ? `${linkedObject.manualCode ?? linkedObject.manualTitle} · ${linkedObject.sourceSectionHeading}` : 'Draft shell — fill with Delikat procedure.'
+                  }
+                  sourceLabel="Source manual"
                   status={linkedObject?.status ?? 'draft'}
-                  statusLabel={linkedObject ? 'Linked' : 'Needs SOP'}
+                  statusLabel={linkedObject ? sourceBadge : 'Draft shell — not published'}
                   summary={linkedObject?.summary ?? item.purposeLabel}
                   title={item.title}
+                  metadata={[
+                    {
+                      label: 'Evidence',
+                      value: linkedObject ? `${linkedObject.evidence.length} link${linkedObject.evidence.length === 1 ? '' : 's'}` : 'Not linked yet',
+                    },
+                  ]}
                 />
               );
             })}
@@ -293,136 +434,188 @@ export function CashierWorkspace({
         </main>
 
         <aside className="cashierPreviewColumn">
-          {selectedObject ? (
-            <SOPPreview
-              auditTemplates={selectedAuditTemplates}
-              checklistTemplates={selectedChecklistTemplates}
-              coverage={knowledge.coverage}
-              manual={selectedManual}
-              object={selectedObject}
-              relatedSOPs={selectedObject.related}
-              sourceSections={selectedSourceSections}
-              trainingPaths={selectedTrainingPaths}
-              onOpenAudits={onRefresh}
-              onOpenChecklists={onRefresh}
-              onOpenTraining={onRefresh}
-              onRefresh={onRefresh}
-            />
-          ) : (
-            <OSCard className="cashierDocumentCard">
-              <div className="workspaceSectionHeader workspaceDocumentHeader">
-                <div>
-                  <span className="eyebrow">Draft shell</span>
-                  {editMode ? (
-                    <input
-                      className="cashierShellTitle"
-                      onChange={(event) =>
-                        setDraftShells((current) => ({
-                          ...current,
-                          [selectedKey]: { ...current[selectedKey], title: event.target.value },
-                        }))
-                      }
-                      value={shellDraft.title}
-                    />
-                  ) : (
-                    <h3>{shellDraft.title}</h3>
-                  )}
-                  <p>Draft shell — fill with Delikat procedure.</p>
+          <OSCard className="cashierDocumentCard">
+            <div className="workspaceSectionHeader workspaceDocumentHeader">
+              <div>
+                <div className="workspaceDocumentBadges">
+                  <StatusBadge status={selectedObject?.status ?? 'draft'} label={sourceBadge} />
+                  {!selectedObject ? <StatusBadge status="draft" label="Not published" /> : null}
                 </div>
+                {isEditable ? (
+                  <input
+                    className="cashierShellTitle"
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedKey]: { ...current[selectedKey], title: event.target.value },
+                      }))
+                    }
+                    value={selectedDraft.title}
+                  />
+                ) : (
+                  <h3>{selectedDraft.title}</h3>
+                )}
+                <p>{selectionSummary}</p>
               </div>
 
-              <div className="cashierDocumentSections">
-                <section className="cashierDocumentSection">
-                  <strong>Purpose</strong>
-                  {editMode ? (
-                    <textarea
-                      onChange={(event) =>
-                        setDraftShells((current) => ({
-                          ...current,
-                          [selectedKey]: { ...current[selectedKey], purpose: event.target.value },
-                        }))
-                      }
-                      rows={3}
-                      value={shellDraft.purpose}
-                    />
-                  ) : (
-                    <p>{shellDraft.purpose}</p>
-                  )}
-                </section>
-                <section className="cashierDocumentSection">
-                  <strong>When to use</strong>
-                  {editMode ? (
-                    <textarea
-                      onChange={(event) =>
-                        setDraftShells((current) => ({
-                          ...current,
-                          [selectedKey]: { ...current[selectedKey], whenToUse: event.target.value },
-                        }))
-                      }
-                      rows={2}
-                      value={shellDraft.whenToUse}
-                    />
-                  ) : (
-                    <p>{shellDraft.whenToUse}</p>
-                  )}
-                </section>
-                <section className="cashierDocumentSection">
-                  <strong>Steps</strong>
-                  {editMode ? (
-                    <textarea
-                      onChange={(event) =>
-                        setDraftShells((current) => ({
-                          ...current,
-                          [selectedKey]: { ...current[selectedKey], steps: event.target.value },
-                        }))
-                      }
-                      rows={5}
-                      value={shellDraft.steps}
-                    />
-                  ) : (
-                    <ol>
-                      {splitShellSteps(shellDraft.steps).map((step, index) => (
-                        <li key={`${selectedKey}-${index}`}>{step}</li>
-                      ))}
-                    </ol>
-                  )}
-                </section>
-                <section className="cashierDocumentSection">
-                  <strong>Notes</strong>
-                  {editMode ? (
-                    <textarea
-                      onChange={(event) =>
-                        setDraftShells((current) => ({
-                          ...current,
-                          [selectedKey]: { ...current[selectedKey], notes: event.target.value },
-                        }))
-                      }
-                      rows={3}
-                      value={shellDraft.notes}
-                    />
-                  ) : (
-                    <p>{shellDraft.notes}</p>
-                  )}
-                </section>
+              <div className="workspacePreviewActions">
+                {feedback ? <StatusBadge status={selectedObject?.status ?? 'draft'} label={feedback} /> : null}
+                {error ? <span className="workspaceActionError">{error}</span> : null}
+                {selectedObject && !editMode ? (
+                  <button className="iconTextButton" onClick={() => setEditMode(true)} type="button">
+                    <Edit3 aria-hidden="true" size={16} />
+                    Edit SOP
+                  </button>
+                ) : null}
+                {isEditable ? (
+                  <>
+                    <button className="iconTextButton" onClick={() => void saveCurrentDraft()} type="button">
+                      <Save aria-hidden="true" size={16} />
+                      Save Draft
+                    </button>
+                    {selectedObject ? (
+                      <button className="iconTextButton" onClick={cancelEditing} type="button">
+                        Cancel
+                      </button>
+                    ) : (
+                      <button className="iconTextButton" onClick={resetCurrentDraft} type="button">
+                        <RotateCcw aria-hidden="true" size={16} />
+                        Reset shell
+                      </button>
+                    )}
+                  </>
+                ) : null}
               </div>
+            </div>
 
-              <div className="cashierDocumentActions">
-                <button className="iconTextButton" onClick={() => setEditMode((current) => !current)} type="button">
-                  <Edit3 aria-hidden="true" size={16} />
-                  Edit SOP
-                </button>
-                <button className="iconTextButton primary" onClick={saveShellDraft} type="button">
-                  <Save aria-hidden="true" size={16} />
-                  Save draft
-                </button>
-              </div>
+            <div className="cashierDocumentSections">
+              <section className="cashierDocumentSection">
+                <strong>Purpose</strong>
+                {isEditable ? (
+                  <textarea
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedKey]: { ...current[selectedKey], purpose: event.target.value },
+                      }))
+                    }
+                    rows={3}
+                    value={selectedDraft.purpose}
+                  />
+                ) : (
+                  <p>{selectedDraft.purpose}</p>
+                )}
+              </section>
 
-              {feedback ? <p className="workspaceActionFeedback">{feedback}</p> : null}
-            </OSCard>
-          )}
+              <section className="cashierDocumentSection">
+                <strong>When to use</strong>
+                {isEditable ? (
+                  <textarea
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedKey]: { ...current[selectedKey], whenToUse: event.target.value },
+                      }))
+                    }
+                    rows={2}
+                    value={selectedDraft.whenToUse}
+                  />
+                ) : (
+                  <p>{selectedDefinition.whenToUse}</p>
+                )}
+              </section>
+
+              <section className="cashierDocumentSection">
+                <strong>Steps</strong>
+                {isEditable ? (
+                  <textarea
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedKey]: { ...current[selectedKey], steps: event.target.value },
+                      }))
+                    }
+                    rows={8}
+                    value={selectedDraft.steps}
+                  />
+                ) : selectedObject ? (
+                  <ol>
+                    {selectionSteps.map((step, index) => (
+                      <li key={`${selectedKey}-${index}`}>{step}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>Draft shell — fill with Delikat procedure.</p>
+                )}
+              </section>
+
+              <section className="cashierDocumentSection">
+                <strong>Notes</strong>
+                {isEditable ? (
+                  <textarea
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [selectedKey]: { ...current[selectedKey], notes: event.target.value },
+                      }))
+                    }
+                    rows={3}
+                    value={selectedDraft.notes}
+                  />
+                ) : (
+                  <p>{selectedObject?.approvedVersion.notes ?? selectedDefinition.notes}</p>
+                )}
+              </section>
+
+              <section className="cashierDocumentSection">
+                <strong>Source / evidence</strong>
+                {selectedObject ? (
+                  <div className="cashierEvidencePanel">
+                    <div className="cashierEvidenceLine">
+                      <span>Source manual</span>
+                      <strong>{selectedManual?.title ?? selectedObject.manualTitle}</strong>
+                    </div>
+                    <div className="cashierEvidenceLine">
+                      <span>Source file</span>
+                      <strong>{selectedManual?.sourceUri ?? selectedObject.sourceFileUri}</strong>
+                    </div>
+                    <div className="cashierEvidenceList">
+                      {selectedSourceSections.length > 0 ? (
+                        selectedSourceSections.map((section) => (
+                          <div className="cashierEvidenceItem" key={section.id}>
+                            <strong>{section.heading}</strong>
+                            <p>{previewText(section.body, 180)}</p>
+                            <small>{section.contentHash}</small>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="cashierEvidenceItem">
+                          <strong>Original imported source — read only.</strong>
+                          <p>{previewText(selectedObject.approvedVersion.body, 180)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="cashierEvidenceItem">
+                    <strong>No source evidence yet.</strong>
+                    <p>This cashier SOP is still a draft shell. Fill it by hand, then save it as a draft.</p>
+                  </div>
+                )}
+              </section>
+
+              <section className="cashierDocumentSection">
+                <strong>Related work</strong>
+                <div className="cashierRelatedSummary">
+                  <span>{selectedTrainingPaths.length} training link{selectedTrainingPaths.length === 1 ? '' : 's'}</span>
+                  <span>{selectedChecklistTemplates.length} checklist link{selectedChecklistTemplates.length === 1 ? '' : 's'}</span>
+                  <span>{selectedAuditTemplates.length} audit link{selectedAuditTemplates.length === 1 ? '' : 's'}</span>
+                </div>
+              </section>
+            </div>
+          </OSCard>
         </aside>
       </div>
-
     </section>
   );
 }
