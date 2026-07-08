@@ -1,14 +1,26 @@
-import type { OperationsProcess } from '../../lib/operations';
 import { CoverageBadge } from './CoverageBadge';
 import { OSCard } from './OSCard';
 import { StatusBadge } from './StatusBadge';
+
+interface OperationsProcessLike {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  triggerType: string;
+  criticality: string;
+  stepCount: number;
+  knowledgeLinkCount: number;
+  department?: { title: string | null } | null;
+  area?: { title: string | null } | null;
+}
 
 export function ProcessCard({
   process,
   selected = false,
   onSelect,
 }: {
-  process: OperationsProcess;
+  process: OperationsProcessLike;
   selected?: boolean;
   onSelect?: (id: string) => void;
 }): JSX.Element {

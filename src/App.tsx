@@ -1,13 +1,23 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ClipboardList, GraduationCap, LayoutDashboard, Search, Settings, Utensils } from 'lucide-react';
-import { DashboardPage } from './pages/DashboardPage';
-import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
-import { RecipesPage } from './pages/RecipesPage';
-import { SOPsPage } from './pages/SOPsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { TrainingPage } from './pages/TrainingPage';
+import { BookOpen, ClipboardList, GraduationCap, LayoutDashboard, Settings, Sparkles, Utensils, Plus, Search } from 'lucide-react';
+import Layout from './components/Layout';
+import { DashboardPage as Dashboard } from './pages/Dashboard';
+import { KnowledgeBasePage as KnowledgeBase } from './pages/KnowledgeBase';
+import { RecipesPage as Recipes } from './pages/Recipes';
+import { SOPsPage as SOPs } from './pages/SOPs';
+import { SettingsPage as SettingsPage } from './pages/Settings';
+import { TrainingPage as Training } from './pages/Training';
 
 type Page = 'dashboard' | 'knowledge' | 'recipes' | 'sops' | 'training' | 'settings';
+
+const pageTitles: Record<Page, string> = {
+  dashboard: 'Dashboard',
+  knowledge: 'Knowledge Base',
+  recipes: 'Recipes',
+  sops: 'SOPs & Manuals',
+  training: 'Training',
+  settings: 'Settings',
+};
 
 const navigation: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,104 +36,89 @@ export function App(): JSX.Element {
   const [sopSelectedId, setSopSelectedId] = useState<string | null>(null);
   const [sopSelectedRequestId, setSopSelectedRequestId] = useState(0);
 
-  const headerLabel = useMemo(() => {
+  const headerActions = useMemo(() => {
+    const openKnowledgeBase = (): void => setPage('knowledge');
+    const openSOPs = (): void => {
+      setPage('sops');
+      setSopCreateRequestId((current) => current + 1);
+    };
+
     switch (page) {
+      case 'dashboard':
+        return (
+          <div className="headerActionGroup">
+            <button className="iconTextButton" onClick={openKnowledgeBase} type="button">
+              <Search aria-hidden="true" size={15} />
+              Search SOPs
+            </button>
+            <button className="iconTextButton primary" onClick={openSOPs} type="button">
+              <Plus aria-hidden="true" size={15} />
+              New SOP
+            </button>
+          </div>
+        );
       case 'knowledge':
-        return 'Knowledge Base';
-      case 'recipes':
-        return 'Recipes';
+        return (
+          <button className="iconTextButton primary" onClick={openSOPs} type="button">
+            <Sparkles aria-hidden="true" size={15} />
+            New SOP
+          </button>
+        );
       case 'sops':
-        return 'SOPs & Manuals';
-      case 'training':
-        return 'Training';
-      case 'settings':
-        return 'Settings';
+        return (
+          <button className="iconTextButton primary" onClick={openSOPs} type="button">
+            <Plus aria-hidden="true" size={15} />
+            New SOP
+          </button>
+        );
       default:
-        return 'Dashboard';
+        return null;
     }
   }, [page]);
 
+  const headerTitle = pageTitles[page];
+
   return (
-    <div className="appShell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brandMark">D</div>
-          <div>
-            <strong>Delikat OS</strong>
-            <span>Knowledge workspace</span>
-          </div>
-        </div>
-
-        <nav className="navList" aria-label="Primary">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                className={page === item.id ? 'navItem active' : 'navItem'}
-                key={item.id}
-                onClick={() => setPage(item.id)}
-                type="button"
-              >
-                <Icon aria-hidden="true" size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      <div className="workspace">
-        <header className="topHeader">
-          <div>
-            <span className="eyebrow">Delikat Studio</span>
-            <h1>{headerLabel}</h1>
-          </div>
-          <div className="headerSearch">
-            <Search aria-hidden="true" size={16} />
-            <span>Live Supabase knowledge</span>
-          </div>
-        </header>
-
-        <main className="mainPanel">
-          {page === 'dashboard' ? (
-            <DashboardPage
-              onCreateSOP={() => {
-                setSopCreateRequestId((current) => current + 1);
-                setPage('sops');
-              }}
-              onContinueLastDraft={(id) => {
-                setSopSelectedId(id);
-                setSopSelectedRequestId((current) => current + 1);
-                setPage('sops');
-              }}
-              onOpenKnowledgeBase={() => setPage('knowledge')}
-              onSearchKnowledge={(query) => {
-                setKnowledgeSearchQuery(query);
-                setKnowledgeSearchRequestId((current) => current + 1);
-                setPage('knowledge');
-              }}
-            />
-          ) : page === 'knowledge' ? (
-            <KnowledgeBasePage
-              initialSearchQuery={knowledgeSearchQuery}
-              initialSearchRequestId={knowledgeSearchRequestId}
-            />
-          ) : page === 'recipes' ? (
-            <RecipesPage />
-          ) : page === 'sops' ? (
-            <SOPsPage
-              createRequestId={sopCreateRequestId}
-              initialSelectedId={sopSelectedId}
-              initialSelectedRequestId={sopSelectedRequestId}
-              onOpenKnowledgeBase={() => setPage('knowledge')}
-            />
-          ) : page === 'training' ? (
-            <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />
-          ) : (
-            <SettingsPage />
-          )}
-        </main>
-      </div>
-    </div>
+    <Layout activePage={page} headerActions={headerActions} headerTitle={headerTitle} onNavigate={(nextPage) => setPage(nextPage as Page)}>
+      {page === 'dashboard' ? (
+        <Dashboard
+          onCreateSOP={() => {
+            setSopCreateRequestId((current) => current + 1);
+            setPage('sops');
+          }}
+          onContinueLastDraft={(id) => {
+            setSopSelectedId(id);
+            setSopSelectedRequestId((current) => current + 1);
+            setPage('sops');
+          }}
+          onOpenKnowledgeBase={() => setPage('knowledge')}
+          onSearchKnowledge={(query) => {
+            setKnowledgeSearchQuery(query);
+            setKnowledgeSearchRequestId((current) => current + 1);
+            setPage('knowledge');
+          }}
+        />
+      ) : page === 'knowledge' ? (
+        <KnowledgeBase
+          initialSearchQuery={knowledgeSearchQuery}
+          initialSearchRequestId={knowledgeSearchRequestId}
+        />
+      ) : page === 'recipes' ? (
+        <Recipes />
+      ) : page === 'sops' ? (
+        <SOPs
+          createRequestId={sopCreateRequestId}
+          initialSelectedId={sopSelectedId}
+          initialSelectedRequestId={sopSelectedRequestId}
+          onOpenKnowledgeBase={() => setPage('knowledge')}
+        />
+      ) : page === 'training' ? (
+        <Training onOpenKnowledgeBase={() => setPage('knowledge')} />
+      ) : (
+        <SettingsPage />
+      )}
+    </Layout>
   );
 }
+
+export default App;

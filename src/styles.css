@@ -5114,3 +5114,108 @@ tbody tr:hover,
 .settingsGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+/* Bolt shell rebase overrides */
+.appShell {
+  display: flex;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  position: relative;
+  width: 252px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  transition: width 180ms ease;
+}
+
+.sidebar.collapsed {
+  width: 72px;
+}
+
+.workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.topHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topHeaderTitle {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.topHeaderTitle h1 {
+  margin: 0;
+}
+
+.headerActions,
+.headerActionGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mobileMenuButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d7dde7;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #46556b;
+}
+
+.sidebarToggle {
+  position: absolute;
+  right: -12px;
+  top: 18px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  background: #1e293b;
+  color: #cbd5e1;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+}
+
+.sidebar.collapsed .brand {
+  justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  .appShell {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .sidebar,
+  .sidebar.collapsed {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobileMenuButton {
+    display: inline-flex;
+  }
+
+  .headerSearch {
+    display: none;
+  }
+}

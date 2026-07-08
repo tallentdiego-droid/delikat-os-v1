@@ -1,13 +1,23 @@
-import type { TrainingPath } from '../../lib/training';
 import { CoverageBadge } from './CoverageBadge';
 import { OSCard } from './OSCard';
+
+interface TrainingPathLike {
+  id: string;
+  title: string;
+  description: string | null;
+  coveragePercent: number;
+  department?: { name: string | null } | null;
+  role?: { name: string | null } | null;
+  area?: { name: string | null } | null;
+  items: Array<unknown>;
+}
 
 export function TrainingPathCard({
   path,
   selected = false,
   onSelect,
 }: {
-  path: TrainingPath;
+  path: TrainingPathLike;
   selected?: boolean;
   onSelect?: (id: string) => void;
 }): JSX.Element {
@@ -39,4 +49,3 @@ export function TrainingPathCard({
     </OSCard>
   );
 }
-
