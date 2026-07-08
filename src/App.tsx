@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ClipboardList, LayoutDashboard, Search, Settings, Utensils } from 'lucide-react';
+import { BookOpen, ClipboardList, GraduationCap, LayoutDashboard, Search, Settings, Utensils } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { RecipesPage } from './pages/RecipesPage';
 import { SOPsPage } from './pages/SOPsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TrainingPage } from './pages/TrainingPage';
 
-type Page = 'dashboard' | 'knowledge' | 'recipes' | 'sops' | 'settings';
+type Page = 'dashboard' | 'knowledge' | 'recipes' | 'sops' | 'training' | 'settings';
 
 const navigation: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
   { id: 'recipes', label: 'Recipes', icon: Utensils },
-  { id: 'sops', label: 'SOPs', icon: ClipboardList },
+  { id: 'sops', label: 'SOPs & Manuals', icon: ClipboardList },
+  { id: 'training', label: 'Training', icon: GraduationCap },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -31,7 +33,9 @@ export function App(): JSX.Element {
       case 'recipes':
         return 'Recipes';
       case 'sops':
-        return 'SOPs';
+        return 'SOPs & Manuals';
+      case 'training':
+        return 'Training';
       case 'settings':
         return 'Settings';
       default:
@@ -113,6 +117,8 @@ export function App(): JSX.Element {
               initialSelectedRequestId={sopSelectedRequestId}
               onOpenKnowledgeBase={() => setPage('knowledge')}
             />
+          ) : page === 'training' ? (
+            <TrainingPage onOpenKnowledgeBase={() => setPage('knowledge')} />
           ) : (
             <SettingsPage />
           )}

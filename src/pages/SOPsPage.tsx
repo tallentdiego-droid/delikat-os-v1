@@ -19,6 +19,8 @@ interface SOPsPageProps {
   onOpenKnowledgeBase?: () => void;
 }
 
+type SOPViewFilter = 'all' | 'imported' | 'drafts';
+
 function sortByUpdated(a: KnowledgeObject, b: KnowledgeObject): number {
   return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
 }
@@ -43,6 +45,7 @@ export function SOPsPage({
   const [isSaving, setIsSaving] = useState(false);
   const [queryRequest, setQueryRequest] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewFilter, setViewFilter] = useState<SOPViewFilter>('all');
   const [editorTitle, setEditorTitle] = useState('');
   const [editorSummary, setEditorSummary] = useState('');
   const [editorBody, setEditorBody] = useState('');
@@ -96,19 +99,18 @@ export function SOPsPage({
     setSelectedId(initialSelectedId ?? null);
   }, [initialSelectedId, initialSelectedRequestId]);
 
-  const drafts = useMemo(
-    () =>
-      knowledge
-        ? knowledge.objects
-            .filter((object) => object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved')
-            .sort(sortByUpdated)
-        : [],
-    [knowledge],
-  );
+  const objects = useMemo(() => (knowledge ? [...knowledge.objects].sort(sortByUpdated) : []), [knowledge]);
+  const importedObjects = useMemo(() => objects.filter((object) => object.sourceType === 'imported'), [objects]);
+  const draftObjects = useMemo(() => objects.filter((object) => object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved'), [objects]);
+  const visibleObjects = useMemo(() => {
+    if (viewFilter === 'imported') return importedObjects;
+    if (viewFilter === 'drafts') return draftObjects;
+    return objects;
+  }, [draftObjects, importedObjects, objects, viewFilter]);
 
   const selectedObject = useMemo(
-    () => knowledge?.objects.find((object) => object.id === selectedId) ?? drafts[0] ?? null,
-    [drafts, knowledge, selectedId],
+    () => knowledge?.objects.find((object) => object.id === selectedId) ?? visibleObjects[0] ?? null,
+    [knowledge, selectedId, visibleObjects],
   );
 
   useEffect(() => {
@@ -119,8 +121,6 @@ export function SOPsPage({
     setEditorNotes(selectedObject.approvedVersion.notes ?? '');
     setDraftStatus(selectedObject.approvedVersion.status);
   }, [selectedObject]);
-
-  const canEdit = selectedObject?.sourceType === 'user_created' || selectedObject?.status !== 'active' || selectedObject?.approvedVersion.status !== 'approved';
 
   async function handleSaveDraft(): Promise<void> {
     if (!selectedObject) return;
@@ -215,14 +215,26 @@ export function SOPsPage({
         </div>
       ) : null}
 
+      <div className="workspaceFilterSummary">
+        <span>Live counts</span>
+        <strong>{objects.length} SOPs</strong>
+        <strong>{importedObjects.length} imported</strong>
+        <strong>{draftObjects.length} drafts</strong>
+      </div>
+
       <div className="sopWorkspaceLayout">
         <aside className="sopWorkspaceSidebar">
           <OSCard className="sopWorkspaceCard">
             <div className="workspaceSectionHeader">
               <div>
-                <h3>Drafts</h3>
-                <p>Only user-created and in-progress SOPs live here.</p>
+                <h3>SOP library</h3>
+                <p>Imported records and drafts live together here.</p>
               </div>
+            </div>
+            <div className="studioSectionTabs">
+              <button className={viewFilter === 'all' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('all')}>All</button>
+              <button className={viewFilter === 'imported' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('imported')}>Imported</button>
+              <button className={viewFilter === 'drafts' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('drafts')}>Drafts</button>
             </div>
             <div className="sopWorkspaceActions">
               <button className="iconTextButton primary" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
@@ -239,8 +251,8 @@ export function SOPsPage({
           <div className="sopWorkspaceList">
             {isLoading && !knowledge ? (
               <EmptyState icon={SquarePen} title="Loading SOPs" description="Pulling live draft data from Supabase." />
-            ) : drafts.length > 0 ? (
-              drafts.map((object) => (
+            ) : visibleObjects.length > 0 ? (
+              visibleObjects.map((object) => (
                 <SOPCard
                   key={object.id}
                   onClick={() => setSelectedId(object.id)}
@@ -261,8 +273,8 @@ export function SOPsPage({
             ) : (
               <EmptyState
                 icon={SquarePen}
-                title="No drafts yet"
-                description="Create or edit an SOP to start a draft list."
+                title="No SOPs found"
+                description="Try another filter or create a draft shell to start a new SOP."
                 action={
                   <button className="iconTextButton primary" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
                     <Plus aria-hidden="true" size={16} />
@@ -281,30 +293,32 @@ export function SOPsPage({
                 <div>
                   <div className="workspaceDocumentBadges">
                     <StatusBadge status={draftStatus} />
-                    <StatusBadge status={selectedObject.sourceType === 'user_created' ? 'draft' : selectedObject.status} label={knowledgeOriginLabel(selectedObject)} />
+                    <StatusBadge status={selectedObject.sourceType === 'user_created' ? 'draft' : 'active'} label={knowledgeOriginLabel(selectedObject)} />
                   </div>
                   <h3>{editorTitle}</h3>
                   <p>{editorSummary || 'Draft shell — fill with Delikat procedure.'}</p>
                 </div>
                 <div className="detailHeaderActions">
+                  <button className="iconTextButton" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
+                    <Plus aria-hidden="true" size={16} />
+                    New SOP
+                  </button>
                   <button className="iconTextButton" onClick={() => setSelectedId(null)} type="button">
                     <RotateCcw aria-hidden="true" size={16} />
                     Cancel
                   </button>
-                  <button className="iconTextButton" onClick={() => void handleSaveDraft()} type="button" disabled={isSaving || !canEdit}>
+                  <button className="iconTextButton" onClick={() => void handleSaveDraft()} type="button" disabled={isSaving}>
                     <Save aria-hidden="true" size={16} />
                     Save Draft
                   </button>
-                  <button className="iconTextButton primary" onClick={() => void handlePublish()} type="button" disabled={isSaving || !canEdit}>
+                  <button className="iconTextButton primary" onClick={() => void handlePublish()} type="button" disabled={isSaving}>
                     <Send aria-hidden="true" size={16} />
                     Publish
                   </button>
                 </div>
               </div>
 
-              {!canEdit ? (
-                <div className="workspaceDraftBanner">Imported SOPs are read-only in the list. Edit into a clean SOP draft to save changes.</div>
-              ) : null}
+              <div className="workspaceDraftBanner">Original imported evidence stays read only. Saving here creates a new version draft.</div>
 
               <div className="sopEditorFields">
                 <label className="textField">
