@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, FileText, RotateCcw, Search } from 'lucide-react';
-import { EmptyState, OSCard, SOPCard, SOPStepList, SOPEvidencePanel, StatusBadge } from '../components/os';
-import {
-  getKnowledgeEngineData,
-  knowledgeOriginLabel,
-  previewText,
-  type KnowledgeEngineData,
-  type KnowledgeManual,
-  type KnowledgeObject,
-  type ManualFilter,
-} from '../lib/knowledge';
+import Badge from '../components/Badge';
+import { getKnowledgeEngineData, knowledgeOriginLabel, previewText, type KnowledgeEngineData, type KnowledgeManual, type KnowledgeObject, type ManualFilter } from '../lib/knowledge';
 
 interface KnowledgeBasePageProps {
   initialSearchQuery?: string;
@@ -48,7 +40,7 @@ function sourceSectionsForObject(manual: KnowledgeManual | null, object: Knowled
   return manual.sections.filter((section) => section.knowledgeIds.includes(object.id));
 }
 
-export function KnowledgeBasePage({ initialSearchQuery, initialSearchRequestId }: KnowledgeBasePageProps): JSX.Element {
+export default function KnowledgeBasePage({ initialSearchQuery, initialSearchRequestId }: KnowledgeBasePageProps): JSX.Element {
   const [data, setData] = useState<KnowledgeEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,229 +106,244 @@ export function KnowledgeBasePage({ initialSearchQuery, initialSearchRequestId }
   }, [data]);
 
   return (
-    <section className="pageStack knowledgePage">
-      <div className="sectionHeader">
-        <div>
-          <h2>Knowledge Base</h2>
-          <p>Browse the 378 imported SOP records, open a record, and keep evidence visible.</p>
-          {data ? <p className="workspaceLoadSummary">{stats.sopCount} records · {stats.manualCount} manuals loaded</p> : null}
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Knowledge Base</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Browse the imported SOP library</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Search the 378 imported records, open a record, and keep evidence visible.
+            </p>
+            {data ? <p className="mt-2 text-xs font-medium text-slate-500">{stats.sopCount} records · {stats.manualCount} manuals loaded</p> : null}
+          </div>
+          <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-800" onClick={() => window.location.reload()} type="button">
+            <RotateCcw size={15} />
+            Refresh
+          </button>
         </div>
-      </div>
+      </section>
 
       {error ? (
-        <div className="notice error">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <span>{error}</span>
-          <button className="iconTextButton" onClick={() => window.location.reload()} type="button">
-            <RotateCcw aria-hidden="true" size={16} />
+          <button className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100" onClick={() => window.location.reload()} type="button">
+            <RotateCcw size={14} />
             Retry
           </button>
         </div>
       ) : null}
 
       {isLoading && !data ? (
-        <div className="knowledgeBrowserEmpty">
-          <EmptyState icon={BookOpen} title="Loading knowledge base" description="Pulling live SOP records from Supabase." />
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center shadow-sm">
+          <BookOpen className="mx-auto text-slate-300" size={32} />
+          <p className="mt-3 text-sm font-semibold text-slate-700">Loading knowledge base</p>
+          <p className="mt-1 text-sm text-slate-500">Pulling live SOP records from Supabase.</p>
         </div>
       ) : data ? (
-        <div className="knowledgeBrowserLayout">
-          <aside className="knowledgeBrowserSidebar">
-            <OSCard className="knowledgeBrowserCard">
-              <div className="workspaceSectionHeader">
-                <div>
-                  <h3>Search</h3>
-                  <p>Search title, summary, body, source manual, and evidence.</p>
-                </div>
-              </div>
-              <label className="searchField knowledgeSearchField">
-                <Search aria-hidden="true" size={18} />
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_minmax(320px,0.95fr)]">
+          <aside className="space-y-4">
+            <Panel title="Search" description="Search title, summary, body, source manual, and evidence.">
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-amber-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-amber-100">
+                <Search className="shrink-0 text-slate-400" size={17} />
                 <input
+                  className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search SOPs"
                   value={query}
                 />
               </label>
-            </OSCard>
+            </Panel>
 
-            <OSCard className="knowledgeBrowserCard">
-              <div className="workspaceSectionHeader">
-                <div>
-                  <h3>Folders</h3>
-                  <p>Imported manuals grouped by code.</p>
-                </div>
-              </div>
-              <div className="knowledgeFolderList">
-                <button
-                  className={manualCode === 'all' ? 'knowledgeFolderButton active' : 'knowledgeFolderButton'}
-                  onClick={() => setManualCode('all')}
-                  type="button"
-                >
+            <Panel title="Folders" description="Imported manuals grouped by code.">
+              <div className="grid gap-1.5">
+                <button className={folderClass(manualCode === 'all')} onClick={() => setManualCode('all')} type="button">
                   <span>All SOPs</span>
                   <small>{stats.sopCount}</small>
                 </button>
                 {manualOptions.filter((code) => code !== 'all').map((code) => {
                   const count = data.objects.filter((object) => object.manualCode === code).length;
                   return (
-                    <button
-                      className={manualCode === code ? 'knowledgeFolderButton active' : 'knowledgeFolderButton'}
-                      key={code}
-                      onClick={() => setManualCode(code)}
-                      type="button"
-                    >
+                    <button className={folderClass(manualCode === code)} key={code} onClick={() => setManualCode(code)} type="button">
                       <span>{code}</span>
                       <small>{count}</small>
                     </button>
                   );
                 })}
               </div>
-            </OSCard>
+            </Panel>
 
-            <OSCard className="knowledgeBrowserCard">
-              <div className="workspaceSectionHeader">
-                <div>
-                  <h3>Recent manuals</h3>
-                  <p>Live source files behind the records.</p>
-                </div>
-              </div>
-              <div className="knowledgeManualList">
+            <Panel title="Recent manuals" description="Live source files behind the records.">
+              <div className="grid gap-2">
                 {data.manuals.slice(0, 5).map((manual) => (
-                  <div className="knowledgeManualItem" key={manual.id}>
-                    <strong>{manual.manualCode ?? manual.title}</strong>
-                    <p>{manual.title}</p>
-                    <span>{fileLabel(manual.sourceUri)}</span>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3" key={manual.id}>
+                    <strong className="block text-sm text-slate-900">{manual.manualCode ?? manual.title}</strong>
+                    <p className="mt-1 text-sm text-slate-600">{manual.title}</p>
+                    <span className="mt-2 block text-xs text-slate-400">{fileLabel(manual.sourceUri)}</span>
                   </div>
                 ))}
               </div>
-            </OSCard>
+            </Panel>
           </aside>
 
-          <main className="knowledgeBrowserCenter">
-            <div className="knowledgeResultsHeader">
+          <main className="space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3>{filteredObjects.length} SOP{filteredObjects.length === 1 ? '' : 's'} found</h3>
-                <p>Approved knowledge records are searchable by source and evidence.</p>
+                <h3 className="text-lg font-semibold text-slate-900">{filteredObjects.length} SOP{filteredObjects.length === 1 ? '' : 's'} found</h3>
+                <p className="mt-1 text-sm text-slate-500">Approved knowledge records are searchable by source and evidence.</p>
               </div>
             </div>
 
             {filteredObjects.length > 0 ? (
-              <div className="homeDraftGrid">
+              <div className="grid gap-3">
                 {filteredObjects.map((object) => (
-                  <SOPCard
+                  <button
                     key={object.id}
+                    className={`rounded-2xl border p-4 text-left shadow-sm transition ${object.id === selectedId ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
                     onClick={() => setSelectedId(object.id)}
-                    selected={object.id === selectedId}
-                    title={object.title}
-                    summary={object.summary ?? previewText(object.approvedVersion.body, 120)}
-                    sourceLabel={knowledgeOriginLabel(object)}
-                    sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
-                    status={object.status}
-                    statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'}
-                    action={
-                      <button className="tableLink" onClick={() => setSelectedId(object.id)} type="button">
-                        Open
-                      </button>
-                    }
-                  />
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="truncate text-sm font-semibold text-slate-900">{object.title}</h4>
+                          <Badge label={knowledgeOriginLabel(object)} />
+                          <Badge color={object.approvedVersion.status === 'approved' ? '#10B981' : '#F59E0B'} label={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'} />
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{object.summary ?? previewText(object.approvedVersion.body, 120)}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{object.manualCode ?? object.manualTitle}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{object.sourceSectionHeading}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{object.evidence.length} evidence link{object.evidence.length === 1 ? '' : 's'}</span>
+                      {object.sourceType === 'user_created' ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700">User-created</span> : null}
+                    </div>
+                  </button>
                 ))}
               </div>
             ) : (
               <EmptyState
-                icon={FileText}
                 title="No SOP found"
                 description="Check the source manuals or clear the filters to see the full imported library."
               />
             )}
           </main>
 
-          <aside className="knowledgeBrowserPreview">
+          <aside>
             {selectedObject ? (
-              <OSCard className="knowledgeDetailCard">
-                <div className="workspaceSectionHeader workspaceDocumentHeader">
+              <Panel
+                action={null}
+                description="Selected SOP preview and source evidence."
+                title={selectedObject.title}
+              >
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge label={knowledgeOriginLabel(selectedObject)} />
+                    <Badge color={selectedObject.approvedVersion.status === 'approved' ? '#10B981' : '#F59E0B'} label={selectedObject.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'} />
+                    <Badge color="#0EA5E9" label={selectedObject.manualCode ?? selectedObject.manualTitle} />
+                  </div>
+
                   <div>
-                    <div className="workspaceDocumentBadges">
-                      <StatusBadge status={selectedObject.status} />
-                      <StatusBadge status={selectedObject.sourceType === 'user_created' ? 'draft' : 'active'} label={knowledgeOriginLabel(selectedObject)} />
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Summary</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{selectedObject.summary ?? previewText(selectedObject.approvedVersion.body, 220)}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Approved body</p>
+                    <div className="prose prose-sm mt-3 max-w-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                      {selectedObject.approvedVersion.body ? (
+                        <pre className="whitespace-pre-wrap font-sans leading-6">{selectedObject.approvedVersion.body}</pre>
+                      ) : (
+                        <p className="text-slate-400">No approved body available.</p>
+                      )}
                     </div>
-                    <h3>{selectedObject.title}</h3>
-                    <p>{selectedObject.summary ?? previewText(selectedObject.approvedVersion.body, 180)}</p>
                   </div>
-                </div>
 
-                <div className="knowledgeDetailMeta">
+                  <EvidencePanel object={selectedObject} />
+
                   <div>
-                    <span>Source manual</span>
-                    <strong>{selectedManual?.title ?? selectedObject.manualTitle}</strong>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Manual source</p>
+                    <div className="mt-3 grid gap-2 rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-medium text-slate-900">{selectedManual?.title ?? selectedObject.manualTitle}</p>
+                      <p className="text-xs text-slate-500">{selectedManual ? fileLabel(selectedManual.sourceUri) : selectedObject.sourceFileUri}</p>
+                    </div>
                   </div>
+
                   <div>
-                    <span>Source file</span>
-                    <strong>{selectedManual?.sourceUri ?? selectedObject.sourceFileUri}</strong>
-                  </div>
-                  <div>
-                    <span>Section</span>
-                    <strong>{selectedObject.sourceSectionHeading}</strong>
-                  </div>
-                </div>
-
-                <section className="knowledgeDetailSection">
-                  <strong>Approved body</strong>
-                  <p>{selectedObject.approvedVersion.body}</p>
-                </section>
-
-                <section className="knowledgeDetailSection" ref={undefined}>
-                  <strong>Evidence</strong>
-                  <SOPEvidencePanel
-                    emptyLabel="No evidence linked yet."
-                    evidence={selectedObject.evidence.map((item) => ({
-                      id: item.id,
-                      sourceManualTitle: item.sourceManualTitle,
-                      sourceFileUri: item.sourceFileUri,
-                      sourceSectionHeading: item.sourceSectionHeading,
-                      sourceSectionBody: item.sourceSectionBody,
-                      sourceSectionHash: item.sourceSectionHash,
-                    }))}
-                    title="Source evidence"
-                  />
-                </section>
-
-                <section className="knowledgeDetailSection">
-                  <strong>Source sections</strong>
-                  <SOPStepList
-                    emptyLabel="No source sections were linked for this record."
-                    items={selectedEvidenceSections.map((section, index) => ({
-                      id: section.id,
-                      sequence: index + 1,
-                      title: section.heading,
-                      summary: previewText(section.body, 140),
-                      durationLabel: selectedManual?.manualCode ?? selectedManual?.title ?? 'Source section',
-                      status: 'satisfied',
-                      notes: section.contentHash,
-                    }))}
-                    title="Linked source sections"
-                  />
-                </section>
-
-                <section className="knowledgeDetailSection">
-                  <strong>Version history</strong>
-                  <div className="knowledgeVersionList">
-                    {selectedObject.versions.slice().sort((a, b) => b.versionNumber - a.versionNumber).map((version) => (
-                      <div className="knowledgeVersionItem" key={version.id}>
-                        <div>
-                          <strong>v{version.versionNumber}</strong>
-                          <p>{version.title ?? selectedObject.title}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Related source sections</p>
+                    <div className="mt-3 grid gap-2">
+                      {selectedEvidenceSections.length > 0 ? selectedEvidenceSections.map((section) => (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4" key={section.id}>
+                          <p className="text-sm font-medium text-slate-900">{section.heading}</p>
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-600">{previewText(section.body, 180)}</p>
                         </div>
-                        <span>{version.status}</span>
-                      </div>
-                    ))}
+                      )) : (
+                        <EmptyState title="No related source sections" description="The imported source is preserved, but no specific source section is linked to this record." />
+                      )}
+                    </div>
                   </div>
-                </section>
-              </OSCard>
+                </div>
+              </Panel>
             ) : (
-              <OSCard className="knowledgeDetailCard">
-                <EmptyState icon={BookOpen} title="Select an SOP to preview" description="Open a record to see its source, evidence, and versions." />
-              </OSCard>
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center shadow-sm">
+                <FileText className="mx-auto text-slate-300" size={32} />
+                <p className="mt-3 text-sm font-semibold text-slate-700">Select an SOP to preview</p>
+                <p className="mt-1 text-sm text-slate-500">The right panel shows the source evidence and current approved body.</p>
+              </div>
             )}
           </aside>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function Panel({ title, description, children, action }: { title: string; description: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        {action}
+      </div>
+      {children}
     </section>
+  );
+}
+
+function folderClass(active: boolean): string {
+  return `flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+    active ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
+  }`;
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+      <p className="text-sm font-semibold text-slate-800">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function EvidencePanel({ object }: { object: KnowledgeObject }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Source evidence</p>
+      <div className="mt-3 grid gap-3">
+        {object.evidence.length > 0 ? object.evidence.map((item) => (
+          <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={item.id}>
+            <p className="text-sm font-semibold text-slate-900">{item.sourceSectionHeading}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{previewText(item.sourceSectionBody, 220)}</p>
+            <p className="mt-2 text-xs text-slate-400">{fileLabel(item.sourceFileUri)}</p>
+          </article>
+        )) : (
+          <EmptyState title="Original imported source — read only" description="Evidence links are preserved from the import and are not edited here." />
+        )}
+      </div>
+    </div>
   );
 }

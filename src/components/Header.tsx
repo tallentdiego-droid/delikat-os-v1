@@ -1,4 +1,4 @@
-import { Menu, Search } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 interface HeaderProps {
   title: string;
@@ -8,24 +8,21 @@ interface HeaderProps {
 
 export default function Header({ title, actions, onMenuToggle }: HeaderProps) {
   return (
-    <header className="topHeader">
+    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-4 sm:px-6">
       <button
+        className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:hidden"
         onClick={onMenuToggle}
-        className="mobileMenuButton"
         type="button"
-        aria-label="Toggle sidebar"
       >
         <Menu size={18} />
       </button>
-      <div className="topHeaderTitle">
-        <span className="eyebrow">Delikat Studio</span>
-        <h1>{title}</h1>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Delikat Studio</p>
+        <h1 className="truncate text-lg font-semibold text-slate-900">{title}</h1>
       </div>
-      <div className="headerSearch">
-        <Search aria-hidden="true" size={16} />
-        <span>Live Supabase knowledge</span>
-      </div>
-      {actions && <div className="headerActions">{actions}</div>}
+
+      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </header>
   );
 }

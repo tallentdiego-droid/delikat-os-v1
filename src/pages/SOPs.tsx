@@ -1,377 +1,435 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Plus, RotateCcw, Save, Send, SquarePen } from 'lucide-react';
-import { EmptyState, OSCard, SOPCard, StatusBadge } from '../components/os';
-import {
-  createKnowledgeDraft,
-  getKnowledgeEngineData,
-  knowledgeOriginLabel,
-  previewText,
-  publishKnowledgeVersion,
-  saveKnowledgeDraft,
-  type KnowledgeEngineData,
-  type KnowledgeObject,
-} from '../lib/knowledge';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ClipboardList, FileText, FolderOpen, Plus, RotateCcw, Search } from 'lucide-react';
+import Badge from '../components/Badge';
+import DocumentEditor from '../components/DocumentEditor';
+import { createKnowledgeDraft, getKnowledgeEngineData, knowledgeOriginLabel, previewText, saveKnowledgeDraft, type KnowledgeEngineData, type KnowledgeObject, type ManualFilter } from '../lib/knowledge';
 
-interface SOPsPageProps {
+interface SOPsProps {
   createRequestId?: number;
   initialSelectedId?: string | null;
   initialSelectedRequestId?: number;
   onOpenKnowledgeBase?: () => void;
 }
 
-type SOPViewFilter = 'all' | 'imported' | 'drafts';
+const manualFilters: ManualFilter[] = ['all', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
-function sortByUpdated(a: KnowledgeObject, b: KnowledgeObject): number {
-  return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
-}
-
-function starterDraftTitle(): string {
-  return 'Untitled SOP';
-}
-
-function starterDraftBody(): string {
-  return 'Draft shell — fill with Delikat procedure.';
-}
-
-export function SOPsPage({
+export default function SOPs({
   createRequestId,
   initialSelectedId,
   initialSelectedRequestId,
   onOpenKnowledgeBase,
-}: SOPsPageProps = {}): JSX.Element {
-  const [knowledge, setKnowledge] = useState<KnowledgeEngineData | null>(null);
+}: SOPsProps): JSX.Element {
+  const [data, setData] = useState<KnowledgeEngineData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [queryRequest, setQueryRequest] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<SOPViewFilter>('all');
-  const [editorTitle, setEditorTitle] = useState('');
-  const [editorSummary, setEditorSummary] = useState('');
-  const [editorBody, setEditorBody] = useState('');
-  const [editorNotes, setEditorNotes] = useState('');
-  const [draftStatus, setDraftStatus] = useState<string>('draft');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [manualCode, setManualCode] = useState<ManualFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft' | 'archived'>('all');
+  const [editing, setEditing] = useState(false);
+  const [creatingNew, setCreatingNew] = useState(false);
 
-  const loadKnowledge = async (): Promise<void> => {
+  const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getKnowledgeEngineData();
-      setKnowledge(data);
-      setSelectedId((current) => current ?? data.objects.find((object) => object.sourceType === 'user_created')?.id ?? null);
+      const knowledge = await getKnowledgeEngineData();
+      setData(knowledge);
+      setSelectedId((current) => current ?? knowledge.objects[0]?.id ?? null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'SOPs could not load live Supabase data.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void loadKnowledge();
   }, []);
 
   useEffect(() => {
-    if (typeof createRequestId !== 'number' || createRequestId === queryRequest) return;
-    setQueryRequest(createRequestId);
-    void (async () => {
-      setIsSaving(true);
-      setError(null);
-      try {
-        const created = await createKnowledgeDraft({
-          title: starterDraftTitle(),
-          summary: 'Draft shell — fill with Delikat procedure.',
-          body: starterDraftBody(),
-        });
-        await loadKnowledge();
-        setSelectedId(created.knowledge.id);
-        setNotice('New SOP draft created.');
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'New SOP draft could not be created.');
-      } finally {
-        setIsSaving(false);
-      }
-    })();
-  }, [createRequestId, queryRequest]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
-    if (typeof initialSelectedRequestId !== 'number') return;
-    setSelectedId(initialSelectedId ?? null);
+    if (typeof createRequestId === 'number') {
+      setCreatingNew(true);
+      setEditing(false);
+      setQuery('');
+      setManualCode('all');
+      setStatusFilter('all');
+    }
+  }, [createRequestId]);
+
+  useEffect(() => {
+    if (typeof initialSelectedRequestId === 'number' && initialSelectedId) {
+      setSelectedId(initialSelectedId);
+      setEditing(false);
+      setCreatingNew(false);
+    }
   }, [initialSelectedId, initialSelectedRequestId]);
 
-  const objects = useMemo(() => (knowledge ? [...knowledge.objects].sort(sortByUpdated) : []), [knowledge]);
-  const importedObjects = useMemo(() => objects.filter((object) => object.sourceType === 'imported'), [objects]);
-  const draftObjects = useMemo(() => objects.filter((object) => object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved'), [objects]);
-  const visibleObjects = useMemo(() => {
-    if (viewFilter === 'imported') return importedObjects;
-    if (viewFilter === 'drafts') return draftObjects;
-    return objects;
-  }, [draftObjects, importedObjects, objects, viewFilter]);
-
-  const selectedObject = useMemo(
-    () => knowledge?.objects.find((object) => object.id === selectedId) ?? visibleObjects[0] ?? null,
-    [knowledge, selectedId, visibleObjects],
-  );
+  const filteredObjects = useMemo(() => {
+    if (!data) return [];
+    return data.objects
+      .filter((object) => (manualCode === 'all' || object.manualCode === manualCode))
+      .filter((object) => statusFilter === 'all' || object.status === statusFilter || object.approvedVersion.status === statusFilter)
+      .filter((object) => {
+        if (!query.trim()) return true;
+        const needle = query.trim().toLowerCase();
+        return [
+          object.title,
+          object.summary ?? '',
+          object.approvedVersion.body,
+          object.manualTitle,
+          object.sourceSectionHeading,
+          ...object.evidence.map((item) => item.sourceSectionBody),
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(needle);
+      })
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title));
+  }, [data, manualCode, query, statusFilter]);
 
   useEffect(() => {
-    if (!selectedObject) return;
-    setEditorTitle(selectedObject.title);
-    setEditorSummary(selectedObject.summary ?? '');
-    setEditorBody(selectedObject.approvedVersion.body);
-    setEditorNotes(selectedObject.approvedVersion.notes ?? '');
-    setDraftStatus(selectedObject.approvedVersion.status);
-  }, [selectedObject]);
-
-  async function handleSaveDraft(): Promise<void> {
-    if (!selectedObject) return;
-    setIsSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await saveKnowledgeDraft({
-        knowledgeId: selectedObject.id,
-        title: editorTitle.trim(),
-        summary: editorSummary.trim(),
-        body: editorBody,
-        notes: editorNotes.trim() || undefined,
-        sourceVersionId: selectedObject.currentApprovedVersionId ?? selectedObject.approvedVersion.id,
-      });
-      await loadKnowledge();
-      setSelectedId(selectedObject.id);
-      setNotice('Draft saved.');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Draft could not be saved.');
-    } finally {
-      setIsSaving(false);
+    if (!data) return;
+    if (filteredObjects.length === 0) {
+      setSelectedId(null);
+      return;
     }
-  }
-
-  async function handlePublish(): Promise<void> {
-    if (!selectedObject) return;
-    setIsSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await publishKnowledgeVersion({
-        knowledgeId: selectedObject.id,
-        title: editorTitle.trim(),
-        summary: editorSummary.trim(),
-        body: editorBody,
-        notes: editorNotes.trim() || undefined,
-        sourceVersionId: selectedObject.currentApprovedVersionId ?? selectedObject.approvedVersion.id,
-      });
-      await loadKnowledge();
-      setSelectedId(selectedObject.id);
-      setNotice('SOP published.');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'SOP could not be published.');
-    } finally {
-      setIsSaving(false);
+    if (!filteredObjects.some((object) => object.id === selectedId)) {
+      setSelectedId(filteredObjects[0].id);
     }
-  }
+  }, [data, filteredObjects, selectedId]);
 
-  async function handleCreate(): Promise<void> {
-    setIsSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const created = await createKnowledgeDraft({
-        title: starterDraftTitle(),
-        summary: 'Draft shell — fill with Delikat procedure.',
-        body: starterDraftBody(),
-      });
-      await loadKnowledge();
+  const selectedObject = useMemo(
+    () => data?.objects.find((object) => object.id === selectedId) ?? null,
+    [data, selectedId],
+  );
+
+  const manuals = data?.manuals ?? [];
+  const draftCount = data ? data.objects.filter((object) => object.sourceType === 'user_created' || object.approvedVersion.status !== 'approved' || object.status !== 'active').length : 0;
+
+  const handleSaveDraft = useCallback(async (title: string, content: string, summary: string) => {
+    if (creatingNew) {
+      const created = await createKnowledgeDraft({ title, summary, body: content });
+      await load();
       setSelectedId(created.knowledge.id);
-      setNotice('New SOP draft created.');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'New SOP draft could not be created.');
-    } finally {
-      setIsSaving(false);
+      setCreatingNew(false);
+      setEditing(false);
+      return;
     }
-  }
+
+    if (!selectedObject) return;
+    await saveKnowledgeDraft({
+      knowledgeId: selectedObject.id,
+      title,
+      summary,
+      body: content,
+      notes: summary,
+      sourceVersionId: selectedObject.approvedVersion.id,
+    });
+    await load();
+    setEditing(false);
+  }, [creatingNew, load, selectedObject]);
+
+  const selectedManual = useMemo(
+    () => (data && selectedObject ? data.manuals.find((manual) => manual.manualCode === selectedObject.manualCode || manual.title === selectedObject.manualTitle) ?? null : null),
+    [data, selectedObject],
+  );
+
+  const sourceSections = useMemo(
+    () => (selectedManual && selectedObject ? selectedManual.sections.filter((section) => section.knowledgeIds.includes(selectedObject.id)) : []),
+    [selectedManual, selectedObject],
+  );
 
   return (
-    <section className="pageStack sopPage">
-      <div className="sectionHeader">
-        <div>
-          <h2>SOPs</h2>
-          <p>Create, edit, and publish clean SOP drafts from a simple studio workspace.</p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">SOPs & Manuals</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Clean SOP workspace</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Browse imported SOPs, open source evidence, and create drafts that stay safely separate from the imported records.
+            </p>
+            <p className="mt-2 text-xs font-medium text-slate-500">
+              {data ? `${data.objects.length} SOPs loaded · ${manuals.length} manuals · ${draftCount} drafts` : 'Loading live SOP data…'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-800" onClick={() => setCreatingNew(true)} type="button">
+              <Plus size={15} />
+              New SOP
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50" onClick={onOpenKnowledgeBase} type="button">
+              <ClipboardList size={15} />
+              Open Knowledge Base
+            </button>
+          </div>
         </div>
-      </div>
+      </section>
 
       {error ? (
-        <div className="notice error">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <span>{error}</span>
-          <button className="iconTextButton" onClick={() => void loadKnowledge()} type="button">
-            <RotateCcw aria-hidden="true" size={16} />
+          <button className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100" onClick={load} type="button">
+            <RotateCcw size={14} />
             Retry
           </button>
         </div>
       ) : null}
 
-      {notice ? (
-        <div className="notice success">
-          <span>{notice}</span>
+      {isLoading && !data ? (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center shadow-sm">
+          <FileText className="mx-auto text-slate-300" size={32} />
+          <p className="mt-3 text-sm font-semibold text-slate-700">Loading SOP library</p>
+          <p className="mt-1 text-sm text-slate-500">Pulling live SOP records from Supabase.</p>
         </div>
-      ) : null}
+      ) : data ? (
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_minmax(360px,1fr)]">
+          <aside className="space-y-4">
+            <Panel title="Search" description="Search live SOPs by title, summary, body, and source evidence.">
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-amber-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-amber-100">
+                <Search className="shrink-0 text-slate-400" size={17} />
+                <input
+                  className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search SOPs"
+                  value={query}
+                />
+              </label>
+            </Panel>
 
-      <div className="workspaceFilterSummary">
-        <span>Live counts</span>
-        <strong>{objects.length} SOPs</strong>
-        <strong>{importedObjects.length} imported</strong>
-        <strong>{draftObjects.length} drafts</strong>
-      </div>
+            <Panel title="Folders" description="Sort by source or manual.">
+              <div className="grid gap-1.5">
+                <button className={folderClass(manualCode === 'all')} onClick={() => setManualCode('all')} type="button">
+                  <span>All SOPs</span>
+                  <small>{data.objects.length}</small>
+                </button>
+                <button className={folderClass(statusFilter === 'draft')} onClick={() => setStatusFilter('draft')} type="button">
+                  <span>Drafts</span>
+                  <small>{draftCount}</small>
+                </button>
+                <button className={folderClass(statusFilter === 'active')} onClick={() => setStatusFilter('active')} type="button">
+                  <span>Imported</span>
+                  <small>{data.objects.filter((object) => object.sourceType === 'imported').length}</small>
+                </button>
+                <button className={folderClass(statusFilter === 'archived')} onClick={() => setStatusFilter('archived')} type="button">
+                  <span>Archived</span>
+                  <small>{data.objects.filter((object) => object.status === 'archived').length}</small>
+                </button>
+              </div>
+            </Panel>
 
-      <div className="sopWorkspaceLayout">
-        <aside className="sopWorkspaceSidebar">
-          <OSCard className="sopWorkspaceCard">
-            <div className="workspaceSectionHeader">
+            <Panel title="Manuals" description="Imported manuals behind the records.">
+              <div className="grid gap-1.5">
+                <button className={folderClass(manualCode === 'all')} onClick={() => setManualCode('all')} type="button">
+                  <span>All manuals</span>
+                  <small>{manuals.length}</small>
+                </button>
+                {manualFilters.filter((code) => code !== 'all').map((code) => {
+                  const count = data.objects.filter((object) => object.manualCode === code).length;
+                  return (
+                    <button className={folderClass(manualCode === code)} key={code} onClick={() => setManualCode(code)} type="button">
+                      <span>{code}</span>
+                      <small>{count}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
+          </aside>
+
+          <main className="space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3>SOP library</h3>
-                <p>Imported records and drafts live together here.</p>
+                <h3 className="text-lg font-semibold text-slate-900">{filteredObjects.length} SOP{filteredObjects.length === 1 ? '' : 's'} found</h3>
+                <p className="mt-1 text-sm text-slate-500">Approved SOPs, imported manuals, and user-created drafts.</p>
               </div>
             </div>
-            <div className="studioSectionTabs">
-              <button className={viewFilter === 'all' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('all')}>All</button>
-              <button className={viewFilter === 'imported' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('imported')}>Imported</button>
-              <button className={viewFilter === 'drafts' ? 'tabButton active' : 'tabButton'} type="button" onClick={() => setViewFilter('drafts')}>Drafts</button>
-            </div>
-            <div className="sopWorkspaceActions">
-              <button className="iconTextButton primary" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
-                <Plus aria-hidden="true" size={16} />
-                New SOP
-              </button>
-              <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
-                <BookOpen aria-hidden="true" size={16} />
-                Open Knowledge Base
-              </button>
-            </div>
-          </OSCard>
 
-          <div className="sopWorkspaceList">
-            {isLoading && !knowledge ? (
-              <EmptyState icon={SquarePen} title="Loading SOPs" description="Pulling live draft data from Supabase." />
-            ) : visibleObjects.length > 0 ? (
-              visibleObjects.map((object) => (
-                <SOPCard
-                  key={object.id}
-                  onClick={() => setSelectedId(object.id)}
-                  selected={object.id === selectedId}
-                  title={object.title}
-                  summary={object.summary ?? previewText(object.approvedVersion.body, 96)}
-                  sourceLabel={knowledgeOriginLabel(object)}
-                  sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle}`}
-                  status={object.status}
-                  statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'}
-                  action={
-                    <button className="tableLink" onClick={() => setSelectedId(object.id)} type="button">
-                      Open
-                    </button>
-                  }
-                />
-              ))
+            {filteredObjects.length > 0 ? (
+              <div className="grid gap-3">
+                {filteredObjects.map((object) => (
+                  <button
+                    key={object.id}
+                    className={`rounded-2xl border p-4 text-left shadow-sm transition ${object.id === selectedId ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                    onClick={() => {
+                      setSelectedId(object.id);
+                      setCreatingNew(false);
+                      setEditing(false);
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="truncate text-sm font-semibold text-slate-900">{object.title}</h4>
+                          <Badge label={knowledgeOriginLabel(object)} />
+                          <Badge color={object.approvedVersion.status === 'approved' ? '#10B981' : '#F59E0B'} label={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'} />
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{object.summary ?? previewText(object.approvedVersion.body, 120)}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{object.manualCode ?? object.manualTitle}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{object.sourceSectionHeading}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{object.evidence.length} evidence link{object.evidence.length === 1 ? '' : 's'}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             ) : (
               <EmptyState
-                icon={SquarePen}
-                title="No SOPs found"
-                description="Try another filter or create a draft shell to start a new SOP."
-                action={
-                  <button className="iconTextButton primary" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
-                    <Plus aria-hidden="true" size={16} />
-                    New SOP
-                  </button>
-                }
+                title="No SOP found"
+                description="Check the source manuals or clear the filters to see the full imported library."
               />
             )}
-          </div>
-        </aside>
+          </main>
 
-        <main className="sopWorkspaceEditor">
-          {selectedObject ? (
-            <OSCard className="sopEditorCard">
-              <div className="workspaceDocumentHeader">
-                <div>
-                  <div className="workspaceDocumentBadges">
-                    <StatusBadge status={draftStatus} />
-                    <StatusBadge status={selectedObject.sourceType === 'user_created' ? 'draft' : 'active'} label={knowledgeOriginLabel(selectedObject)} />
-                  </div>
-                  <h3>{editorTitle}</h3>
-                  <p>{editorSummary || 'Draft shell — fill with Delikat procedure.'}</p>
-                </div>
-                <div className="detailHeaderActions">
-                  <button className="iconTextButton" onClick={() => void handleCreate()} type="button" disabled={isSaving}>
-                    <Plus aria-hidden="true" size={16} />
-                    New SOP
-                  </button>
-                  <button className="iconTextButton" onClick={() => setSelectedId(null)} type="button">
-                    <RotateCcw aria-hidden="true" size={16} />
-                    Cancel
-                  </button>
-                  <button className="iconTextButton" onClick={() => void handleSaveDraft()} type="button" disabled={isSaving}>
-                    <Save aria-hidden="true" size={16} />
-                    Save Draft
-                  </button>
-                  <button className="iconTextButton primary" onClick={() => void handlePublish()} type="button" disabled={isSaving}>
-                    <Send aria-hidden="true" size={16} />
-                    Publish
-                  </button>
-                </div>
-              </div>
+          <aside className="space-y-4">
+            {creatingNew ? (
+              <Panel title="New SOP draft" description="Save a new SOP draft without touching imported evidence.">
+                <DocumentEditor
+                  initialContent=""
+                  initialTitle=""
+                  isNew
+                  onCancel={() => setCreatingNew(false)}
+                  onSave={handleSaveDraft}
+                />
+              </Panel>
+            ) : selectedObject ? (
+              <>
+                <Panel title={selectedObject.title} description="Selected SOP preview and source evidence." action={<button className="text-sm font-medium text-amber-600 hover:text-amber-700" onClick={() => setEditing(true)} type="button">Edit Draft</button>}>
+                  <div className="space-y-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label={knowledgeOriginLabel(selectedObject)} />
+                      <Badge color={selectedObject.approvedVersion.status === 'approved' ? '#10B981' : '#F59E0B'} label={selectedObject.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'} />
+                      <Badge color="#0EA5E9" label={selectedObject.manualCode ?? selectedObject.manualTitle} />
+                    </div>
 
-              <div className="workspaceDraftBanner">Original imported evidence stays read only. Saving here creates a new version draft.</div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Summary</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">{selectedObject.summary ?? previewText(selectedObject.approvedVersion.body, 220)}</p>
+                    </div>
 
-              <div className="sopEditorFields">
-                <label className="textField">
-                  <span>Title</span>
-                  <input value={editorTitle} onChange={(event) => setEditorTitle(event.target.value)} />
-                </label>
-                <label className="textField">
-                  <span>Summary</span>
-                  <input value={editorSummary} onChange={(event) => setEditorSummary(event.target.value)} />
-                </label>
-                <label className="textAreaField sopEditorBodyField">
-                  <span>Body</span>
-                  <textarea rows={14} value={editorBody} onChange={(event) => setEditorBody(event.target.value)} />
-                </label>
-                <label className="textAreaField">
-                  <span>Notes</span>
-                  <textarea rows={5} value={editorNotes} onChange={(event) => setEditorNotes(event.target.value)} />
-                </label>
-              </div>
-
-              <details className="workspaceCollapsiblePanel">
-                <summary>Version history</summary>
-                <div className="workspaceCollapsibleBody">
-                  {selectedObject.versions
-                    .slice()
-                    .sort((a, b) => b.versionNumber - a.versionNumber)
-                    .map((version) => (
-                      <div className="knowledgeVersionItem" key={version.id}>
-                        <div>
-                          <strong>v{version.versionNumber}</strong>
-                          <p>{version.title ?? selectedObject.title}</p>
-                        </div>
-                        <span>{version.status}</span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Approved body</p>
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                        <pre className="whitespace-pre-wrap font-sans">{selectedObject.approvedVersion.body || 'No approved body available.'}</pre>
                       </div>
-                    ))}
-                </div>
-              </details>
-            </OSCard>
-          ) : (
-            <EmptyState
-              icon={SquarePen}
-              title="Select an SOP to edit"
-              description="Use the list on the left to open a draft, or create a new SOP to begin."
-              action={
-                <button className="iconTextButton primary" onClick={handleCreate} type="button">
-                  <Plus aria-hidden="true" size={16} />
-                  New SOP
-                </button>
-              }
-            />
-          )}
-        </main>
+                    </div>
+
+                    <EvidencePanel object={selectedObject} />
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Version history</p>
+                      <div className="mt-3 grid gap-2">
+                        {selectedObject.versions.slice(0, 5).map((version) => (
+                          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3" key={version.id}>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-slate-900">Version {version.versionNumber}</p>
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{version.status}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">{version.authorLabel ?? version.authoredBy ?? 'System'} · {new Date(version.createdAt).toLocaleDateString()}</p>
+                            {version.summary ? <p className="mt-2 text-sm leading-6 text-slate-600">{version.summary}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Manual source</p>
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-sm font-medium text-slate-900">{selectedManual?.title ?? selectedObject.manualTitle}</p>
+                        <p className="mt-1 text-xs text-slate-500">{selectedManual ? selectedManual.sourceUri : selectedObject.sourceFileUri}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Related source sections</p>
+                      <div className="mt-3 grid gap-2">
+                        {sourceSections.length > 0 ? sourceSections.map((section) => (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4" key={section.id}>
+                            <p className="text-sm font-medium text-slate-900">{section.heading}</p>
+                            <p className="mt-1 line-clamp-2 text-sm text-slate-600">{previewText(section.body, 180)}</p>
+                          </div>
+                        )) : (
+                          <EmptyState title="No related source sections" description="The imported source is preserved, but no specific source section is linked to this record." />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+
+                {editing ? (
+                  <Panel title="Edit draft" description="Changes save to a new version and keep the imported source intact.">
+                    <DocumentEditor
+                      initialContent={selectedObject.approvedVersion.body}
+                      initialTitle={selectedObject.title}
+                      onCancel={() => setEditing(false)}
+                      onSave={handleSaveDraft}
+                    />
+                  </Panel>
+                ) : null}
+              </>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center shadow-sm">
+                <FileText className="mx-auto text-slate-300" size={32} />
+                <p className="mt-3 text-sm font-semibold text-slate-700">Select an SOP to preview</p>
+                <p className="mt-1 text-sm text-slate-500">The right panel shows the source evidence and current approved body.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Panel({ title, description, children, action }: { title: string; description: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        {action}
       </div>
+      {children}
     </section>
+  );
+}
+
+function folderClass(active: boolean): string {
+  return `flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+    active ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
+  }`;
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+      <p className="text-sm font-semibold text-slate-800">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function EvidencePanel({ object }: { object: KnowledgeObject }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Source evidence</p>
+      <div className="mt-3 grid gap-3">
+        {object.evidence.length > 0 ? object.evidence.map((item) => (
+          <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={item.id}>
+            <p className="text-sm font-semibold text-slate-900">{item.sourceSectionHeading}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{previewText(item.sourceSectionBody, 220)}</p>
+            <p className="mt-2 text-xs text-slate-400">{item.sourceFileUri}</p>
+          </article>
+        )) : (
+          <EmptyState title="Original imported source — read only" description="Evidence links are preserved from the import and are not edited here." />
+        )}
+      </div>
+    </div>
   );
 }

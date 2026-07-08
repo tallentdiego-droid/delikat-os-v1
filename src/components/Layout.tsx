@@ -8,26 +8,35 @@ interface LayoutProps {
   onNavigate: (page: string) => void;
   headerTitle: string;
   headerActions?: React.ReactNode;
+  navigation?: Array<{ id: string; label: string; icon: React.ElementType }>;
 }
 
-export default function Layout({ children, activePage, onNavigate, headerTitle, headerActions }: LayoutProps) {
+export default function Layout({
+  children,
+  activePage,
+  onNavigate,
+  headerTitle,
+  headerActions,
+  navigation,
+}: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="appShell">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       <Sidebar
         activePage={activePage}
-        onNavigate={onNavigate}
+        navigation={navigation}
         isOpen={sidebarOpen}
+        onNavigate={onNavigate}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
-      <div className="workspace">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header
-          title={headerTitle}
           actions={headerActions}
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          title={headerTitle}
         />
-        <main className="mainPanel">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
