@@ -66,6 +66,9 @@ export function DashboardPage({
   }, [knowledge]);
 
   const lastDraft = recentDrafts[0] ?? null;
+  const sopCount = knowledge?.objects.filter((object) => object.status === 'active' && object.approvedVersion.status === 'approved').length ?? 0;
+  const draftCount = recentDrafts.length;
+  const recentSopCount = recentSOPs.length;
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -81,8 +84,8 @@ export function DashboardPage({
     <section className="pageStack homeLanding">
       <div className="sectionHeader">
         <div>
-          <h2>Home</h2>
-          <p>Start in Studio, search SOPs, and continue the last draft when you need to pick up work.</p>
+          <h2>Dashboard</h2>
+          <p>Open Studio, search SOPs, and keep the next draft moving.</p>
         </div>
       </div>
 
@@ -101,7 +104,7 @@ export function DashboardPage({
           <div>
             <span className="eyebrow">Delikat Studio</span>
             <h3>Search SOPs, recipes, procedures…</h3>
-            <p>Use Studio to browse imported manuals, open SOPs, edit drafts, and publish approved versions.</p>
+            <p>Use Studio to browse manuals, open SOPs, edit drafts, and preserve source evidence.</p>
           </div>
         </div>
 
@@ -132,7 +135,58 @@ export function DashboardPage({
         </form>
       </OSCard>
 
-      <div className="homeFeedGrid">
+      <div className="homeFeedGrid homeFeedDense">
+        <section className="detailSection">
+          <div className="sectionHeader">
+            <div>
+              <h3>Workspace overview</h3>
+              <p>Live counts from Supabase where they exist.</p>
+            </div>
+            {onOpenStudio ? (
+              <button className="iconTextButton" onClick={onOpenStudio} type="button">
+                <BookOpen aria-hidden="true" size={16} />
+                Open Studio
+              </button>
+            ) : null}
+          </div>
+          <div className="homeSummaryGrid">
+            <SOPCard
+              title="SOPs"
+              summary="Approved SOPs available in the live library."
+              sourceLabel="Live data"
+              sourceDetail={sopCount > 0 ? `${sopCount} SOPs loaded` : 'No SOPs loaded yet'}
+              status="active"
+              statusLabel="Ready"
+            />
+            <SOPCard
+              title="Recipes"
+              summary="Recipe workspace arrives in the next phase."
+              sourceLabel="Placeholder"
+              sourceDetail="Not connected yet"
+              status="draft"
+              statusLabel="Coming soon"
+            />
+            <SOPCard
+              title="Drafts"
+              summary="Current draft SOPs and user-created work."
+              sourceLabel="Live data"
+              sourceDetail={draftCount > 0 ? `${draftCount} draft${draftCount === 1 ? '' : 's'} available` : 'No drafts yet'}
+              status={draftCount > 0 ? 'pending' : 'draft'}
+              statusLabel={draftCount > 0 ? 'Needs review' : 'Empty'}
+              action={onCreateSOP ? <button className="tableLink" onClick={onCreateSOP} type="button">Create New SOP</button> : undefined}
+            />
+            <SOPCard
+              title="Recent SOPs"
+              summary="Recently updated live SOP records."
+              sourceLabel="Live data"
+              sourceDetail={recentSopCount > 0 ? `${recentSopCount} recent SOPs` : 'No recent SOPs'}
+              status="active"
+              statusLabel="Ready"
+              action={onOpenStudio ? <button className="tableLink" onClick={onOpenStudio} type="button">Open Studio</button> : undefined}
+            />
+          </div>
+        </section>
+
         <section className="detailSection">
           <div className="sectionHeader">
             <div>
