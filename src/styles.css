@@ -4811,6 +4811,10 @@ tbody tr:hover,
   .managerActionGrid,
   .managerRunGrid,
   .managerRoleGrid,
+  .knowledgeBrowserLayout,
+  .sopWorkspaceLayout,
+  .recipeTemplateGrid,
+  .settingsGrid,
   .knowledgeWorkspaceLayout,
   .workspacePreviewIntro,
   .workspacePreviewSummary,
@@ -4849,4 +4853,264 @@ tbody tr:hover,
   .mainPanel {
     padding: 18px 16px 34px;
   }
+}
+
+.appShell {
+  grid-template-columns: 252px minmax(0, 1fr);
+  background: #eef2f7;
+}
+
+.sidebar {
+  background: #0f172a;
+  color: #e5edf9;
+  border-right: 1px solid #0b1220;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.brand {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.brand span {
+  color: #90a0b8;
+}
+
+.navItem {
+  color: #b8c2d6;
+  background: transparent;
+}
+
+.navItem:hover,
+.navItem.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.navItem.hidden {
+  background: rgba(255, 255, 255, 0.04);
+  color: #8b98af;
+}
+
+.navItem.hidden:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #8b98af;
+}
+
+.workspace {
+  background: #eef2f7;
+}
+
+.topHeader {
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #dce3ec;
+}
+
+.mainPanel {
+  padding: 24px 28px 40px;
+}
+
+.pageStack {
+  gap: 16px;
+}
+
+.knowledgeBrowserLayout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1.1fr) minmax(340px, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.knowledgeBrowserSidebar,
+.knowledgeBrowserCenter,
+.knowledgeBrowserPreview,
+.sopWorkspaceSidebar,
+.sopWorkspaceEditor {
+  min-width: 0;
+}
+
+.knowledgeBrowserCard,
+.knowledgeDetailCard,
+.recipeHeroCard,
+.recipeTemplateCard,
+.settingsCard,
+.sopWorkspaceCard,
+.sopEditorCard {
+  display: grid;
+  gap: 14px;
+}
+
+.workspaceSectionHeader h3,
+.workspaceSectionHeader p {
+  margin: 0;
+}
+
+.workspaceSectionHeader p {
+  color: #5f6f83;
+  line-height: 1.55;
+}
+
+.knowledgeFolderList,
+.knowledgeManualList,
+.knowledgeVersionList,
+.recipeTemplateGrid,
+.settingsGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledgeFolderButton,
+.knowledgeManualItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #172033;
+}
+
+.knowledgeFolderButton.active {
+  border-color: #8fb3de;
+  box-shadow: 0 0 0 1px rgba(143, 179, 222, 0.14);
+}
+
+.knowledgeFolderButton span,
+.knowledgeManualItem strong,
+.knowledgeManualItem p,
+.knowledgeManualItem span {
+  display: block;
+}
+
+.knowledgeFolderButton small,
+.knowledgeManualItem span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.knowledgeManualItem {
+  align-items: start;
+}
+
+.knowledgeManualItem p {
+  margin: 4px 0 0;
+  color: #44556f;
+  line-height: 1.5;
+}
+
+.knowledgeResultsHeader,
+.resultsMeta,
+.workspaceLoadSummary {
+  color: #5f6f83;
+}
+
+.workspaceLoadSummary {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.knowledgeDetailMeta,
+.sopEditorFields {
+  display: grid;
+  gap: 12px;
+}
+
+.knowledgeDetailMeta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.knowledgeDetailMeta > div {
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.knowledgeDetailMeta span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.knowledgeDetailMeta strong {
+  display: block;
+  margin-top: 6px;
+  color: #172033;
+  word-break: break-word;
+}
+
+.knowledgeDetailSection {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledgeDetailSection > strong {
+  color: #172033;
+}
+
+.knowledgeVersionItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.knowledgeVersionItem strong {
+  color: #172033;
+}
+
+.knowledgeVersionItem p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sopWorkspaceLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.sopWorkspaceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sopWorkspaceList {
+  display: grid;
+  gap: 10px;
+}
+
+.sopEditorFields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sopEditorBodyField {
+  grid-column: 1 / -1;
+}
+
+.sopEditorFields textarea {
+  min-height: 140px;
+}
+
+.recipePageGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.recipeTemplateGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settingsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }

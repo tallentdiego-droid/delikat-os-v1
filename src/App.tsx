@@ -1,27 +1,43 @@
-import { useState } from 'react';
-import { BookOpen, Bot, ClipboardList, GraduationCap, LayoutDashboard, Search, Settings, Utensils } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { BookOpen, ClipboardList, LayoutDashboard, Search, Settings, Utensils } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
-import { KnowledgeWorkspacePage } from './pages/KnowledgeWorkspacePage';
+import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
+import { RecipesPage } from './pages/RecipesPage';
+import { SOPsPage } from './pages/SOPsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-type Page = 'home' | 'studio';
+type Page = 'dashboard' | 'knowledge' | 'recipes' | 'sops' | 'settings';
 
-const navigation = [
-  { id: 'home' as const, label: 'Dashboard', icon: LayoutDashboard, active: true },
-  { id: 'studio' as const, label: 'Knowledge Base', icon: BookOpen, active: true },
-  { id: 'recipes' as const, label: 'Recipes', icon: Utensils, active: false },
-  { id: 'sops' as const, label: 'SOPs & Manuals', icon: ClipboardList, active: false },
-  { id: 'training' as const, label: 'Training', icon: GraduationCap, active: false },
-  { id: 'ai' as const, label: 'AI Manager', icon: Bot, active: false },
-  { id: 'settings' as const, label: 'Settings', icon: Settings, active: false },
+const navigation: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
+  { id: 'recipes', label: 'Recipes', icon: Utensils },
+  { id: 'sops', label: 'SOPs', icon: ClipboardList },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export function App(): JSX.Element {
-  const [page, setPage] = useState<Page>('home');
-  const [studioDraftSeed, setStudioDraftSeed] = useState(0);
-  const [studioSearchSeed, setStudioSearchSeed] = useState('');
-  const [studioSearchRequestId, setStudioSearchRequestId] = useState(0);
-  const [studioSelectedObjectId, setStudioSelectedObjectId] = useState<string | null>(null);
-  const [studioSelectedObjectRequestId, setStudioSelectedObjectRequestId] = useState(0);
+  const [page, setPage] = useState<Page>('dashboard');
+  const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
+  const [knowledgeSearchRequestId, setKnowledgeSearchRequestId] = useState(0);
+  const [sopCreateRequestId, setSopCreateRequestId] = useState(0);
+  const [sopSelectedId, setSopSelectedId] = useState<string | null>(null);
+  const [sopSelectedRequestId, setSopSelectedRequestId] = useState(0);
+
+  const headerLabel = useMemo(() => {
+    switch (page) {
+      case 'knowledge':
+        return 'Knowledge Base';
+      case 'recipes':
+        return 'Recipes';
+      case 'sops':
+        return 'SOPs';
+      case 'settings':
+        return 'Settings';
+      default:
+        return 'Dashboard';
+    }
+  }, [page]);
 
   return (
     <div className="appShell">
@@ -30,36 +46,19 @@ export function App(): JSX.Element {
           <div className="brandMark">D</div>
           <div>
             <strong>Delikat OS</strong>
-            <span>Studio workspace</span>
+            <span>Knowledge workspace</span>
           </div>
         </div>
+
         <nav className="navList" aria-label="Primary">
-          <p className="navSectionLabel">Primary</p>
-          {navigation.filter((item) => item.active).map((item) => {
+          {navigation.map((item) => {
             const Icon = item.icon;
             return (
               <button
                 className={page === item.id ? 'navItem active' : 'navItem'}
                 key={item.id}
-                onClick={() => setPage(item.id as Page)}
+                onClick={() => setPage(item.id)}
                 type="button"
-              >
-                <Icon aria-hidden="true" size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-          <p className="navSectionLabel navSectionSpacer">Hidden for now</p>
-          {navigation.filter((item) => !item.active).map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                aria-disabled="true"
-                className="navItem hidden"
-                key={item.id}
-                disabled
-                type="button"
-                title="Hidden until the next phase"
               >
                 <Icon aria-hidden="true" size={18} />
                 <span>{item.label}</span>
@@ -72,43 +71,50 @@ export function App(): JSX.Element {
       <div className="workspace">
         <header className="topHeader">
           <div>
-            <span className="eyebrow">Delikat OS</span>
-            <h1>{page === 'home' ? 'Dashboard' : 'Knowledge Base'}</h1>
+            <span className="eyebrow">Delikat Studio</span>
+            <h1>{headerLabel}</h1>
           </div>
           <div className="headerSearch">
             <Search aria-hidden="true" size={16} />
-            <span>Search SOPs in Studio</span>
+            <span>Live Supabase knowledge</span>
           </div>
         </header>
 
         <main className="mainPanel">
-          {page === 'home' ? (
+          {page === 'dashboard' ? (
             <DashboardPage
-              onContinueLastDraft={(id) => {
-                setStudioSelectedObjectId(id);
-                setStudioSelectedObjectRequestId((current) => current + 1);
-                setStudioDraftSeed((current) => current + 1);
-                setPage('studio');
-              }}
               onCreateSOP={() => {
-                setStudioDraftSeed((current) => current + 1);
-                setPage('studio');
+                setSopCreateRequestId((current) => current + 1);
+                setPage('sops');
               }}
-              onOpenStudio={() => setPage('studio')}
-              onSearchStudio={(query) => {
-                setStudioSearchSeed(query);
-                setStudioSearchRequestId((current) => current + 1);
-                setPage('studio');
+              onContinueLastDraft={(id) => {
+                setSopSelectedId(id);
+                setSopSelectedRequestId((current) => current + 1);
+                setPage('sops');
               }}
+              onOpenKnowledgeBase={() => setPage('knowledge')}
+              onSearchKnowledge={(query) => {
+                setKnowledgeSearchQuery(query);
+                setKnowledgeSearchRequestId((current) => current + 1);
+                setPage('knowledge');
+              }}
+            />
+          ) : page === 'knowledge' ? (
+            <KnowledgeBasePage
+              initialSearchQuery={knowledgeSearchQuery}
+              initialSearchRequestId={knowledgeSearchRequestId}
+            />
+          ) : page === 'recipes' ? (
+            <RecipesPage />
+          ) : page === 'sops' ? (
+            <SOPsPage
+              createRequestId={sopCreateRequestId}
+              initialSelectedId={sopSelectedId}
+              initialSelectedRequestId={sopSelectedRequestId}
+              onOpenKnowledgeBase={() => setPage('knowledge')}
             />
           ) : (
-            <KnowledgeWorkspacePage
-              initialSelectedObjectId={studioSelectedObjectId}
-              initialSelectedObjectRequestId={studioSelectedObjectRequestId}
-              initialSearchQuery={studioSearchSeed}
-              initialSearchRequestId={studioSearchRequestId}
-              openNewSOPRequestId={studioDraftSeed}
-            />
+            <SettingsPage />
           )}
         </main>
       </div>

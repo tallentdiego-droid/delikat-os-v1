@@ -1,23 +1,23 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Plus, RotateCcw, Search, Workflow } from 'lucide-react';
-import { EmptyState, OSCard, SOPCard } from '../components/os';
+import { EmptyState, MetricCard, OSCard, SOPCard } from '../components/os';
 import { getKnowledgeEngineData, knowledgeOriginLabel, previewText, type KnowledgeEngineData, type KnowledgeObject } from '../lib/knowledge';
 
 interface DashboardPageProps {
-  onOpenStudio?: () => void;
+  onOpenKnowledgeBase?: () => void;
+  onSearchKnowledge?: (query: string) => void;
   onCreateSOP?: () => void;
-  onSearchStudio?: (query: string) => void;
   onContinueLastDraft?: (id: string) => void;
 }
 
-function draftSort(a: KnowledgeObject, b: KnowledgeObject): number {
+function sortByUpdated(a: KnowledgeObject, b: KnowledgeObject): number {
   return b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title);
 }
 
 export function DashboardPage({
-  onOpenStudio,
+  onOpenKnowledgeBase,
+  onSearchKnowledge,
   onCreateSOP,
-  onSearchStudio,
   onContinueLastDraft,
 }: DashboardPageProps): JSX.Element {
   const [knowledge, setKnowledge] = useState<KnowledgeEngineData | null>(null);
@@ -26,7 +26,7 @@ export function DashboardPage({
   const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const refreshKnowledge = useCallback(async (): Promise<void> => {
+  const loadKnowledge = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
@@ -34,7 +34,7 @@ export function DashboardPage({
       const data = await getKnowledgeEngineData();
       setKnowledge(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Home could not reach live Supabase data.');
+      setError(reason instanceof Error ? reason.message : 'Dashboard could not reach the live knowledge base.');
     } finally {
       setIsLoading(false);
       setIsSlowLoading(false);
@@ -43,72 +43,72 @@ export function DashboardPage({
 
   useEffect(() => {
     let active = true;
-    const slowTimer = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       if (active) setIsSlowLoading(true);
-    }, 3500);
+    }, 2500);
 
-    void refreshKnowledge();
+    void loadKnowledge();
 
     return () => {
       active = false;
-      window.clearTimeout(slowTimer);
+      window.clearTimeout(timer);
     };
-  }, [refreshKnowledge]);
+  }, [loadKnowledge]);
 
-  const recentDrafts = useMemo(() => {
-    if (!knowledge) return [];
-    return knowledge.objects.filter((object) => object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved').sort(draftSort).slice(0, 4);
-  }, [knowledge]);
+  const approvedSOPs = useMemo(
+    () => (knowledge ? knowledge.objects.filter((object) => object.status === 'active' && object.approvedVersion.status === 'approved').sort(sortByUpdated) : []),
+    [knowledge],
+  );
 
-  const recentSOPs = useMemo(() => {
-    if (!knowledge) return [];
-    return knowledge.objects.filter((object) => object.status === 'active' && object.approvedVersion.status === 'approved').sort(draftSort).slice(0, 4);
-  }, [knowledge]);
+  const drafts = useMemo(
+    () =>
+      knowledge
+        ? knowledge.objects.filter((object) => object.sourceType === 'user_created' || object.status !== 'active' || object.approvedVersion.status !== 'approved').sort(sortByUpdated)
+        : [],
+    [knowledge],
+  );
 
-  const lastDraft = recentDrafts[0] ?? null;
-  const sopCount = knowledge?.objects.filter((object) => object.status === 'active' && object.approvedVersion.status === 'approved').length ?? 0;
-  const draftCount = recentDrafts.length;
-  const recentSopCount = recentSOPs.length;
+  const lastDraft = drafts[0] ?? null;
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>): void {
+  function handleSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const trimmed = searchQuery.trim();
-    if (trimmed && onSearchStudio) {
-      onSearchStudio(trimmed);
+    if (trimmed && onSearchKnowledge) {
+      onSearchKnowledge(trimmed);
       return;
     }
-    onOpenStudio?.();
+    onOpenKnowledgeBase?.();
   }
 
   return (
-    <section className="pageStack homeLanding">
+    <section className="pageStack dashboardPage">
       <div className="sectionHeader">
         <div>
           <h2>Dashboard</h2>
-          <p>Open Studio, search SOPs, and keep the next draft moving.</p>
+          <p>Search the live SOP library, open Knowledge Base, or continue the next draft.</p>
         </div>
       </div>
 
       {error ? (
         <div className="notice error">
           <span>{error}</span>
-          <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+          <button className="iconTextButton" onClick={loadKnowledge} type="button">
             <RotateCcw aria-hidden="true" size={16} />
             Retry
           </button>
         </div>
       ) : null}
 
-      <OSCard className="homeHeroCard">
+      <OSCard className="homeHeroCard dashboardHero">
         <div className="homeHeroHeader">
           <div>
             <span className="eyebrow">Delikat Studio</span>
             <h3>Search SOPs, recipes, procedures…</h3>
-            <p>Use Studio to browse manuals, open SOPs, edit drafts, and preserve source evidence.</p>
+            <p>Everything here comes from the live Supabase knowledge base.</p>
           </div>
         </div>
 
-        <form className="homeSearchForm" onSubmit={handleSearchSubmit}>
+        <form className="homeSearchForm" onSubmit={handleSearch}>
           <label className="searchField homeSearchField">
             <Search aria-hidden="true" size={18} />
             <input
@@ -120,8 +120,8 @@ export function DashboardPage({
           </label>
           <div className="homeHeroActions">
             <button className="iconTextButton primary" type="submit">
-              <BookOpen aria-hidden="true" size={16} />
-              Open Studio
+              <Search aria-hidden="true" size={16} />
+              Search SOPs
             </button>
             <button className="iconTextButton secondary" onClick={onCreateSOP} type="button">
               <Plus aria-hidden="true" size={16} />
@@ -135,78 +135,32 @@ export function DashboardPage({
         </form>
       </OSCard>
 
-      <div className="homeFeedGrid homeFeedDense">
-        <section className="detailSection">
-          <div className="sectionHeader">
-            <div>
-              <h3>Workspace overview</h3>
-              <p>Live counts from Supabase where they exist.</p>
-            </div>
-            {onOpenStudio ? (
-              <button className="iconTextButton" onClick={onOpenStudio} type="button">
-                <BookOpen aria-hidden="true" size={16} />
-                Open Studio
-              </button>
-            ) : null}
-          </div>
-          <div className="homeSummaryGrid">
-            <SOPCard
-              title="SOPs"
-              summary="Approved SOPs available in the live library."
-              sourceLabel="Live data"
-              sourceDetail={sopCount > 0 ? `${sopCount} SOPs loaded` : 'No SOPs loaded yet'}
-              status="active"
-              statusLabel="Ready"
-            />
-            <SOPCard
-              title="Recipes"
-              summary="Recipe workspace arrives in the next phase."
-              sourceLabel="Placeholder"
-              sourceDetail="Not connected yet"
-              status="draft"
-              statusLabel="Coming soon"
-            />
-            <SOPCard
-              title="Drafts"
-              summary="Current draft SOPs and user-created work."
-              sourceLabel="Live data"
-              sourceDetail={draftCount > 0 ? `${draftCount} draft${draftCount === 1 ? '' : 's'} available` : 'No drafts yet'}
-              status={draftCount > 0 ? 'pending' : 'draft'}
-              statusLabel={draftCount > 0 ? 'Needs review' : 'Empty'}
-              action={onCreateSOP ? <button className="tableLink" onClick={onCreateSOP} type="button">Create New SOP</button> : undefined}
-            />
-            <SOPCard
-              title="Recent SOPs"
-              summary="Recently updated live SOP records."
-              sourceLabel="Live data"
-              sourceDetail={recentSopCount > 0 ? `${recentSopCount} recent SOPs` : 'No recent SOPs'}
-              status="active"
-              statusLabel="Ready"
-              action={onOpenStudio ? <button className="tableLink" onClick={onOpenStudio} type="button">Open Studio</button> : undefined}
-            />
-          </div>
-        </section>
+      <div className="dashboardMetrics">
+        <MetricCard label="SOPs" value={String(approvedSOPs.length)} helper="Approved SOPs in the live library." />
+        <MetricCard label="Drafts" value={String(drafts.length)} helper="User-created or in-progress SOPs." />
+        <MetricCard label="Recipes" value="Soon" helper="Recipe import arrives next." />
+      </div>
 
+      <div className="dashboardLists">
         <section className="detailSection">
           <div className="sectionHeader">
             <div>
               <h3>Recent SOPs</h3>
-              <p>Approved SOPs from the live Supabase library.</p>
+              <p>Recently updated approved SOPs from Supabase.</p>
             </div>
-            {onOpenStudio ? (
-              <button className="iconTextButton" onClick={onOpenStudio} type="button">
-                <BookOpen aria-hidden="true" size={16} />
-                Open Studio
-              </button>
-            ) : null}
+            <button className="iconTextButton" onClick={onOpenKnowledgeBase} type="button">
+              <BookOpen aria-hidden="true" size={16} />
+              Open Knowledge Base
+            </button>
           </div>
+
           {error && !knowledge ? (
             <EmptyState
               icon={Workflow}
               title="Recent SOPs unavailable"
               description={error}
               action={
-                <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+                <button className="iconTextButton" onClick={loadKnowledge} type="button">
                   <RotateCcw aria-hidden="true" size={16} />
                   Retry
                 </button>
@@ -216,15 +170,11 @@ export function DashboardPage({
             <EmptyState
               icon={Workflow}
               title={isSlowLoading ? 'Still loading recent SOPs' : 'Loading recent SOPs'}
-              description={
-                isSlowLoading
-                  ? 'Supabase is taking a moment to respond. Studio is still available if you want to keep working.'
-                  : 'We’re pulling recent SOPs from Supabase.'
-              }
+              description={isSlowLoading ? 'Supabase is taking a moment to respond.' : 'We’re pulling live SOPs from Supabase.'}
             />
-          ) : recentSOPs.length > 0 ? (
+          ) : approvedSOPs.length > 0 ? (
             <div className="homeDraftGrid">
-              {recentSOPs.map((object) => (
+              {approvedSOPs.slice(0, 4).map((object) => (
                 <SOPCard
                   key={object.id}
                   title={object.title}
@@ -232,17 +182,17 @@ export function DashboardPage({
                   sourceLabel={knowledgeOriginLabel(object)}
                   sourceDetail={object.sourceType === 'user_created' ? 'Created in Studio' : `${object.manualCode ?? object.manualTitle} · ${object.sourceSectionHeading}`}
                   status={object.status}
-                  statusLabel={object.approvedVersion.status === 'approved' ? 'Ready' : 'Draft'}
+                  statusLabel="Ready"
                   action={
-                    <button className="tableLink" onClick={() => onOpenStudio?.()} type="button">
-                      Open in Studio
+                    <button className="tableLink" onClick={onOpenKnowledgeBase} type="button">
+                      Open
                     </button>
                   }
                 />
               ))}
             </div>
           ) : (
-            <EmptyState icon={Workflow} title="No recent SOPs yet" description="Once SOPs are available in the live library, they’ll appear here." />
+            <EmptyState icon={Workflow} title="No recent SOPs yet" description="Approved SOPs will appear here once the live library loads." />
           )}
         </section>
 
@@ -250,16 +200,17 @@ export function DashboardPage({
           <div className="sectionHeader">
             <div>
               <h3>Recent drafts</h3>
-              <p>Draft SOPs saved in Studio.</p>
+              <p>Drafts and user-created SOPs that need attention.</p>
             </div>
           </div>
+
           {error && !knowledge ? (
             <EmptyState
               icon={Workflow}
               title="Recent drafts unavailable"
               description={error}
               action={
-                <button className="iconTextButton" onClick={refreshKnowledge} type="button">
+                <button className="iconTextButton" onClick={loadKnowledge} type="button">
                   <RotateCcw aria-hidden="true" size={16} />
                   Retry
                 </button>
@@ -269,15 +220,11 @@ export function DashboardPage({
             <EmptyState
               icon={Workflow}
               title={isSlowLoading ? 'Still loading recent drafts' : 'Loading recent drafts'}
-              description={
-                isSlowLoading
-                  ? 'Supabase is taking longer than usual. The workspace remains available.'
-                  : 'We’re checking for recent drafts in Supabase.'
-              }
+              description={isSlowLoading ? 'The live knowledge base is still coming in.' : 'We’re checking for draft SOPs in Supabase.'}
             />
-          ) : recentDrafts.length > 0 ? (
+          ) : drafts.length > 0 ? (
             <div className="homeDraftGrid">
-              {recentDrafts.map((object) => (
+              {drafts.slice(0, 4).map((object) => (
                 <SOPCard
                   key={object.id}
                   title={object.title}
@@ -292,7 +239,7 @@ export function DashboardPage({
                       onClick={() => onContinueLastDraft?.(object.id)}
                       type="button"
                     >
-                      Continue draft
+                      Continue
                     </button>
                   }
                 />
@@ -302,12 +249,12 @@ export function DashboardPage({
             <EmptyState
               icon={Workflow}
               title="No drafts yet"
-              description="Start a new SOP in Studio and it will show up here as soon as it is saved as a draft."
+              description="Create a new SOP in SOPs and it will appear here once it is saved as a draft."
               action={
                 onCreateSOP ? (
                   <button className="iconTextButton" onClick={onCreateSOP} type="button">
                     <Plus aria-hidden="true" size={16} />
-                    Create New SOP
+                    New SOP
                   </button>
                 ) : undefined
               }
